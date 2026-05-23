@@ -1,0 +1,26 @@
+node_modules
+dist
+.git
+.gitignore
+.env
+*.log
+
+# Tests/docs are not needed in runtime image
+tests
+*.md
+
+# Local sensitive/runtime config
+config/admin.json
+config/keys.json
+config/config.json
+config/*.backup*
+*.bak-*
+*.backup-*
+public/admin/*.bak-*
+public/admin/*.backup-*
+
+# Agent/private workspace artifacts
+.agent
+.claude
+.claire
+LIVE_FUNCTION_TEST_RESULTS.md

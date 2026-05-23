@@ -1,0 +1,33 @@
+{
+  "name": "llm-gateway",
+  "version": "1.0.0",
+  "description": "API gateway for Ollama with API key auth, rate limiting, and logging",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "secret-scan": "node scripts/secret-scan.mjs",
+    "precommit": "npm run build && npm test && npm run secret-scan"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@hono/node-server": "^1.19.14",
+    "bcryptjs": "^3.0.3",
+    "hono": "^4.12.12",
+    "jsonwebtoken": "^9.0.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
+  }
+}

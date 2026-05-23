@@ -1,0 +1,25 @@
+node_modules/
+dist/
+config/keys.json
+config/config.json
+.env
+*.log
+
+# Local sensitive/runtime config and backups
+config/admin.json
+config/*.backup*
+*.bak-*
+*.backup-*
+public/admin/*.bak-*
+public/admin/*.backup-*
+
+# Agent/private workspace artifacts
+.agent/
+.claude/
+.claire/
+
+# Local generated reports / live run artifacts
+LIVE_FUNCTION_TEST_RESULTS.md
+
+# Local git backup pointer
+.git-backup-path
