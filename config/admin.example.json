@@ -1,0 +1,11 @@
+{
+  "users": [
+    {
+      "username": "admin",
+      "passwordHash": "REPLACE_WITH_BCRYPT_HASH",
+      "createdAt": "2026-04-20T00:00:00Z"
+    }
+  ],
+  "jwtSecret": "REPLACE_WITH_LONG_RANDOM_SECRET_32_BYTES_MINIMUM",
+  "sessionExpiryHours": 24
+}
