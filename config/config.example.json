@@ -1,0 +1,6 @@
+{
+  "port": 8080,
+  "ollamaHost": "http://host.docker.internal:11434",
+  "logLevel": "info",
+  "corsOrigins": ["*"]
+}

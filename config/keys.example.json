@@ -1,0 +1,22 @@
+{
+  "keys": [
+    {
+      "id": "key_001",
+      "name": "iPhone Allora",
+      "key": "sk-allora-change-me",
+      "enabled": true,
+      "rateLimit": 30,
+      "allowedModels": ["*"],
+      "createdAt": "2026-04-14T00:00:00Z"
+    },
+    {
+      "id": "key_002",
+      "name": "OpenClaw Docker",
+      "key": "sk-openclaw-change-me",
+      "enabled": true,
+      "rateLimit": 60,
+      "allowedModels": ["*"],
+      "createdAt": "2026-04-14T00:00:00Z"
+    }
+  ]
+}
