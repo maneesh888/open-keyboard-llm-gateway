@@ -53,7 +53,7 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('clearSession();dashboardScreen.classList.remove');
   });
 
-  it('exposes independent playground and key tester workflow without mobile tab clutter', () => {
+  it('exposes independent playground and key tester workflow with responsive navigation', () => {
     expect(html).toContain('LLM Playground / Key Tester');
     expect(html).toContain('data-page="playground"');
     expect(html).toContain('id="testerKey"');
@@ -62,8 +62,9 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('function classify(status,data,err)');
     expect(html).toContain('history.replaceState(null');
     expect(html).toContain(`onclick="navigateTo('keys')"`);
-    expect(html).not.toContain('class="mobile-tabs"');
-    expect(html).not.toContain('>Playground</button></div><div class="error"');
+    expect(html).toContain('class="mobile-tabs"');
+    expect(html).toContain('class="mobile-tab" data-page="playground"');
+    expect(html).toContain("document.querySelectorAll('.nav-pill,.mobile-tab')");
   });
 
   it('uses model selector with manual fallback for key creation/editing', () => {
