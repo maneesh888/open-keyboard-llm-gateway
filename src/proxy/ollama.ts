@@ -2,9 +2,11 @@ import type { Context } from 'hono';
 
 export class OllamaProxy {
   private host: string;
+  private apfelHost?: string;
 
-  constructor(host: string) {
+  constructor(host: string, apfelHost?: string) {
     this.host = host.replace(/\/$/, '');
+    this.apfelHost = apfelHost?.replace(/\/$/, '');
   }
 
   async healthCheck(): Promise<boolean> {
@@ -44,7 +46,27 @@ export class OllamaProxy {
       models.add('gemma4:latest');
     }
 
+    if (this.apfelHost) {
+      try {
+        const apfelRes = await fetch(`${this.apfelHost}/v1/models`, { signal: AbortSignal.timeout(5000) });
+        if (apfelRes.ok) {
+          const apfel = await apfelRes.json() as { data?: Array<{ id?: string }> };
+          const apfelModelIds = new Set((apfel.data || []).map((model) => model.id).filter(Boolean));
+          if (!apfelModelIds.size || apfelModelIds.has('apple-foundationmodel')) {
+            models.add('apple-foundationmodel');
+          }
+        }
+      } catch {}
+    }
+
     return [...models].sort((a, b) => a.localeCompare(b));
+  }
+
+  private targetHostForModel(model?: string): string {
+    if (this.apfelHost && model === 'apple-foundationmodel') {
+      return this.apfelHost;
+    }
+    return this.host;
   }
 
   async forward(c: Context): Promise<Response> {
@@ -75,9 +97,9 @@ export class OllamaProxy {
     // Build target URL — treat URL construction errors as a config problem (503)
     let url: URL;
     try {
-      url = new URL(this.host + c.req.path);
+      url = new URL(this.targetHostForModel(model) + c.req.path);
     } catch {
-      return c.json({ error: 'Ollama is not reachable', detail: 'Invalid OLLAMA_HOST configuration' }, 503);
+      return c.json({ error: 'Upstream model backend is not reachable', detail: 'Invalid upstream host configuration' }, 503);
     }
 
     const headers = new Headers();
@@ -108,7 +130,7 @@ export class OllamaProxy {
       if (e.name === 'TimeoutError') {
         return c.json({ error: 'Ollama request timed out' }, 504);
       }
-      return c.json({ error: 'Ollama is not reachable', detail: e.message }, 503);
+      return c.json({ error: 'Upstream model backend is not reachable', detail: e.message }, 503);
     }
   }
 }

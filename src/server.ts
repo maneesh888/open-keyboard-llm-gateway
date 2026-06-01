@@ -15,7 +15,7 @@ export function createApp(config: AppConfig, keysPath: string, adminConfig?: Adm
   const app = new Hono();
   const keyManager = new KeyManager(keysPath);
   const rateLimiter = new RateLimiter();
-  const proxy = new OllamaProxy(config.ollamaHost);
+  const proxy = new OllamaProxy(config.ollamaHost, config.apfelHost);
 
   keyManager.watchForChanges();
 

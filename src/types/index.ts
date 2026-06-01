@@ -44,6 +44,7 @@ export interface KeysConfig {
 export interface AppConfig {
   port: number;
   ollamaHost: string;
+  apfelHost?: string;
   logLevel: string;
   corsOrigins: string[];
   trustedProxies?: string[]; // CIDR ranges of trusted reverse proxies (e.g. Cloudflare)

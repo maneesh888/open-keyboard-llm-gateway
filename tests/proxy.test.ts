@@ -177,6 +177,36 @@ describe('OllamaProxy', () => {
     expect(res.status).toBe(200);
   });
 
+  it('routes apple-foundationmodel chat completions to Apfel when configured', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response('{"choices":[]}', { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+
+    const proxy = new OllamaProxy('http://localhost:11434', 'http://localhost:11435');
+    const app = buildApp(proxy);
+
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'apple-foundationmodel', messages: [] }),
+    });
+
+    expect(res.status).toBe(200);
+    const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://localhost:11435/v1/chat/completions');
+  });
+
+  it('adds Apfel models to the admin model list when Apfel is reachable', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: 'apple-foundationmodel' }] }), { status: 200, headers: { 'content-type': 'application/json' } }));
+
+    const proxy = new OllamaProxy('http://localhost:11434', 'http://localhost:11435');
+
+    await expect(proxy.listModels()).resolves.toContain('apple-foundationmodel');
+  });
+
   it('health check returns true when Ollama responds 200', async () => {
     fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
     const proxy = new OllamaProxy('http://localhost:11434');

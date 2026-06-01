@@ -14,6 +14,7 @@ try {
   config = {
     port: parseInt(process.env.PORT || '8080'),
     ollamaHost: process.env.OLLAMA_HOST || 'http://host.docker.internal:11434',
+    apfelHost: process.env.APFEL_HOST || undefined,
     logLevel: 'info',
     corsOrigins: ['*'],
   };
@@ -35,5 +36,8 @@ const { app } = createApp(config, keysPath, adminConfig);
 
 console.log(`[gateway] Starting on port ${config.port}`);
 console.log(`[gateway] Proxying to ${config.ollamaHost}`);
+if (config.apfelHost) {
+  console.log(`[gateway] Apfel backend enabled at ${config.apfelHost}`);
+}
 
 serve({ fetch: app.fetch, port: config.port });
