@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { KeyManager } from './keys/manager.js';
 import { authMiddleware } from './middleware/auth.js';
@@ -31,6 +31,45 @@ export function createApp(config: AppConfig, keysPath: string, adminConfig?: Adm
 
   app.get('/', async (c) => c.json(await healthCheck()));
   app.get('/health', async (c) => c.json(await healthCheck()));
+
+  const servePublicFile = (relativePath: string, contentType: string) => {
+    const filePath = join(process.cwd(), 'public', ...relativePath.split('/'));
+    if (!existsSync(filePath)) {
+      return null;
+    }
+    return {
+      body: readFileSync(filePath),
+      contentType,
+    };
+  };
+
+  app.get('/myportfolio', (c) => c.redirect('/myportfolio/'));
+  app.get('/myportfolio/', (c) => {
+    const file = servePublicFile('myportfolio/index.html', 'text/html; charset=utf-8');
+    if (!file) {
+      return c.text('Portfolio not found', 404);
+    }
+    return c.body(file.body, 200, { 'Content-Type': file.contentType });
+  });
+  app.get('/myportfolio/:file', (c) => {
+    const fileName = c.req.param('file');
+    const contentTypes: Record<string, string> = {
+      'ai-just-spent.html': 'text/html; charset=utf-8',
+      'ai-open-keyboard.html': 'text/html; charset=utf-8',
+      'ai-open-keyboard-llm-gateway.html': 'text/html; charset=utf-8',
+      'style.css': 'text/css; charset=utf-8',
+      'script.js': 'application/javascript; charset=utf-8',
+    };
+    const contentType = contentTypes[fileName];
+    if (!contentType) {
+      return c.text('Not found', 404);
+    }
+    const file = servePublicFile(`myportfolio/${fileName}`, contentType);
+    if (!file) {
+      return c.text('Not found', 404);
+    }
+    return c.body(file.body, 200, { 'Content-Type': file.contentType });
+  });
 
   // Admin routes (if config provided)
   if (adminConfig) {

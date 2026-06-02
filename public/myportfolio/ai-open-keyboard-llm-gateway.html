@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Keyboard LLM Gateway | AI Portfolio | Maneesh</title>
+    <meta name="description" content="Open Keyboard LLM Gateway AI project detail page by Maneesh Madayan. Self-hosted TypeScript gateway for local AI writing tools.">
+    <link rel="stylesheet" href="style.css?v=20260602-ai-keyboard">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="detail-page">
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html#portfolio" class="nav-brand">Maneesh</a>
+            <ul class="nav-menu">
+                <li><a href="index.html#home" class="nav-link">Home</a></li>
+                <li><a href="index.html#projects" class="nav-link">Projects</a></li>
+                <li><a href="index.html#portfolio" class="nav-link">AI Portfolio</a></li>
+                <li><a href="index.html#contact" class="nav-link">Contact</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="index.html#portfolio" class="detail-nav-back">Back</a>
+                <button class="theme-toggle" aria-label="Toggle theme" title="Toggle light/dark theme">
+                    <span class="sun-icon">☀️</span>
+                    <span class="moon-icon">🌙</span>
+                </button>
+                <div class="hamburger">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <section class="portfolio-showcase">
+            <div class="container">
+                <div class="showcase-badge">Self-Hosted AI Backend</div>
+                <h1 class="section-title showcase-title">Open Keyboard LLM Gateway</h1>
+                <p class="showcase-subtitle">A lightweight TypeScript gateway for privacy-first AI writing workflows and local model routing.</p>
+
+                <div class="showcase-content">
+                    <div class="showcase-hero">
+                        <div class="showcase-description">
+                            <p class="showcase-intro"><strong>This project supports Open Keyboard</strong>, an AI writing workflow where the keyboard client can call a controlled backend instead of talking directly to a model provider.</p>
+                            <p class="showcase-highlight"><strong>The gateway</strong> authenticates client keys, rate-limits requests, exposes OpenAI-compatible chat completions, and routes requests to local Ollama models. It keeps model infrastructure under user control while preserving a simple client integration surface.</p>
+                            <p class="showcase-vision"><strong>What this demonstrates:</strong> Practical backend architecture for self-hosted AI tools, including auth, model access control, admin operations, Docker deployment, and tests around critical API behavior.</p>
+                        </div>
+
+                        <div class="showcase-stats-grid">
+                            <div class="stat-box">
+                                <div class="stat-icon">API</div>
+                                <div class="stat-value">OpenAI</div>
+                                <div class="stat-label">Compatible</div>
+                                <div class="stat-detail">Chat completion surface</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-icon">Auth</div>
+                                <div class="stat-value">Keys</div>
+                                <div class="stat-label">Client Access</div>
+                                <div class="stat-detail">Hot-reloaded API keys</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-icon">Run</div>
+                                <div class="stat-value">Docker</div>
+                                <div class="stat-label">Deployment</div>
+                                <div class="stat-detail">Containerized gateway</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-icon">Tests</div>
+                                <div class="stat-value">Vitest</div>
+                                <div class="stat-label">Coverage</div>
+                                <div class="stat-detail">API and middleware behavior</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="showcase-features">
+                        <h2 class="features-title">Technical Highlights</h2>
+                        <div class="features-grid">
+                            <div class="feature-item">
+                                <span class="feature-icon">Auth</span>
+                                <h3>API Key Authentication</h3>
+                                <p>Validates bearer keys, supports key enablement and revocation, and restricts access before model requests reach the proxy layer.</p>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">Limits</span>
+                                <h3>Rate Limiting</h3>
+                                <p>Applies per-key request limits so keyboard clients and experiments can share the backend without uncontrolled traffic.</p>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">Models</span>
+                                <h3>Local Model Routing</h3>
+                                <p>Routes OpenAI-compatible chat requests to Ollama, enabling local model use without changing the client integration pattern.</p>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">Admin</span>
+                                <h3>Admin Operations</h3>
+                                <p>Includes an admin API and UI path for key management, model configuration, and operational control of client access.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="showcase-tech">
+                        <h2 class="tech-title">Technology Stack</h2>
+                        <div class="tech-platforms">
+                            <div class="tech-platform">
+                                <h3>Gateway</h3>
+                                <div class="tech-tags-inline">
+                                    <span class="tech-tag-inline">TypeScript</span>
+                                    <span class="tech-tag-inline">Hono</span>
+                                    <span class="tech-tag-inline">Node.js</span>
+                                    <span class="tech-tag-inline">CORS</span>
+                                    <span class="tech-tag-inline">JSON logging</span>
+                                </div>
+                            </div>
+                            <div class="tech-platform">
+                                <h3>Runtime</h3>
+                                <div class="tech-tags-inline">
+                                    <span class="tech-tag-inline">Docker</span>
+                                    <span class="tech-tag-inline">Ollama</span>
+                                    <span class="tech-tag-inline">OpenAI-compatible API</span>
+                                    <span class="tech-tag-inline">Vitest</span>
+                                    <span class="tech-tag-inline">Admin API</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="showcase-documentation">
+                        <h2 class="docs-title">Repository Entry Points</h2>
+                        <p class="docs-description">The project is structured around a small gateway core, middleware for request control, and deployment files for local hosting.</p>
+                        <div class="docs-grid">
+                            <a href="https://github.com/maneesh888/open-keyboard-llm-gateway" target="_blank" rel="noopener noreferrer" class="doc-item">
+                                <span class="doc-icon">Repo</span>
+                                <span class="doc-name">open-keyboard-llm-gateway</span>
+                            </a>
+                            <a href="https://github.com/maneesh888/open-keyboard-llm-gateway/blob/main/README.md" target="_blank" rel="noopener noreferrer" class="doc-item">
+                                <span class="doc-icon">Doc</span>
+                                <span class="doc-name">README.md</span>
+                            </a>
+                            <a href="https://github.com/maneesh888/open-keyboard-llm-gateway/tree/main/src/middleware" target="_blank" rel="noopener noreferrer" class="doc-item">
+                                <span class="doc-icon">Src</span>
+                                <span class="doc-name">src/middleware</span>
+                            </a>
+                            <a href="https://github.com/maneesh888/open-keyboard-llm-gateway/tree/main/src/proxy" target="_blank" rel="noopener noreferrer" class="doc-item">
+                                <span class="doc-icon">Src</span>
+                                <span class="doc-name">src/proxy</span>
+                            </a>
+                            <a href="https://github.com/maneesh888/open-keyboard-llm-gateway/tree/main/config" target="_blank" rel="noopener noreferrer" class="doc-item">
+                                <span class="doc-icon">Cfg</span>
+                                <span class="doc-name">config examples</span>
+                            </a>
+                            <a href="ai-open-keyboard.html" class="doc-item">
+                                <span class="doc-icon">App</span>
+                                <span class="doc-name">Open Keyboard detail page</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="showcase-cta">
+                        <p class="cta-text">Review the gateway implementation, the client project it supports, and the self-hosted AI workflow behind the keyboard experience.</p>
+                        <div class="showcase-actions">
+                            <a href="https://github.com/maneesh888/open-keyboard-llm-gateway" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-large showcase-btn">View Gateway</a>
+                            <a href="ai-open-keyboard.html" class="btn btn-secondary btn-large showcase-btn">Open Keyboard Detail</a>
+                            <a href="index.html#portfolio" class="btn btn-secondary btn-large showcase-btn">Back to AI Portfolio</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="script.js?v=20260602-ai-keyboard"></script>
+</body>
+</html>

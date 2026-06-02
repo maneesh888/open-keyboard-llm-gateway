@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Keyboard | AI Portfolio | Maneesh</title>
+    <meta name="description" content="Open Keyboard AI project detail page by Maneesh Madayan. Privacy-first iOS AI writing keyboard paired with a self-hosted LLM Gateway.">
+    <link rel="stylesheet" href="style.css?v=20260602-ai-keyboard">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="detail-page">
+    <nav class="navbar">
+        <div class="container">
+            <a href="index.html#portfolio" class="nav-brand">Maneesh</a>
+            <ul class="nav-menu">
+                <li><a href="index.html#home" class="nav-link">Home</a></li>
+                <li><a href="index.html#projects" class="nav-link">Projects</a></li>
+                <li><a href="index.html#portfolio" class="nav-link">AI Portfolio</a></li>
+                <li><a href="index.html#contact" class="nav-link">Contact</a></li>
+            </ul>
+            <div class="nav-actions">
+                <a href="index.html#portfolio" class="detail-nav-back">Back</a>
+                <button class="theme-toggle" aria-label="Toggle theme" title="Toggle light/dark theme">
+                    <span class="sun-icon">☀️</span>
+                    <span class="moon-icon">🌙</span>
+                </button>
+                <div class="hamburger">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <section class="portfolio-showcase">
+            <div class="container">
+                <div class="showcase-badge">Privacy-First AI Keyboard</div>
+                <h1 class="section-title showcase-title">Open Keyboard</h1>
+                <p class="showcase-subtitle">An open-source iOS AI writing assistant delivered through a custom keyboard and paired with a self-hosted gateway.</p>
+
+                <div class="showcase-content">
+                    <div class="showcase-hero">
+                        <div class="showcase-description">
+                            <p class="showcase-intro"><strong>Open Keyboard is the user-facing AI product</strong>: a custom iOS keyboard intended to provide normal typing plus high-quality writing assistance.</p>
+                            <p class="showcase-highlight"><strong>The goal</strong> is a Grammarly-class writing assistant for iOS with suggestions, grammar fixes, rewrites, tone changes, summaries, and smart replies while keeping the user's gateway, keys, logs, and model backend under their control.</p>
+                            <p class="showcase-vision"><strong>What this demonstrates:</strong> iOS keyboard extension architecture, SwiftUI-first product development, test-first core logic, privacy-aware AI workflows, and integration with a self-hosted LLM backend.</p>
+                        </div>
+
+                        <div class="showcase-stats-grid">
+                            <div class="stat-box">
+                                <div class="stat-icon">iOS</div>
+                                <div class="stat-value">App</div>
+                                <div class="stat-label">Host Target</div>
+                                <div class="stat-detail">Onboarding and settings shell</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-icon">Ext</div>
+                                <div class="stat-value">Keyboard</div>
+                                <div class="stat-label">Extension Target</div>
+                                <div class="stat-detail">Custom typing surface</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-icon">Core</div>
+                                <div class="stat-value">48+</div>
+                                <div class="stat-label">Core Tests</div>
+                                <div class="stat-detail">Config, prompts, gateway logic</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-icon">CI</div>
+                                <div class="stat-value">Buildable</div>
+                                <div class="stat-label">iOS Shell</div>
+                                <div class="stat-detail">App and extension build path</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="showcase-features">
+                        <h2 class="features-title">Technical Highlights</h2>
+                        <div class="features-grid">
+                            <div class="feature-item">
+                                <span class="feature-icon">Keyboard</span>
+                                <h3>Custom iOS Keyboard</h3>
+                                <p>Buildable keyboard extension shell with core typing behavior including letters, shift, globe, delete, space, and return.</p>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">Writing</span>
+                                <h3>AI Writing Actions</h3>
+                                <p>Core prompt generation for grammar, rewrite, summarize, continue writing, tone transforms, and custom templates.</p>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">Privacy</span>
+                                <h3>User-Controlled Backend</h3>
+                                <p>Pairs with a self-hosted gateway instead of embedding provider secrets or sending typed text directly to third-party keyboard services.</p>
+                            </div>
+                            <div class="feature-item">
+                                <span class="feature-icon">Testing</span>
+                                <h3>Test-First Core</h3>
+                                <p>OpenKeyboardCore validates gateway config, model parsing, chat requests, error mapping, keyboard reducer behavior, and replacement strategies.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="showcase-tech">
+                        <h2 class="tech-title">Technology Stack</h2>
+                        <div class="tech-platforms">
+                            <div class="tech-platform">
+                                <h3>iOS App</h3>
+                                <div class="tech-tags-inline">
+                                    <span class="tech-tag-inline">Swift</span>
+                                    <span class="tech-tag-inline">SwiftUI</span>
+                                    <span class="tech-tag-inline">Keyboard Extension</span>
+                                    <span class="tech-tag-inline">App Groups</span>
+                                    <span class="tech-tag-inline">Xcode</span>
+                                </div>
+                            </div>
+                            <div class="tech-platform">
+                                <h3>AI Core</h3>
+                                <div class="tech-tags-inline">
+                                    <span class="tech-tag-inline">OpenKeyboardCore</span>
+                                    <span class="tech-tag-inline">Swift Package</span>
+                                    <span class="tech-tag-inline">OpenAI-compatible API</span>
+                                    <span class="tech-tag-inline">LLM Gateway</span>
+                                    <span class="tech-tag-inline">XCTest</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="showcase-documentation">
+                        <h2 class="docs-title">Repository Entry Points</h2>
+                        <p class="docs-description">The project separates user-facing iOS surfaces from testable core logic and the gateway-backed AI writing flow.</p>
+                        <div class="docs-grid">
+                            <a href="https://github.com/maneesh888/open-keyboard" target="_blank" rel="noopener noreferrer" class="doc-item">
+                                <span class="doc-icon">Repo</span>
+                                <span class="doc-name">open-keyboard</span>
+                            </a>
+                            <a href="https://github.com/maneesh888/open-keyboard/blob/main/README.md" target="_blank" rel="noopener noreferrer" class="doc-item">
+                                <span class="doc-icon">Doc</span>
+                                <span class="doc-name">README.md</span>
+                            </a>
+                            <a href="https://github.com/maneesh888/open-keyboard/tree/main/OpenKeyboardExtension" target="_blank" rel="noopener noreferrer" class="doc-item">
+                                <span class="doc-icon">Src</span>
+                                <span class="doc-name">OpenKeyboardExtension</span>
+                            </a>
+                            <a href="https://github.com/maneesh888/open-keyboard/tree/main/OpenKeyboardCore" target="_blank" rel="noopener noreferrer" class="doc-item">
+                                <span class="doc-icon">Src</span>
+                                <span class="doc-name">OpenKeyboardCore</span>
+                            </a>
+                            <a href="https://github.com/maneesh888/open-keyboard/blob/main/docs/TDD_STATUS.md" target="_blank" rel="noopener noreferrer" class="doc-item">
+                                <span class="doc-icon">Doc</span>
+                                <span class="doc-name">docs/TDD_STATUS.md</span>
+                            </a>
+                            <a href="ai-open-keyboard-llm-gateway.html" class="doc-item">
+                                <span class="doc-icon">Pair</span>
+                                <span class="doc-name">LLM Gateway detail page</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="showcase-cta">
+                        <p class="cta-text">Review the iOS keyboard project, then follow the gateway detail page to see the backend layer used for authentication, rate limits, and local model routing.</p>
+                        <div class="showcase-actions">
+                            <a href="https://github.com/maneesh888/open-keyboard" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-large showcase-btn">View Open Keyboard</a>
+                            <a href="ai-open-keyboard-llm-gateway.html" class="btn btn-secondary btn-large showcase-btn">View Gateway Detail</a>
+                            <a href="index.html#portfolio" class="btn btn-secondary btn-large showcase-btn">Back to AI Portfolio</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="script.js?v=20260602-ai-keyboard"></script>
+</body>
+</html>
