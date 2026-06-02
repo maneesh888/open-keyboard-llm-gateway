@@ -58,6 +58,8 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('data-page="playground"');
     expect(html).toContain('id="testerKey"');
     expect(html).toContain('function renderTesterKeys()');
+    expect(html).toContain('function getFullKey(id)');
+    expect(html).toContain('api(`/admin/keys/${id}`)');
     expect(html).toContain("fetch('/v1/chat/completions'");
     expect(html).toContain('function classify(status,data,err)');
     expect(html).toContain('history.replaceState(null');
@@ -72,6 +74,10 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('id="keyModel"');
     expect(html).toContain("onchange=\"syncManualModel('key')\"");
     expect(html).toContain('function syncManualModel(prefix)');
+    expect(html).toContain('function preferredModel()');
+    expect(html).toContain("const preferredModelOrder=['gpt-oss:120b-cloud','gemma4:latest','llama3.2:latest']");
+    expect(html).toContain('populateModelSelect(keyModel);keyModelManual.classList.add');
+    expect(html).not.toContain('populateModelSelect(keyModel,availableModels[0])');
     expect(html).toContain('Custom / manual…');
   });
 });
