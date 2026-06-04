@@ -2,6 +2,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import type { AdminConfig, AuthToken } from '../types/index.js';
 
+const BCRYPT_SALT_ROUNDS = 12;
+
 export class AdminAuth {
   private config: AdminConfig;
 
@@ -15,8 +17,7 @@ export class AdminAuth {
    * @returns Bcrypt hash
    */
   async hashPassword(password: string): Promise<string> {
-    const saltRounds = 10;
-    return bcrypt.hash(password, saltRounds);
+    return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
   }
 
   /**
@@ -24,8 +25,7 @@ export class AdminAuth {
    * @deprecated Use hashPassword() instead
    */
   hashPasswordSync(password: string): string {
-    const saltRounds = 10;
-    return bcrypt.hashSync(password, saltRounds);
+    return bcrypt.hashSync(password, BCRYPT_SALT_ROUNDS);
   }
 
   /**

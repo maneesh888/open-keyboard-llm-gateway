@@ -120,11 +120,6 @@ Results:
 - `npm test`: pass — 8 files, 75 tests
 - `npm run build`: pass
 
-Logs:
-
-- `.agent/logs/2026-06-02-apfel-poc-npm-test.log`
-- `.agent/logs/2026-06-02-apfel-poc-build.log`
-
 ## Host validation
 
 ClawMaster validated the PoC on the host Mac because Apfel requires macOS + Apple Intelligence:
@@ -137,8 +132,6 @@ ClawMaster validated the PoC on the host Mac because Apfel requires macOS + Appl
 - Apfel `/v1/chat/completions` returned a short response (`Apfel ok`).
 - Gateway test run with `APFEL_HOST=http://127.0.0.1:11435 npm test` passed: 8 files, 75 tests.
 - Temporary gateway `/admin/models` returned `apple-foundationmodel` plus existing Ollama models.
-
-Request file: `/app/workspace/clawd-coder/requests/clawmaster/2026-06-02T013917-llm-gateway-apfel-host-poc.md`.
 
 Remaining product checks: create a real Open Keyboard key using `apple-foundationmodel`, run live keyboard actions against the host gateway, and evaluate latency/quality for common rewrite/fix-grammar prompts.
 
