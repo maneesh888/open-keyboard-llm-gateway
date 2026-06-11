@@ -1,6 +1,7 @@
 import { serve } from '@hono/node-server';
 import { readFileSync, existsSync } from 'fs';
 import { createApp } from './server.js';
+import { loadConfig } from './config/appConfig.js';
 import type { AppConfig, AdminConfig } from './types/index.js';
 
 const configPath = process.env.CONFIG_PATH || './config/config.json';
@@ -9,15 +10,10 @@ const adminConfigPath = process.env.ADMIN_CONFIG_PATH || './config/admin.json';
 
 let config: AppConfig;
 try {
-  config = JSON.parse(readFileSync(configPath, 'utf-8'));
-} catch {
-  config = {
-    port: parseInt(process.env.PORT || '8080'),
-    ollamaHost: process.env.OLLAMA_HOST || 'http://host.docker.internal:11434',
-    apfelHost: process.env.APFEL_HOST || undefined,
-    logLevel: 'info',
-    corsOrigins: ['*'],
-  };
+  config = loadConfig(configPath);
+} catch (error) {
+  console.error('[gateway] Invalid server config:', error instanceof Error ? error.message : error);
+  process.exit(1);
 }
 
 let adminConfig: AdminConfig | undefined;

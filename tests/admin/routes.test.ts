@@ -100,6 +100,7 @@ describe('Admin key routes', () => {
     expect(body.enabled).toBe(true);
     expect(body.rateLimitConfig.requestsPerMinute).toBe(30);
     expect(body.modelConfig.model).toBe('gemma4:latest');
+    expect(body.allowedModels).toEqual(['*']);
   });
 
   it('rejects create without name', async () => {
@@ -112,15 +113,31 @@ describe('Admin key routes', () => {
     expect(res.status).toBe(400);
   });
 
-  it('updates mutable fields but never overwrites id or key value', async () => {
+  it('rejects create with invalid nested settings', async () => {
+    const res = await app.request('/admin/keys', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Bad Key',
+        rateLimitConfig: { requestsPerMinute: 0, burstAllowance: 10 },
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/rateLimitConfig\.requestsPerMinute/);
+  });
+
+  it('updates mutable fields with validated settings', async () => {
     const res = await app.request('/admin/keys/key_existing', {
       method: 'PATCH',
       headers: { ...authHeaders(), 'content-type': 'application/json' },
       body: JSON.stringify({
-        id: 'hacked',
-        key: 'sk-hacked',
         name: 'Renamed',
         enabled: false,
+        rateLimitConfig: { requestsPerMinute: 90, burstAllowance: 12 },
+        modelConfig: { model: 'local-model', maxTokens: 250, temperature: 0.2 },
+        allowedModels: ['local-model'],
       }),
     });
 
@@ -130,6 +147,39 @@ describe('Admin key routes', () => {
     expect(body.key).toBe('sk-existing-secret-value');
     expect(body.name).toBe('Renamed');
     expect(body.enabled).toBe(false);
+    expect(body.rateLimitConfig).toEqual({ requestsPerMinute: 90, burstAllowance: 12 });
+    expect(body.modelConfig).toEqual({ model: 'local-model', maxTokens: 250, temperature: 0.2 });
+    expect(body.allowedModels).toEqual(['local-model']);
+  });
+
+  it('rejects attempts to update unknown or immutable fields', async () => {
+    const res = await app.request('/admin/keys/key_existing', {
+      method: 'PATCH',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'hacked',
+        key: 'sk-hacked',
+        name: 'Renamed',
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/Unknown field/);
+  });
+
+  it('rejects invalid update types', async () => {
+    const res = await app.request('/admin/keys/key_existing', {
+      method: 'PATCH',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({
+        enabled: 'false',
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/enabled/);
   });
 
   it('deletes a key', async () => {

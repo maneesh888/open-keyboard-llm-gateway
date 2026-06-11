@@ -287,4 +287,45 @@ describe('RateLimiter - Token Bucket', () => {
       expect(ctx.getStatus()).toBe(200);
     });
   });
+
+  describe('Config changes', () => {
+    it('should apply updated rate limit config for an existing key bucket', async () => {
+      const apiKey: ApiKey = {
+        id: 'test-key-config-refresh',
+        name: 'Test',
+        key: 'sk-test',
+        enabled: true,
+        rateLimitConfig: {
+          requestsPerMinute: 60,
+          burstAllowance: 5
+        },
+        createdAt: new Date().toISOString()
+      };
+
+      const middleware = rateLimiter.middleware();
+
+      let ctx = createMockContext(apiKey) as any;
+      await middleware(ctx, mockNext);
+      expect(ctx.getHeaders()['X-RateLimit-Limit']).toBe('5');
+      expect(ctx.getStatus()).toBe(200);
+
+      const updatedApiKey: ApiKey = {
+        ...apiKey,
+        rateLimitConfig: {
+          requestsPerMinute: 60,
+          burstAllowance: 1
+        }
+      };
+
+      ctx = createMockContext(updatedApiKey) as any;
+      await middleware(ctx, mockNext);
+      expect(ctx.getHeaders()['X-RateLimit-Limit']).toBe('1');
+      expect(ctx.getStatus()).toBe(200);
+
+      ctx = createMockContext(updatedApiKey) as any;
+      await middleware(ctx, mockNext);
+      expect(ctx.getStatus()).toBe(429);
+      expect(ctx.getBody().limit).toBe(1);
+    });
+  });
 });

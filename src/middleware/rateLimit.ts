@@ -37,7 +37,14 @@ export class RateLimiter {
     const refillRate = rateLimitConfig.requestsPerMinute / 60000; // tokens per ms
 
     let bucket = this.buckets.get(keyId);
-    
+
+    if (bucket && (bucket.capacity !== capacity || bucket.refillRate !== refillRate)) {
+      this.refillBucket(bucket);
+      bucket.capacity = capacity;
+      bucket.refillRate = refillRate;
+      bucket.tokens = Math.min(bucket.tokens, capacity);
+    }
+
     if (!bucket) {
       // Create new bucket, start full
       bucket = {
@@ -148,4 +155,3 @@ export class RateLimiter {
     this.buckets.clear();
   }
 }
-
