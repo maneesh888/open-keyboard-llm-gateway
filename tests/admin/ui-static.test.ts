@@ -69,6 +69,14 @@ describe('Admin UI static contract', () => {
     expect(html).toContain("document.querySelectorAll('.nav-pill,.mobile-tab')");
   });
 
+
+  it('normalizes invalid admin routes after login and exposes active nav state', () => {
+    expect(html).toContain('needsNormalize');
+    expect(html).toContain("if(parseRoute().needsNormalize)history.replaceState(null,'',routeFor('keys'))");
+    expect(html).toContain("if(route.needsNormalize&&authToken)history.replaceState(null,'',routeFor(route.page,route.keyId))");
+    expect(html).toContain("b.setAttribute('aria-current',active?'page':'false')");
+  });
+
   it('uses model selector with manual fallback for key creation/editing', () => {
     expect(html).toContain("api('/admin/models'");
     expect(html).toContain('id="keyModel"');
