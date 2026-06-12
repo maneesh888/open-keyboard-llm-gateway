@@ -57,10 +57,15 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('LLM Playground / Key Tester');
     expect(html).toContain('data-page="playground"');
     expect(html).toContain('id="testerKey"');
+    expect(html).toContain('id="testerKeyFetchStatus"');
     expect(html).toContain('function renderTesterKeys()');
     expect(html).toContain('function getFullKey(id)');
     expect(html).toContain('api(`/admin/keys/${id}`)');
+    expect(html).toContain('Checking admin API…');
+    expect(html).toContain('fullKeyFetched');
     expect(html).toContain("fetch('/v1/chat/completions'");
+    expect(html).toContain("endpoint:'/v1/chat/completions'");
+    expect(html).toContain('Selected key is disabled. Enable it before running a live chat test.');
     expect(html).toContain('function classify(status,data,err)');
     expect(html).toContain('history.replaceState(null');
     expect(html).toContain(`onclick="navigateTo('keys')"`);
