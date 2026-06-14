@@ -33,22 +33,59 @@ describe('OllamaProxy', () => {
     vi.unstubAllGlobals();
   });
 
-  it('forwards GET request to Ollama', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ object: 'list', data: [] }), {
+  it('lists upstream Ollama models for unrestricted keys without a configured default', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [{ name: 'gemma4:latest' }] }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
-      }),
-    );
+      }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [{ name: 'gemma4:latest' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }));
 
     const proxy = new OllamaProxy('http://localhost:11434');
     const app = buildApp(proxy);
     const res = await app.request('/v1/models');
 
     expect(res.status).toBe(200);
-    expect(fetchSpy).toHaveBeenCalledOnce();
-    const [url] = fetchSpy.mock.calls[0] as [string, ...unknown[]];
-    expect(url).toBe('http://localhost:11434/v1/models');
+    await expect(res.json()).resolves.toEqual({
+      object: 'list',
+      data: [{ id: 'gemma4:latest', object: 'model', created: 0, owned_by: 'ollama' }],
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy.mock.calls.map(([url]) => url)).toEqual([
+      'http://localhost:11434/api/tags',
+      'http://localhost:11434/api/ps',
+    ]);
+  });
+
+  it('returns the key configured Apfel model for public model discovery', async () => {
+    const proxy = new OllamaProxy('http://localhost:11434', 'http://localhost:11435');
+    const app = buildApp(proxy, {
+      modelConfig: { model: 'apple-foundationmodel', maxTokens: 100, temperature: 0.7 },
+    });
+    const res = await app.request('/v1/models');
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      object: 'list',
+      data: [{ id: 'apple-foundationmodel', object: 'model', created: 0, owned_by: 'apfel' }],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('returns restricted allowed models for public model discovery', async () => {
+    const proxy = new OllamaProxy('http://localhost:11434', 'http://localhost:11435');
+    const app = buildApp(proxy, {
+      allowedModels: ['apple-foundationmodel', 'gemma4:latest'],
+    });
+    const res = await app.request('/v1/models');
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.map((model: { id: string }) => model.id)).toEqual(['apple-foundationmodel', 'gemma4:latest']);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('forwards POST request body to Ollama', async () => {
@@ -89,7 +126,11 @@ describe('OllamaProxy', () => {
     });
     app.all('/v1/*', (c) => proxy.forward(c));
 
-    await app.request('/v1/models', { headers: { Authorization: 'Bearer sk-secret' } });
+    await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer sk-secret', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [] }),
+    });
 
     const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
     const headers = opts.headers as Headers;

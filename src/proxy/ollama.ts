@@ -1,4 +1,12 @@
 import type { Context } from 'hono';
+import type { ApiKey } from '../types/index.js';
+
+type OpenAIModel = {
+  id: string;
+  object: 'model';
+  created: number;
+  owned_by: string;
+};
 
 export class OllamaProxy {
   private host: string;
@@ -62,6 +70,50 @@ export class OllamaProxy {
     return [...models].sort((a, b) => a.localeCompare(b));
   }
 
+  private uniqueModels(models: string[]): string[] {
+    return [...new Set(models.map((model) => model.trim()).filter(Boolean))];
+  }
+
+  private keyScopedModels(apiKey?: ApiKey): string[] | null {
+    const configuredModel = apiKey?.modelConfig?.model?.trim();
+    const allowedModels = this.uniqueModels(apiKey?.allowedModels || []);
+
+    if (allowedModels.length > 0 && !allowedModels.includes('*')) {
+      return allowedModels;
+    }
+
+    return configuredModel ? [configuredModel] : null;
+  }
+
+  private modelOwner(model: string): string {
+    return model === 'apple-foundationmodel' ? 'apfel' : 'ollama';
+  }
+
+  private openAIModelsResponse(models: string[]): { object: 'list'; data: OpenAIModel[] } {
+    return {
+      object: 'list',
+      data: this.uniqueModels(models).map((model) => ({
+        id: model,
+        object: 'model',
+        created: 0,
+        owned_by: this.modelOwner(model),
+      })),
+    };
+  }
+
+  private async publicModelsForKey(apiKey?: ApiKey): Promise<string[]> {
+    return this.keyScopedModels(apiKey) || await this.listModels();
+  }
+
+  private async handlePublicModels(c: Context): Promise<Response> {
+    try {
+      const models = await this.publicModelsForKey(c.get('apiKey') as ApiKey | undefined);
+      return c.json(this.openAIModelsResponse(models));
+    } catch (e: any) {
+      return c.json({ error: 'Upstream model backend is not reachable', detail: e?.message || String(e) }, 503);
+    }
+  }
+
   private targetHostForModel(model?: string): string {
     if (this.apfelHost && model === 'apple-foundationmodel') {
       return this.apfelHost;
@@ -72,6 +124,10 @@ export class OllamaProxy {
   async forward(c: Context): Promise<Response> {
     // Read body first so model checks can gate before any network call
     const body = c.req.method !== 'GET' ? await c.req.text() : undefined;
+
+    if (c.req.method === 'GET' && c.req.path === '/v1/models') {
+      return this.handlePublicModels(c);
+    }
 
     // Extract model for logging and restriction checks
     let model: string | undefined;
