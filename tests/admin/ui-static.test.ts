@@ -70,22 +70,29 @@ describe('Admin UI static contract', () => {
     expect(html).toContain("const DEFAULT_PROMPT_PRESET='connection-smoke'");
     expect(html).toContain('function populatePromptPresets()');
     expect(html).toContain('function applyPromptPreset(id)');
-    expect(html).toContain('Connection smoke · grammar correction');
-    expect(html).toContain('OpenKeyboardCore · Fix Grammar');
-    expect(html).toContain('OpenKeyboardCore · Rewrite');
-    expect(html).toContain('OpenKeyboardCore · Summarize');
-    expect(html).toContain('OpenKeyboardCore · Translate to Arabic');
-    expect(html).toContain('OpenKeyboardCore · Continue Writing');
-    expect(html).toContain('Live harness · Fix Grammar');
-    expect(html).toContain('Live harness · Summarize');
-    expect(html).toContain('You are a keyboard grammar checker. Return only one corrected sentence. Do not explain.');
+    expect(html).toContain('Connection smoke');
+    expect(html).toContain('Structured grammar · Multi-error');
+    expect(html).toContain('Structured grammar · Clean/no issue');
+    expect(html).toContain('Structured operation · Summarize');
+    expect(html).toContain('Structured operation · Rewrite');
+    expect(html).not.toContain('OpenKeyboardCore · Fix Grammar');
+    expect(html).not.toContain('OpenKeyboardCore · Rewrite');
+    expect(html).not.toContain('OpenKeyboardCore · Summarize');
+    expect(html).not.toContain('OpenKeyboardCore · Translate to Arabic');
+    expect(html).not.toContain('OpenKeyboardCore · Continue Writing');
+    expect(html).not.toContain('Live harness · Fix Grammar');
+    expect(html).not.toContain('Live harness · Summarize');
+    expect(html).not.toContain('Connection smoke · grammar correction');
+    expect(html).not.toContain("id:'fix-grammar'");
+    expect(html).not.toContain("id:'live-fix-grammar'");
+    expect(html).not.toContain("id:'structured-mixed-explanations'");
     expect(html).toContain('function renderTesterKeys()');
     expect(html).toContain('function getFullKey(id)');
     expect(html).toContain('api(`/admin/keys/${id}`)');
     expect(html).toContain('Checking admin API…');
     expect(html).toContain('fullKeyFetched');
     expect(html).toContain("role:'system'");
-    expect(html).toContain('messageRoles:messages.map');
+    expect(html).toContain('messageRoles:(body.messages||[]).map');
     expect(html).toContain('promptPreset:preset');
     expect(html).toContain('systemPromptLength:systemPrompt.length');
     expect(html).toContain("fetch('/v1/chat/completions'");
@@ -110,11 +117,81 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('class="mobile-tabs"');
     expect(html).toContain('class="mobile-tab" data-page="playground"');
     expect(html).toContain("document.querySelectorAll('.nav-pill,.mobile-tab')");
+    expect(html).toContain("window.addEventListener('hashchange',applyRoute)");
+    expect(html).toContain('@media(min-width:1001px)');
+    expect(html).toContain('.dashboard-container.active{display:grid;grid-template-columns:260px minmax(0,1fr)}');
+    expect(html).toContain('.sidebar{position:sticky;top:0;transform:none;grid-column:1}');
+    expect(html).toContain('.drawer-toggle,.drawer-backdrop{display:none!important}');
+    expect(html).toContain('@media(max-width:1000px)');
+  });
+
+
+  it('exposes OpenKeyboard structured operation playground samples', () => {
+    expect(html).toContain('OpenKeyboard structured operation samples');
+    expect(html).toContain('id="testerRequestJson"');
+    expect(html).toContain('id="testerExpectedSchema"');
+    expect(html).toContain('Developer/debug: view generated request and expected schema');
+    expect(html).toContain('Copy generated request');
+    expect(html).toContain('This preset sends operation + input_text and asks the model to return structured JSON results.');
+    expect(html).toContain('unsupported operation → 400');
+    expect(html).toContain('missing input_text with operation → 400');
+    expect(html).toContain('input_text is bounded server-side');
+    expect(html).toContain('Structured grammar · Multi-error');
+    expect(html).toContain('Structured grammar · Clean/no issue');
+    expect(html).toContain('Structured operation · Summarize');
+    expect(html).toContain('Structured operation · Rewrite');
+    expect(html).not.toContain('OpenKeyboard structured · Mixed result types');
+    expect(html).toContain("operation:'fix_grammar'");
+    expect(html).toContain("input_text:'i has a apple,ths is nt sound god'");
+    expect(html).toContain("operation:'summarize'");
+    expect(html).toContain("operation:'rewrite'");
+    expect(html).toContain('results:[');
+    expect(html).toContain("type:'correction'");
+    expect(html).toContain("type:'suggestion'");
+    expect(html).toContain("type:'warning'");
+    expect(html).toContain("type:'explanation'");
+    expect(html).toContain('corrected_text');
+    expect(html).toContain('Subject-verb agreement');
+    expect(html).toContain('range:{start:0,end:1}');
+    expect(html).toContain('confidence:0.98');
+    expect(html).toContain('summary');
+    expect(html).toContain('function copySampleJson()');
+    expect(html).toContain('JSON.parse(requestJson)');
+    expect(html).toContain("Generated request JSON must be an object.");
+    expect(html).toContain('body.model=selectedModel');
+    expect(html).toContain('body:JSON.stringify(body)');
+  });
+
+
+  it('keeps structured presets meaningful in visible prompt fields', () => {
+    const structuredIds = [
+      'structured-multi-error-grammar',
+      'structured-clean-grammar',
+      'structured-summarize',
+      'structured-rewrite',
+    ];
+
+    for (const id of structuredIds) {
+      const presetPattern = new RegExp(`id:'${id}'[^}]+system:'([^']+)'[^}]+user:'([^']+)'`);
+      const match = html.match(presetPattern);
+      expect(match, `missing visible prompt fields for ${id}`).not.toBeNull();
+      expect(match?.[1].length, `system prompt too short for ${id}`).toBeGreaterThan(40);
+      expect(match?.[2].length, `user prompt too short for ${id}`).toBeGreaterThan(60);
+    }
+
+    expect(html).toContain('Return JSON only with operation, results, and corrected_text');
+    expect(html).toContain('do not invent corrections');
+    expect(html).toContain('2 bullet action items');
+    expect(html).toContain('clear, professional, and friendly');
+    expect(html).not.toContain('correction, suggestion, warning, and explanation');
   });
 
 
   it('normalizes invalid admin routes after login and exposes active nav state', () => {
     expect(html).toContain('needsNormalize');
+    expect(html).toContain('function safeDecodeRoutePart(v)');
+    expect(html).toContain('decodeURIComponent(v)');
+    expect(html).toContain('keyId:page===\'playground\'&&parts[1]?safeDecodeRoutePart(parts[1]):null');
     expect(html).toContain("if(parseRoute().needsNormalize)history.replaceState(null,'',routeFor('keys'))");
     expect(html).toContain("if(route.needsNormalize&&authToken)history.replaceState(null,'',routeFor(route.page,route.keyId))");
     expect(html).toContain("b.setAttribute('aria-current',active?'page':'false')");
