@@ -1,4 +1,5 @@
-FROM node:20-alpine AS builder
+ARG NODE_IMAGE=node:20-alpine
+FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -6,7 +7,7 @@ COPY tsconfig.json ./
 COPY src/ ./src/
 RUN npx tsc
 
-FROM node:20-alpine
+FROM ${NODE_IMAGE}
 RUN apk add --no-cache curl tini
 RUN addgroup -S gateway && adduser -S gateway -G gateway
 WORKDIR /app

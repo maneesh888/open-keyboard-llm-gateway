@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "secret-scan": "node scripts/secret-scan.mjs",
+    "docker:preflight": "node scripts/docker-base-preflight.mjs",
     "precommit": "npm run build && npm test && npm run secret-scan"
   },
   "keywords": [],

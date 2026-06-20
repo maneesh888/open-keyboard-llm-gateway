@@ -2,7 +2,10 @@ version: "3.8"
 
 services:
   llm-gateway:
-    build: .
+    build:
+      context: .
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:20-alpine}
     container_name: llm-gateway
     restart: unless-stopped
     ports:
