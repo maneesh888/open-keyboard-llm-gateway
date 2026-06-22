@@ -189,11 +189,13 @@ describe('Admin UI static contract', () => {
 
   it('normalizes invalid admin routes after login and exposes active nav state', () => {
     expect(html).toContain('needsNormalize');
+    expect(html).toContain('isLoginRoute');
     expect(html).toContain('function safeDecodeRoutePart(v)');
     expect(html).toContain('decodeURIComponent(v)');
     expect(html).toContain('keyId:page===\'playground\'&&parts[1]?safeDecodeRoutePart(parts[1]):null');
-    expect(html).toContain("if(parseRoute().needsNormalize)history.replaceState(null,'',routeFor('keys'))");
+    expect(html).toContain("const loginRoute=parseRoute();if(loginRoute.needsNormalize||loginRoute.isLoginRoute)history.replaceState(null,'',routeFor('keys'))");
     expect(html).toContain("if(route.needsNormalize&&authToken)history.replaceState(null,'',routeFor(route.page,route.keyId))");
+    expect(html).toContain("if(location.hash!=='#login')history.replaceState(null,'','#login')");
     expect(html).toContain("b.setAttribute('aria-current',active?'page':'false')");
   });
 
