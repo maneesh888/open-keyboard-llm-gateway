@@ -69,7 +69,11 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('.tester-panel #testerPrompt{min-height:150px}');
     expect(html).toContain("const DEFAULT_PROMPT_PRESET='connection-smoke'");
     expect(html).toContain('function populatePromptPresets()');
-    expect(html).toContain('function applyPromptPreset(id)');
+    expect(html).toContain('function clearPlaygroundConversation');
+    expect(html).toContain("Preset changed. Run the selected test to start a new result.");
+    expect(html).toContain('function applyPromptPreset(id,opts={})');
+    expect(html).toContain('if(opts.clearConversation)clearPlaygroundConversation()');
+    expect(html).toContain('onchange="applyPromptPreset(this.value,{clearConversation:true})"');
     expect(html).toContain('Connection smoke');
     expect(html).toContain('Structured grammar · Multi-error');
     expect(html).toContain('Structured grammar · Clean/no issue');
