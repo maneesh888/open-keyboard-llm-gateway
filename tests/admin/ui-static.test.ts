@@ -119,9 +119,10 @@ describe('Admin UI static contract', () => {
     expect(html).toContain("document.querySelectorAll('.nav-pill,.mobile-tab')");
     expect(html).toContain("window.addEventListener('hashchange',applyRoute)");
     expect(html).toContain('@media(min-width:1001px)');
-    expect(html).toContain('.dashboard-container.active{display:grid;grid-template-columns:260px minmax(0,1fr)}');
-    expect(html).toContain('.sidebar{position:sticky;top:0;transform:none;grid-column:1}');
-    expect(html).toContain('.drawer-toggle,.drawer-backdrop{display:none!important}');
+    expect(html).toContain('@media(min-width:1001px){.main{min-width:0}}');
+    expect(html).not.toContain('.dashboard-container.active{display:grid;grid-template-columns:260px minmax(0,1fr)}');
+    expect(html).not.toContain('.sidebar{position:sticky;top:0;transform:none;grid-column:1}');
+    expect(html).not.toContain('.drawer-toggle,.drawer-backdrop{display:none!important}');
     expect(html).toContain('@media(max-width:1000px)');
   });
 
@@ -137,12 +138,14 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('missing input_text with operation → 400');
     expect(html).toContain('input_text is bounded server-side');
     expect(html).toContain('Structured grammar · Multi-error');
+    expect(html).toContain('Structured grammar · Complex spell-fix');
     expect(html).toContain('Structured grammar · Clean/no issue');
     expect(html).toContain('Structured operation · Summarize');
     expect(html).toContain('Structured operation · Rewrite');
     expect(html).not.toContain('OpenKeyboard structured · Mixed result types');
     expect(html).toContain("operation:'fix_grammar'");
     expect(html).toContain("input_text:'i has a apple,ths is nt sound god'");
+    expect(html).toContain("input_text:'i definately recieve teh adress tomorow");
     expect(html).toContain("operation:'summarize'");
     expect(html).toContain("operation:'rewrite'");
     expect(html).toContain('results:[');
@@ -154,6 +157,9 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('Subject-verb agreement');
     expect(html).toContain('range:{start:0,end:1}');
     expect(html).toContain('confidence:0.98');
+    expect(html).toContain('category');
+    expect(html).toContain('spell-receive-2');
+    expect(html).toContain('Eleven corrections found.');
     expect(html).toContain('summary');
     expect(html).toContain('function copySampleJson()');
     expect(html).toContain('JSON.parse(requestJson)');
@@ -166,6 +172,7 @@ describe('Admin UI static contract', () => {
   it('keeps structured presets meaningful in visible prompt fields', () => {
     const structuredIds = [
       'structured-multi-error-grammar',
+      'structured-complex-spell-fix',
       'structured-clean-grammar',
       'structured-summarize',
       'structured-rewrite',
@@ -180,6 +187,8 @@ describe('Admin UI static contract', () => {
     }
 
     expect(html).toContain('Return JSON only with operation, results, and corrected_text');
+    expect(html).toContain('Stress test the OpenKeyboard correction-card contract');
+    expect(html).toContain('one result item per issue plus corrected_text');
     expect(html).toContain('do not invent corrections');
     expect(html).toContain('2 bullet action items');
     expect(html).toContain('clear, professional, and friendly');

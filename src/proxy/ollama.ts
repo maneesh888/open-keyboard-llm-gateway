@@ -21,6 +21,7 @@ type OperationResultItem = {
   range?: { start: number; end: number };
   confidence?: number;
   explanation?: string;
+  category?: string;
 };
 
 type OperationResult = {
@@ -166,7 +167,7 @@ export class OllamaProxy {
       'You are an API gateway formatting assistant for an iOS keyboard.',
       `Requested operation: ${operation}.`,
       'Return strict JSON only with this contract:',
-      '{"operation":"fix_grammar|summarize|rewrite|continue_writing|translate","results":[{"id":"...","type":"correction|suggestion|summary|warning|explanation","title":"...","text":"...","original":"...","replacement":"...","range":{"start":0,"end":0},"confidence":0.0,"explanation":"..."}],"summary":"...","corrected_text":"..."}',
+      '{"operation":"fix_grammar|summarize|rewrite|continue_writing|translate","results":[{"id":"...","type":"correction|suggestion|summary|warning|explanation","title":"...","text":"...","original":"...","replacement":"...","range":{"start":0,"end":0},"confidence":0.0,"explanation":"...","category":"..."}],"summary":"...","corrected_text":"..."}',
       'Use only the supplied input_text and current conversation. Unknown result item types are allowed, but every result item must have type, title, and text.',
       'For fix_grammar, return one correction item per distinct issue. Do not collapse multiple issues into one corrected sentence item.',
       'For fix_grammar item titles should be specific (Capitalization, Subject-verb agreement, Article, Spelling, Missing word, Word choice, Punctuation). Include original, replacement, short explanation, confidence, and range when available.',
@@ -309,6 +310,7 @@ export class OllamaProxy {
       ...(item.range && Number.isFinite(item.range.start) && Number.isFinite(item.range.end) ? { range: { start: item.range.start, end: item.range.end } } : {}),
       ...(typeof item.confidence === 'number' ? { confidence: item.confidence } : {}),
       ...(this.cleanString(item.explanation) ? { explanation: this.cleanString(item.explanation) } : {}),
+      ...(this.cleanString(item.category) ? { category: this.cleanString(item.category) } : {}),
     };
   }
 
