@@ -119,6 +119,7 @@ describe('Admin UI static contract', () => {
     expect(html).toContain("drawerToggle.setAttribute('aria-expanded'");
     expect(html).toContain("window.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()})");
     expect(html).toContain('class="mobile-tabs"');
+    expect(html).toContain('.mobile-tabs{display:flex');
     expect(html).toContain('class="mobile-tab" data-page="playground"');
     expect(html).toContain("document.querySelectorAll('.nav-pill,.mobile-tab')");
     expect(html).toContain("window.addEventListener('hashchange',applyRoute)");
