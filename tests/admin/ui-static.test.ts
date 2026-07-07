@@ -124,10 +124,9 @@ describe('Admin UI static contract', () => {
     expect(html).toContain("document.querySelectorAll('.nav-pill,.mobile-tab')");
     expect(html).toContain("window.addEventListener('hashchange',applyRoute)");
     expect(html).toContain('@media(min-width:1001px)');
-    expect(html).toContain('@media(min-width:1001px){.main{min-width:0}}');
-    expect(html).not.toContain('.dashboard-container.active{display:grid;grid-template-columns:260px minmax(0,1fr)}');
-    expect(html).not.toContain('.sidebar{position:sticky;top:0;transform:none;grid-column:1}');
-    expect(html).not.toContain('.drawer-toggle,.drawer-backdrop{display:none!important}');
+    expect(html).toContain('.dashboard-container.active{display:grid;grid-template-columns:260px minmax(0,1fr)}');
+    expect(html).toContain('.sidebar{position:sticky;top:0;inset:auto;grid-column:1;transform:none;box-shadow:none}');
+    expect(html).toContain('.drawer-toggle,.drawer-backdrop,.mobile-tabs{display:none!important}');
     expect(html).toContain('@media(max-width:1000px)');
   });
 
