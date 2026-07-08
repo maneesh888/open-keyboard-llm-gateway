@@ -21,6 +21,7 @@ const paths = {
 function usage() {
   console.log(`Usage:
   npm run bootstrap
+  npm run dev:bootstrap
   npm run bootstrap -- --model llama3.2:latest --pull
 
 Creates missing local runtime config files and installs npm dependencies.
@@ -32,6 +33,7 @@ Options:
   --admin-password <value>  Admin UI password; prefer LLM_GATEWAY_ADMIN_PASSWORD
   --model <name>            Default model for the generated local API key
   --pull                    Pull the selected model with the ollama CLI
+  --serve                   Start the local gateway after setup completes
   --ollama-host <url>       Ollama host for config/config.json
   --port <number>           Gateway port for config/config.json
   --help                    Show this help
@@ -51,6 +53,7 @@ function parseArgs(argv) {
     ollamaHost: process.env.OLLAMA_HOST || DEFAULT_OLLAMA_HOST,
     port: process.env.PORT ? Number(process.env.PORT) : DEFAULT_PORT,
     pull: false,
+    serve: false,
     skipInstall: false,
     help: false,
   };
@@ -69,6 +72,7 @@ function parseArgs(argv) {
     if (arg === '--help' || arg === '-h') options.help = true;
     else if (arg === '--skip-install') options.skipInstall = true;
     else if (arg === '--pull') options.pull = true;
+    else if (arg === '--serve') options.serve = true;
     else if (arg === '--admin-user') options.adminUser = readValue(arg);
     else if (arg === '--admin-password') options.adminPassword = readValue(arg);
     else if (arg === '--model') options.model = readValue(arg);
@@ -320,6 +324,13 @@ function pullModel(options) {
   });
 }
 
+function startGateway(appConfig, options) {
+  const port = appConfig.port || options.port;
+  console.log(`[bootstrap] Starting local gateway at http://localhost:${port}/ui`);
+  console.log('[bootstrap] Press Ctrl-C to stop the gateway.');
+  run(npmCommand(), ['run', 'dev']);
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
@@ -341,10 +352,16 @@ async function main() {
     console.log(`[bootstrap] Ollama was not reachable at ${appConfig.ollamaHost || options.ollamaHost}. Start Ollama before running live model tests.`);
   }
 
-  console.log('[bootstrap] Setup complete.');
-  console.log(`Next: npm run dev`);
   console.log(`Open: http://localhost:${appConfig.port || options.port}/ui`);
   console.log('Use the admin username and password you configured. API keys can be revealed or copied inside the admin UI.');
+
+  if (options.serve) {
+    startGateway(appConfig, options);
+    return;
+  }
+
+  console.log('[bootstrap] Setup complete.');
+  console.log(`Next: npm run dev`);
 }
 
 main().catch((error) => {

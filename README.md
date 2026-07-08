@@ -62,27 +62,30 @@ The screenshots below use approved, partially redacted local captures. Do not re
 
 ### 1. Bootstrap local config
 
-For a fresh local machine, run one command from the repo root:
+For a fresh local machine, run one command from the repo root to set up config and start the gateway on localhost:
 
 ```bash
-npm run bootstrap
+npm run dev:bootstrap
 ```
 
-The bootstrap command installs npm dependencies, creates missing local runtime files, prompts for an admin UI password, writes `config/admin.json` with a bcrypt password hash and JWT secret, writes `config/config.json`, and creates one enabled API key in `config/keys.json`. It does not overwrite existing local config files and it does not print generated secrets.
+The bootstrap command installs npm dependencies, creates missing local runtime files, prompts for an admin UI password, writes `config/admin.json` with a bcrypt password hash and JWT secret, writes `config/config.json`, creates one enabled API key in `config/keys.json`, and starts the local gateway when run through `npm run dev:bootstrap`. It does not overwrite existing local config files and it does not print generated secrets.
 
 To create the default key for a specific Ollama model and pull it during setup:
 
 ```bash
-npm run bootstrap -- --model llama3.2:latest --pull
+npm run dev:bootstrap -- --model llama3.2:latest --pull
 ```
 
 Useful options:
 
 ```bash
+npm run bootstrap
 npm run bootstrap -- --ollama-host http://localhost:11434
 npm run bootstrap -- --skip-install
 LLM_GATEWAY_ADMIN_PASSWORD='use-a-long-local-password' npm run bootstrap
 ```
+
+`npm run bootstrap` is setup-only and exits after writing any missing config. `npm run dev:bootstrap` runs the same setup and then keeps the gateway running in the foreground.
 
 ### 2. Run locally
 
