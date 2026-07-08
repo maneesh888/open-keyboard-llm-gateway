@@ -1,8 +1,21 @@
 # LLM Gateway
 
-A lightweight API gateway that authenticates API keys and proxies requests to a local Ollama instance.
+A self-hosted API gateway for routing AI requests through user-controlled infrastructure. It authenticates API keys, applies per-key limits, proxies OpenAI-compatible chat requests to local/private model backends, and provides an admin UI for managing keys and testing live requests.
 
 > Companion backend for [Open Keyboard](../open-keyboard): the iOS keyboard uses this gateway for API-key auth, model discovery, rate limiting, and OpenAI-compatible chat completions while keeping infrastructure under user control.
+
+## Current capabilities
+
+- API-key authentication for `/v1/*` routes.
+- Per-key rate limits, model defaults, enabled/disabled status, and owner metadata.
+- Hot-reloaded key configuration for file-based local operation.
+- Admin API and responsive admin web UI at `/ui`.
+- API key dashboard with create, edit, disable, delete, reveal, copy, and test actions.
+- Live LLM playground for validating a selected key against `/v1/chat/completions`.
+- Structured OpenKeyboard operation support for grammar correction, rewrite, summarize, continuation, and translate-style workflows.
+- Model discovery through the configured backend, with optional Apfel routing for `apple-foundationmodel` when configured.
+- JSON request logging without exposing Authorization headers.
+- Build, test, Docker preflight, and secret-scan scripts for local release checks.
 
 ## Architecture
 
@@ -30,6 +43,20 @@ Client (iPhone/OpenClaw/etc.)
 │  gemma4:26b-a4b...  │
 └─────────────────────┘
 ```
+
+Optional Apfel support can route `apple-foundationmodel` requests to an Apfel OpenAI-compatible server when `APFEL_HOST` or `apfelHost` is configured. See `docs/APFEL_PORTAL_POC.md` for the PoC notes and constraints.
+
+## Screenshots
+
+The screenshots below use approved, partially redacted local captures. Do not replace them with captures that expose real API keys, admin tokens, private prompts, or server paths.
+
+### Admin key management
+
+<img src="docs/screenshots/llm-gateway-api-keys.png" alt="LLM Gateway admin API key management screen showing client keys, model defaults, rate limits, and admin actions." width="900">
+
+### Live request playground
+
+<img src="docs/screenshots/llm-gateway-playground.png" alt="LLM Gateway playground screen showing a structured OpenKeyboard rewrite request and successful model response." width="900">
 
 ## Setup
 
@@ -83,9 +110,9 @@ Keys are defined in `config/keys.json` and hot-reloaded every 5 seconds — no r
 
 **Restrict models:** set `"allowedModels": ["gemma4:26b-a4b-it-q4_K_M"]` to limit which models a key can use.
 
-## Admin API (New!)
+## Admin API and Web UI
 
-The gateway now includes an admin API for managing API keys programmatically.
+The gateway includes an admin API for managing API keys programmatically and a browser UI for common operations.
 
 ### 1. Enable Admin API
 
@@ -115,7 +142,25 @@ Do not expose `/admin` or `/ui` to the internet without HTTPS, strong credential
 
 Admin login throttling uses direct-connection scope by default. If you deploy behind a reverse proxy and want per-client IP throttling/logging, configure `trustedProxies` in `config/config.json` with only your trusted proxy CIDR ranges; forwarded IP headers are ignored unless that trusted-proxy mode is enabled.
 
-### 2. Admin API Endpoints
+### 2. Open the admin UI
+
+```bash
+npm run dev
+open http://localhost:8080/ui
+```
+
+The UI supports:
+
+- key dashboard totals for total, active, and disabled keys
+- client credential management with reveal/copy controls
+- per-key model, token, temperature, and rate-limit settings
+- enable/disable and delete actions
+- responsive mobile navigation for API Keys and Playground
+- live playground tests using the selected key and model
+- structured OpenKeyboard samples for grammar correction, rewrite, and summarization
+- diagnostics for status, latency, selected key, request shape, and failure classification
+
+### 3. Admin API Endpoints
 
 All admin endpoints require authentication via JWT token.
 
@@ -211,7 +256,7 @@ curl -X DELETE http://localhost:8080/admin/keys/key_a1b2c3d4 \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### 3. Per-Client Configuration
+### 4. Per-Client Configuration
 
 Each API key can have custom configuration:
 
@@ -236,6 +281,28 @@ LLM Gateway is designed to pair with Open Keyboard as its self-hosted backend:
 - `GET /v1/models` for model discovery.
 - `POST /v1/chat/completions` for grammar, rewrite, summarize, translate, and continuation actions.
 - Bearer API keys created through the gateway admin UI/API.
+
+OpenKeyboard structured operation requests can include:
+
+```json
+{
+  "model": "gemma4:latest",
+  "operation": "fix_grammar",
+  "input_text": "i has a apple",
+  "messages": [],
+  "stream": false
+}
+```
+
+Supported operation names:
+
+- `fix_grammar`
+- `rewrite`
+- `summarize`
+- `continue_writing`
+- `translate`
+
+When `operation` is present, the gateway validates `input_text`, rejects streaming operation requests, adds structured response instructions for the upstream model, and normalizes the returned content into a JSON string inside the OpenAI-compatible `choices[0].message.content` field. Clean grammar input can return an empty `results` array without fabricated corrections.
 
 More detail:
 
@@ -281,8 +348,11 @@ curl http://localhost:8080/v1/chat/completions \
 ## Testing
 
 ```bash
-npm test          # run once
-npm run test:watch  # watch mode
+npm run build        # TypeScript compile
+npm test             # run unit/integration tests once
+npm run secret-scan  # scan tracked source for accidental secrets
+npm run precommit    # build, test, and secret scan
+npm run test:watch   # watch mode
 ```
 
 ## Docker Commands
