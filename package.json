@@ -5,6 +5,8 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
+    "bootstrap": "node scripts/bootstrap.mjs",
+    "dev:bootstrap": "node scripts/bootstrap.mjs && npm run dev",
     "dev": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",

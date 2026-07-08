@@ -9,6 +9,7 @@ const allowList = [
   /tests\//,
   /src\//,
   /public\/admin\/index\.html:/,
+  /scripts\/bootstrap\.mjs:/,
   /scripts\/secret-scan\.mjs:/,
 ];
 

@@ -60,28 +60,53 @@ The screenshots below use approved, partially redacted local captures. Do not re
 
 ## Setup
 
-### 1. Configure keys
+### 1. Bootstrap local config
+
+For a fresh local machine, run one command from the repo root:
 
 ```bash
-cp config/keys.example.json config/keys.json
-# Edit config/keys.json and set your own sk- tokens
+npm run bootstrap
 ```
 
-### 2. Configure server
+The bootstrap command installs npm dependencies, creates missing local runtime files, prompts for an admin UI password, writes `config/admin.json` with a bcrypt password hash and JWT secret, writes `config/config.json`, and creates one enabled API key in `config/keys.json`. It does not overwrite existing local config files and it does not print generated secrets.
+
+To create the default key for a specific Ollama model and pull it during setup:
 
 ```bash
-cp config/config.example.json config/config.json
-# Edit OLLAMA_HOST if needed (default: http://host.docker.internal:11434)
+npm run bootstrap -- --model llama3.2:latest --pull
 ```
 
-### 3. Run locally
+Useful options:
 
 ```bash
-npm install
+npm run bootstrap -- --ollama-host http://localhost:11434
+npm run bootstrap -- --skip-install
+LLM_GATEWAY_ADMIN_PASSWORD='use-a-long-local-password' npm run bootstrap
+```
+
+### 2. Run locally
+
+```bash
 npm run dev
 ```
 
-### 4. Run with Docker
+Then open:
+
+```bash
+open http://localhost:8080/ui
+```
+
+### Manual setup
+
+If you do not want the bootstrap script to generate local config, copy the examples and replace all placeholder secrets yourself:
+
+```bash
+cp config/keys.example.json config/keys.json
+cp config/config.example.json config/config.json
+cp config/admin.example.json config/admin.json
+```
+
+### Run with Docker
 
 ```bash
 docker compose build
