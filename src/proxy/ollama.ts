@@ -11,6 +11,9 @@ type OperationRequest = {
   model?: string;
 };
 
+type OpenAIRequestBody = OperationRequest & Record<string, unknown>;
+type EffortTarget = 'chat' | 'responses';
+
 type OperationResultItem = {
   id: string;
   type: string;
@@ -147,10 +150,30 @@ export class OllamaProxy {
 
   private operationNames = new Set<OperationName>(['fix_grammar', 'summarize', 'rewrite', 'continue_writing', 'translate']);
 
-  private parseOperationRequest(body?: string): { parsed?: OperationRequest & Record<string, unknown>; error?: string } {
+  private hasOwnField(value: Record<string, unknown>, field: string): boolean {
+    return Object.prototype.hasOwnProperty.call(value, field);
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+  }
+
+  private parseJSONRequestBody(body?: string): OpenAIRequestBody | undefined {
+    if (!body) return undefined;
+    try {
+      const parsed = JSON.parse(body) as unknown;
+      return this.isRecord(parsed) ? parsed as OpenAIRequestBody : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private parseOperationRequest(body?: string): { parsed?: OpenAIRequestBody; error?: string } {
     if (!body) return {};
     try {
-      const parsed = JSON.parse(body) as OperationRequest & Record<string, unknown>;
+      const raw = JSON.parse(body) as unknown;
+      if (!this.isRecord(raw)) return {};
+      const parsed = raw as OpenAIRequestBody;
       const operation = typeof parsed.operation === 'string' ? parsed.operation.trim() : '';
       if (!operation) return { parsed };
       if (!this.operationNames.has(operation as OperationName)) return { error: `Unsupported operation '${operation}'` };
@@ -332,6 +355,36 @@ export class OllamaProxy {
     return this.host;
   }
 
+  private effortTargetForPath(path: string): EffortTarget | undefined {
+    if (path === '/v1/chat/completions') return 'chat';
+    if (path === '/v1/responses') return 'responses';
+    return undefined;
+  }
+
+  private hasCallerEffortSetting(parsed: Record<string, unknown>): boolean {
+    if (this.hasOwnField(parsed, 'reasoning_effort')) return true;
+    if (this.isRecord(parsed.reasoning) && this.hasOwnField(parsed.reasoning, 'effort')) return true;
+    return this.isRecord(parsed.chat_template_kwargs) && this.hasOwnField(parsed.chat_template_kwargs, 'reasoning_effort');
+  }
+
+  private applyConfiguredEffort(body: string | undefined, path: string, apiKey?: ApiKey): string | undefined {
+    const effort = apiKey?.modelConfig?.effort;
+    const target = this.effortTargetForPath(path);
+    if (!body || !effort || !target) return body;
+
+    const parsed = this.parseJSONRequestBody(body);
+    if (!parsed || this.hasCallerEffortSetting(parsed)) return body;
+
+    if (target === 'responses') {
+      const reasoning = this.isRecord(parsed.reasoning) ? parsed.reasoning : {};
+      parsed.reasoning = { ...reasoning, effort };
+    } else {
+      parsed.reasoning_effort = effort;
+    }
+
+    return JSON.stringify(parsed);
+  }
+
   async forward(c: Context): Promise<Response> {
     // Read body first so model checks can gate before any network call
     const body = c.req.method !== 'GET' ? await c.req.text() : undefined;
@@ -349,7 +402,7 @@ export class OllamaProxy {
       const shouldHandleOperation = c.req.method === 'POST' && c.req.path === '/v1/chat/completions';
       const operationRequest = shouldHandleOperation ? this.parseOperationRequest(body) : {};
       if (operationRequest.error) return c.json({ error: operationRequest.error }, 400);
-      const parsed = operationRequest.parsed;
+      const parsed = operationRequest.parsed || this.parseJSONRequestBody(body);
       if (parsed?.model && typeof parsed.model === 'string') {
         model = parsed.model;
         c.set('model', model);
@@ -362,8 +415,10 @@ export class OllamaProxy {
       }
     }
 
+    const apiKey = c.get('apiKey') as ApiKey | undefined;
+    outboundBody = this.applyConfiguredEffort(outboundBody, c.req.path, apiKey);
+
     // Enforce per-key model allowlist (inline — no KeyManager dependency needed)
-    const apiKey = c.get('apiKey');
     if (model && apiKey) {
       const allowed = apiKey.allowedModels as string[] | undefined;
       if (allowed && !allowed.includes('*') && !allowed.includes(model)) {

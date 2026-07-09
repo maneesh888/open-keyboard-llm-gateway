@@ -10,10 +10,13 @@ export interface ClientFeatures {
   customActions: CustomAction[];
 }
 
+export type EffortMode = 'low' | 'medium' | 'high';
+
 export interface ModelConfig {
   model: string;
   maxTokens: number;
   temperature: number;
+  effort?: EffortMode;
 }
 
 export interface RateLimitConfig {
