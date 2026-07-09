@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { rmSync } from 'fs';
 import { Hono } from 'hono';
 import { OllamaProxy } from '../src/proxy/ollama.js';
+
+// OllamaProxy's default knownModelsPath is relative to cwd; keep tests isolated from real disk state.
+const KNOWN_MODELS_PATH = './config/known-models.json';
 
 // Helper: build a minimal app that injects an API key into context and uses the proxy
 function buildApp(proxy: OllamaProxy, keyOverrides: Record<string, unknown> = {}) {
@@ -27,22 +31,19 @@ describe('OllamaProxy', () => {
   beforeEach(() => {
     fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
+    rmSync(KNOWN_MODELS_PATH, { force: true });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    rmSync(KNOWN_MODELS_PATH, { force: true });
   });
 
   it('lists upstream Ollama models for unrestricted keys without a configured default', async () => {
-    fetchSpy
-      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [{ name: 'gemma4:latest' }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [{ name: 'gemma4:latest' }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }));
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ models: [{ name: 'gemma4:latest' }] }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
 
     const proxy = new OllamaProxy('http://localhost:11434');
     const app = buildApp(proxy);
@@ -53,10 +54,9 @@ describe('OllamaProxy', () => {
       object: 'list',
       data: [{ id: 'gemma4:latest', object: 'model', created: 0, owned_by: 'ollama' }],
     });
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
     expect(fetchSpy.mock.calls.map(([url]) => url)).toEqual([
       'http://localhost:11434/api/tags',
-      'http://localhost:11434/api/ps',
     ]);
   });
 
@@ -239,7 +239,6 @@ describe('OllamaProxy', () => {
 
   it('adds Apfel models to the admin model list when Apfel is reachable', async () => {
     fetchSpy
-      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ models: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: [{ id: 'apple-foundationmodel' }] }), { status: 200, headers: { 'content-type': 'application/json' } }));
 

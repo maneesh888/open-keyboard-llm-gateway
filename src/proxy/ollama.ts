@@ -1,3 +1,4 @@
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import type { Context } from 'hono';
 import type { ApiKey } from '../types/index.js';
 
@@ -41,10 +42,31 @@ type OpenAIModel = {
 export class OllamaProxy {
   private host: string;
   private apfelHost?: string;
+  private knownModelsPath: string;
 
-  constructor(host: string, apfelHost?: string) {
+  constructor(host: string, apfelHost?: string, knownModelsPath = './config/known-models.json') {
     this.host = host.replace(/\/$/, '');
     this.apfelHost = apfelHost?.replace(/\/$/, '');
+    this.knownModelsPath = knownModelsPath;
+  }
+
+  private loadKnownModels(): string[] {
+    try {
+      if (!existsSync(this.knownModelsPath)) return [];
+      const data = JSON.parse(readFileSync(this.knownModelsPath, 'utf-8')) as { models?: string[] };
+      return data.models || [];
+    } catch { return []; }
+  }
+
+  private rememberModel(model: string): void {
+    try {
+      const known = new Set(this.loadKnownModels());
+      if (known.has(model)) return;
+      known.add(model);
+      writeFileSync(this.knownModelsPath, JSON.stringify({ models: [...known].sort() }, null, 2), 'utf-8');
+    } catch (e) {
+      console.error('[gateway] Failed to remember model:', e instanceof Error ? e.message : e);
+    }
   }
 
   async healthCheck(): Promise<boolean> {
@@ -55,33 +77,16 @@ export class OllamaProxy {
   }
 
   async listModels(): Promise<string[]> {
-    const [tagsResult, psResult] = await Promise.allSettled([
-      fetch(`${this.host}/api/tags`, { signal: AbortSignal.timeout(5000) }),
-      fetch(`${this.host}/api/ps`, { signal: AbortSignal.timeout(5000) }),
-    ]);
-
-    if (tagsResult.status === 'rejected' || !tagsResult.value.ok) {
-      const status = tagsResult.status === 'fulfilled' ? tagsResult.value.status : 'network';
-      throw new Error(`Ollama model list failed (${status})`);
+    const tagsRes = await fetch(`${this.host}/api/tags`, { signal: AbortSignal.timeout(5000) });
+    if (!tagsRes.ok) {
+      throw new Error(`Ollama model list failed (${tagsRes.status})`);
     }
 
-    const tags = await tagsResult.value.json() as { models?: Array<{ name?: string; model?: string; remote_model?: string; remote_host?: string }> };
-    let loaded = new Set<string>();
-    if (psResult.status === 'fulfilled' && psResult.value.ok) {
-      const ps = await psResult.value.json() as { models?: Array<{ name?: string; model?: string }> };
-      loaded = new Set((ps.models || []).map((m) => m.name || m.model).filter((name): name is string => Boolean(name)));
-    }
-
-    const models = new Set<string>();
+    const tags = await tagsRes.json() as { models?: Array<{ name?: string; model?: string }> };
+    const models = new Set<string>(this.loadKnownModels());
     for (const model of tags.models || []) {
       const name = model.name || model.model;
-      if (!name) continue;
-      const isCloud = Boolean(model.remote_model || model.remote_host || name.endsWith('-cloud'));
-      if (isCloud || loaded.has(name)) models.add(name);
-    }
-
-    if (!loaded.size && (tags.models || []).some((m) => (m.name || m.model) === 'gemma4:latest')) {
-      models.add('gemma4:latest');
+      if (name) models.add(name);
     }
 
     if (this.apfelHost) {
@@ -389,6 +394,8 @@ export class OllamaProxy {
         body: outboundBody,
         signal: AbortSignal.timeout(300000),
       });
+
+      if (res.ok && model) this.rememberModel(model);
 
       const contentType = res.headers.get('content-type') || '';
       if (contentType.includes('text/event-stream') || contentType.includes('ndjson')) {

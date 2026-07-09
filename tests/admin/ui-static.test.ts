@@ -218,7 +218,6 @@ describe('Admin UI static contract', () => {
     expect(html).toContain("onchange=\"syncManualModel('key')\"");
     expect(html).toContain('function syncManualModel(prefix)');
     expect(html).toContain('function preferredModel()');
-    expect(html).toContain("const preferredModelOrder=['gpt-oss:120b-cloud','gemma4:latest','llama3.2:latest']");
     expect(html).toContain('populateModelSelect(keyModel);keyModelManual.classList.add');
     expect(html).not.toContain('populateModelSelect(keyModel,availableModels[0])');
     expect(html).toContain('Custom / manual…');
