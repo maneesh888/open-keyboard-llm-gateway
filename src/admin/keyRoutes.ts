@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { randomBytes } from 'crypto';
 import type { Context } from 'hono';
-import type { ApiKey, AuthToken, ClientFeatures, CustomAction, ModelConfig, RateLimitConfig } from '../types/index.js';
+import type { ApiKey, AuthToken, ClientFeatures, CustomAction, EffortMode, ModelConfig, RateLimitConfig } from '../types/index.js';
 import { OllamaProxy } from '../proxy/ollama.js';
 import { KeyManager } from '../keys/manager.js';
 import { AdminAuth } from './auth.js';
@@ -12,6 +12,7 @@ type KeyUpdateInput = Partial<Pick<ApiKey, 'name' | 'owner' | 'description' | 'e
 
 const CREATE_FIELDS = new Set(['name', 'owner', 'description', 'enabled', 'rateLimitConfig', 'features', 'modelConfig', 'allowedModels']);
 const UPDATE_FIELDS = CREATE_FIELDS;
+const EFFORT_MODES = new Set<EffortMode>(['low', 'medium', 'high']);
 
 class ValidationError extends Error {
   constructor(message: string) {
@@ -64,6 +65,15 @@ function numberInRange(value: unknown, field: string, min: number, max: number):
   return value;
 }
 
+function optionalEffortMode(value: unknown, field: string): EffortMode | undefined {
+  const trimmed = optionalTrimmedString(value, field);
+  if (!trimmed) return undefined;
+  if (!EFFORT_MODES.has(trimmed as EffortMode)) {
+    throw new ValidationError(`${field} must be one of: low, medium, high`);
+  }
+  return trimmed as EffortMode;
+}
+
 function parseRateLimitConfig(value: unknown): RateLimitConfig | undefined {
   if (value === undefined || value === null) return undefined;
   if (!isObject(value)) throw new ValidationError('rateLimitConfig must be an object');
@@ -77,11 +87,13 @@ function parseRateLimitConfig(value: unknown): RateLimitConfig | undefined {
 function parseModelConfig(value: unknown): ModelConfig | undefined {
   if (value === undefined || value === null) return undefined;
   if (!isObject(value)) throw new ValidationError('modelConfig must be an object');
-  assertKnownFields(value, new Set(['model', 'maxTokens', 'temperature']));
+  assertKnownFields(value, new Set(['model', 'maxTokens', 'temperature', 'effort']));
+  const effort = optionalEffortMode(value.effort, 'modelConfig.effort');
   return {
     model: requiredTrimmedString(value.model, 'modelConfig.model'),
     maxTokens: integerInRange(value.maxTokens, 'modelConfig.maxTokens', 1, 100000),
     temperature: numberInRange(value.temperature, 'modelConfig.temperature', 0, 2),
+    ...(effort ? { effort } : {}),
   };
 }
 

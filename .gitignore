@@ -22,6 +22,8 @@ public/admin/*.backup-*
 
 # Local generated reports / live run artifacts
 LIVE_FUNCTION_TEST_RESULTS.md
+reports/
+.agent-host-*.json
 
 # Local git backup pointer
 .git-backup-path

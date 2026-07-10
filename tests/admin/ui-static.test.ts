@@ -222,4 +222,36 @@ describe('Admin UI static contract', () => {
     expect(html).not.toContain('populateModelSelect(keyModel,availableModels[0])');
     expect(html).toContain('Custom / manual…');
   });
+
+  it('places effort below model and keeps temperature last in model settings', () => {
+    const modelIndex = html.indexOf('id="keyModel"');
+    const effortIndex = html.indexOf('id="keyEffort"');
+    const maxTokensIndex = html.indexOf('id="keyMaxTokens"');
+    const temperatureIndex = html.indexOf('id="keyTemperature"');
+    const enabledIndex = html.indexOf('id="keyEnabled"');
+
+    expect(modelIndex).toBeGreaterThan(-1);
+    expect(effortIndex).toBeGreaterThan(-1);
+    expect(maxTokensIndex).toBeGreaterThan(-1);
+    expect(temperatureIndex).toBeGreaterThan(-1);
+    expect(enabledIndex).toBeGreaterThan(-1);
+    expect(modelIndex).toBeLessThan(effortIndex);
+    expect(effortIndex).toBeLessThan(temperatureIndex);
+    expect(maxTokensIndex).toBeLessThan(temperatureIndex);
+    expect(temperatureIndex).toBeLessThan(enabledIndex);
+  });
+
+  it('persists optional effort from the key modal into modelConfig', () => {
+    expect(html).toContain('<label for="keyEffort">Effort</label>');
+    expect(html).toContain('<option value="">Unset</option>');
+    expect(html).toContain('<option value="low">Low</option>');
+    expect(html).toContain('<option value="medium">Medium</option>');
+    expect(html).toContain('<option value="high">High</option>');
+    expect(html).toContain("keyEffort.value=''");
+    expect(html).toContain("keyEffort.value=k.modelConfig?.effort||''");
+    expect(html).toContain('const effort=keyEffort.value,modelConfig={model,maxTokens:+keyMaxTokens.value,temperature:+keyTemperature.value}');
+    expect(html).toContain('if(effort)modelConfig.effort=effort');
+    expect(html).toContain('Effort: ${escapeHtml(effort)}');
+    expect(html).toContain('testerModelSummary.value=k?.modelConfig?.model?`${k.modelConfig.model} · effort ${effort}`');
+  });
 });

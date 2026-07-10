@@ -62,27 +62,30 @@ The screenshots below use approved, partially redacted local captures. Do not re
 
 ### 1. Bootstrap local config
 
-For a fresh local machine, run one command from the repo root:
+For a fresh local machine, run one command from the repo root to set up config and start the gateway on localhost:
 
 ```bash
-npm run bootstrap
+npm run dev:bootstrap
 ```
 
-The bootstrap command installs npm dependencies, creates missing local runtime files, prompts for an admin UI password, writes `config/admin.json` with a bcrypt password hash and JWT secret, writes `config/config.json`, and creates one enabled API key in `config/keys.json`. It does not overwrite existing local config files and it does not print generated secrets.
+The bootstrap command installs npm dependencies, creates missing local runtime files, prompts for an admin UI password, writes `config/admin.json` with a bcrypt password hash and JWT secret, writes `config/config.json`, creates one enabled API key in `config/keys.json`, and starts the local gateway when run through `npm run dev:bootstrap`. It does not overwrite existing local config files and it does not print generated secrets.
 
 To create the default key for a specific Ollama model and pull it during setup:
 
 ```bash
-npm run bootstrap -- --model llama3.2:latest --pull
+npm run dev:bootstrap -- --model llama3.2:latest --pull
 ```
 
 Useful options:
 
 ```bash
+npm run bootstrap
 npm run bootstrap -- --ollama-host http://localhost:11434
 npm run bootstrap -- --skip-install
 LLM_GATEWAY_ADMIN_PASSWORD='use-a-long-local-password' npm run bootstrap
 ```
+
+`npm run bootstrap` is setup-only and exits after writing any missing config. `npm run dev:bootstrap` runs the same setup and then keeps the gateway running in the foreground.
 
 ### 2. Run locally
 
@@ -135,6 +138,8 @@ Keys are defined in `config/keys.json` and hot-reloaded every 5 seconds — no r
 
 **Restrict models:** set `"allowedModels": ["gemma4:26b-a4b-it-q4_K_M"]` to limit which models a key can use.
 
+**Use a lighter sub-model:** set `"modelConfig.model"` to the exact lighter model or sub-model exposed by your backend. Optional `"modelConfig.effort"` is only a request-level reasoning hint for compatible backends; the gateway does not infer hidden effort tiers.
+
 ## Admin API and Web UI
 
 The gateway includes an admin API for managing API keys programmatically and a browser UI for common operations.
@@ -178,7 +183,7 @@ The UI supports:
 
 - key dashboard totals for total, active, and disabled keys
 - client credential management with reveal/copy controls
-- per-key model, token, temperature, and rate-limit settings
+- per-key model, token, effort, temperature, and rate-limit settings
 - enable/disable and delete actions
 - responsive mobile navigation for API Keys and Playground
 - live playground tests using the selected key and model
@@ -296,6 +301,7 @@ Each API key can have custom configuration:
 **Model Config:**
 - `model`: Default LLM model for this client
 - `maxTokens`: Maximum response length
+- `effort`: Optional reasoning-effort hint (`low`, `medium`, or `high`) for compatible backends
 - `temperature`: Response creativity (0.0-1.0)
 
 ## Open Keyboard integration

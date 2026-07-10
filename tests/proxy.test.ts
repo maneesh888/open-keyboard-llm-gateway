@@ -112,6 +112,78 @@ describe('OllamaProxy', () => {
     expect(opts.body).toBe(payload);
   });
 
+  it('adds configured effort to chat completion requests when caller leaves it unset', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ choices: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy, {
+      modelConfig: { model: 'gemma4', maxTokens: 100, temperature: 0.7, effort: 'low' },
+    });
+
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [{ role: 'user', content: 'hi' }] }),
+    });
+
+    expect(res.status).toBe(200);
+    const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(opts.body))).toMatchObject({ reasoning_effort: 'low' });
+  });
+
+  it('adds configured effort to responses requests under reasoning', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ output: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy, {
+      modelConfig: { model: 'gemma4', maxTokens: 100, temperature: 0.7, effort: 'medium' },
+    });
+
+    const res = await app.request('/v1/responses', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', input: 'hi', reasoning: { summary: 'auto' } }),
+    });
+
+    expect(res.status).toBe(200);
+    const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(opts.body))).toMatchObject({ reasoning: { summary: 'auto', effort: 'medium' } });
+  });
+
+  it('preserves caller-provided effort settings over key defaults', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ choices: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy, {
+      modelConfig: { model: 'gemma4', maxTokens: 100, temperature: 0.7, effort: 'low' },
+    });
+
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], reasoning_effort: 'high' }),
+    });
+
+    expect(res.status).toBe(200);
+    const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(opts.body))).toMatchObject({ reasoning_effort: 'high' });
+  });
+
   it('does not forward Authorization header to Ollama', async () => {
     fetchSpy.mockResolvedValueOnce(
       new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
@@ -258,7 +330,9 @@ describe('OllamaProxy', () => {
     );
 
     const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
+    const app = buildApp(proxy, {
+      modelConfig: { model: 'gemma4', maxTokens: 100, temperature: 0.7, effort: 'low' },
+    });
     const res = await app.request('/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -275,6 +349,7 @@ describe('OllamaProxy', () => {
     const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
     const forwarded = JSON.parse(String(opts.body));
     expect(forwarded.operation).toBe('fix_grammar');
+    expect(forwarded.reasoning_effort).toBe('low');
     expect(forwarded.input_text).toBe('i has a apple');
     expect(forwarded.messages[0].role).toBe('system');
     expect(forwarded.messages[0].content).toContain('results');

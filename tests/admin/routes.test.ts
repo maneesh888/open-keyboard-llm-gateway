@@ -100,7 +100,23 @@ describe('Admin key routes', () => {
     expect(body.enabled).toBe(true);
     expect(body.rateLimitConfig.requestsPerMinute).toBe(30);
     expect(body.modelConfig.model).toBe('gemma4:latest');
+    expect(body.modelConfig.effort).toBeUndefined();
     expect(body.allowedModels).toEqual(['*']);
+  });
+
+  it('creates a key with optional model effort setting', async () => {
+    const res = await app.request('/admin/keys', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Effort Key',
+        modelConfig: { model: 'local-model', maxTokens: 250, temperature: 0.2, effort: 'low' },
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.modelConfig).toEqual({ model: 'local-model', maxTokens: 250, temperature: 0.2, effort: 'low' });
   });
 
   it('rejects create without name', async () => {
@@ -128,6 +144,21 @@ describe('Admin key routes', () => {
     expect(body.error).toMatch(/rateLimitConfig\.requestsPerMinute/);
   });
 
+  it('rejects invalid model effort values', async () => {
+    const res = await app.request('/admin/keys', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Bad Effort Key',
+        modelConfig: { model: 'local-model', maxTokens: 250, temperature: 0.2, effort: 'light' },
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/modelConfig\.effort/);
+  });
+
   it('updates mutable fields with validated settings', async () => {
     const res = await app.request('/admin/keys/key_existing', {
       method: 'PATCH',
@@ -136,7 +167,7 @@ describe('Admin key routes', () => {
         name: 'Renamed',
         enabled: false,
         rateLimitConfig: { requestsPerMinute: 90, burstAllowance: 12 },
-        modelConfig: { model: 'local-model', maxTokens: 250, temperature: 0.2 },
+        modelConfig: { model: 'local-model', maxTokens: 250, temperature: 0.2, effort: 'medium' },
         allowedModels: ['local-model'],
       }),
     });
@@ -148,7 +179,7 @@ describe('Admin key routes', () => {
     expect(body.name).toBe('Renamed');
     expect(body.enabled).toBe(false);
     expect(body.rateLimitConfig).toEqual({ requestsPerMinute: 90, burstAllowance: 12 });
-    expect(body.modelConfig).toEqual({ model: 'local-model', maxTokens: 250, temperature: 0.2 });
+    expect(body.modelConfig).toEqual({ model: 'local-model', maxTokens: 250, temperature: 0.2, effort: 'medium' });
     expect(body.allowedModels).toEqual(['local-model']);
   });
 
