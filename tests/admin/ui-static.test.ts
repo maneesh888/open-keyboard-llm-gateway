@@ -58,6 +58,13 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('data-page="playground"');
     expect(html).toContain('id="testerKey"');
     expect(html).toContain('id="testerKeyFetchStatus"');
+    expect(html).toContain('id="testerKeyHint"');
+    expect(html).toContain('id="testerModelCatalog"');
+    expect(html).toContain('Keys are loaded from the admin API; full key material is fetched only for the selected live test.');
+    expect(html).toContain('function updateModelCatalogStatus()');
+    expect(html).toContain('models available · default');
+    expect(html).toContain('manual fallback available');
+    expect(html).toContain('admin keys loaded. Select one to fetch the full key and run a real chat completion.');
     expect(html).toContain('id="testerPromptPreset"');
     expect(html).toContain('Test preset');
     expect(html).toContain('id="testerSystemPrompt"');
@@ -103,9 +110,14 @@ describe('Admin UI static contract', () => {
     expect(html).toContain("endpoint:'/v1/chat/completions'");
     expect(html).toContain('Selected key is disabled. Enable it before running a live chat test.');
     expect(html).toContain('function classify(status,data,err)');
+    expect(html).toContain('Request validation failed: check model, messages, operation, and input_text fields.');
+    expect(html).toContain('Endpoint or model not found: verify /v1/chat/completions and the selected model name.');
     expect(html).toContain('history.replaceState(null');
     expect(html).toContain("history.pushState(null,'',next);applyRoute()");
     expect(html).toContain("window.addEventListener('popstate',applyRoute)");
+    expect(html).toContain('Ready to test selected key.');
+    expect(html).toContain('Choose an API key to run a live test.');
+    expect(html).toContain('if(route.keyId&&testerKey.value)');
     expect(html).toContain(`onclick="navigateTo('keys')"`);
     expect(html).not.toContain('← API Keys');
     expect(html).toContain('id="sidebar"');
