@@ -2,8 +2,10 @@ node_modules/
 dist/
 config/keys.json
 config/config.json
+config/known-models.json
 .env
 *.log
+package-lock.json
 
 # Local sensitive/runtime config and backups
 config/admin.json
