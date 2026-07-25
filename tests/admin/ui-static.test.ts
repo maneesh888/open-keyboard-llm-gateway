@@ -61,6 +61,7 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('id="testerKeyHint"');
     expect(html).toContain('id="testerModelCatalog"');
     expect(html).toContain('Keys are loaded from the admin API; full key material is fetched only for the selected live test.');
+    expect(html).toContain("const preferredModelOrder=['apple-foundationmodel'");
     expect(html).toContain('function updateModelCatalogStatus()');
     expect(html).toContain('models available · default');
     expect(html).toContain('manual fallback available');
