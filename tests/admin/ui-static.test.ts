@@ -57,6 +57,7 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('function saveSession(token,expiresIn)');
     expect(html).toContain('function readSession()');
     expect(html).toContain('function restoreSession()');
+    expect(html).toContain('fullKeys={}');
     expect(html).toContain('restoreSession();');
     expect(html).toContain('clearSession();dashboardScreen.classList.remove');
   });
@@ -68,6 +69,16 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('id="testerKeyFetchStatus"');
     expect(html).toContain('id="testerKeyHint"');
     expect(html).toContain('id="testerModelCatalog"');
+    expect(html).toContain('id="testerReadiness"');
+    expect(html).toContain('id="testerModel"');
+    expect(html).toContain('id="testerModelManual"');
+    expect(html).toContain('Defaults to the selected key model, but can be overridden for one-off diagnostics.');
+    expect(html).toContain('class="tester-summary"');
+    expect(html).toContain('function testerSelectedModel()');
+    expect(html).toContain('function updateTesterReadiness()');
+    expect(html).toContain('Selected model: ${model}');
+    expect(html).toContain('Fetch on test');
+    expect(html).toContain('fetchPolicy:\'on-test-only\'');
     expect(html).toContain('Keys are loaded from the admin API; full key material is fetched only for the selected live test.');
     expect(html).toContain("const preferredModelOrder=['apple-foundationmodel'");
     expect(html).toContain('function updateModelCatalogStatus()');
@@ -109,7 +120,7 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('function renderTesterKeys()');
     expect(html).toContain('function getFullKey(id)');
     expect(html).toContain('api(`/admin/keys/${id}`)');
-    expect(html).toContain('Checking admin API…');
+    expect(html).toContain('Will fetch full key when test runs');
     expect(html).toContain('fullKeyFetched');
     expect(html).toContain("role:'system'");
     expect(html).toContain('messageRoles:(body.messages||[]).map');
@@ -121,6 +132,8 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('function classify(status,data,err)');
     expect(html).toContain('Request validation failed: check model, messages, operation, and input_text fields.');
     expect(html).toContain('Endpoint or model not found: verify /v1/chat/completions and the selected model name.');
+    expect(html).toContain('Upstream unavailable: Ollama/Apfel backend is not reachable.');
+    expect(html).toContain('Network/browser error: check gateway reachability and TLS/CORS from this admin session.');
     expect(html).toContain('history.replaceState(null');
     expect(html).toContain("history.pushState(null,'',next);applyRoute()");
     expect(html).toContain("window.addEventListener('popstate',applyRoute)");
