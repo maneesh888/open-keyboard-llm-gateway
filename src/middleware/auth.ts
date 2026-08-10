@@ -1,21 +1,22 @@
 import type { Context, Next } from 'hono';
 import type { KeyManager } from '../keys/manager.js';
+import { errorResponse } from '../lib/errors.js';
 
 export function authMiddleware(keyManager: KeyManager) {
   return async (c: Context, next: Next) => {
     const authHeader = c.req.header('Authorization');
     if (!authHeader) {
-      return c.json({ error: 'Missing Authorization header' }, 401);
+      return errorResponse(c, 401, 'missing_authorization', 'Missing Authorization header');
     }
 
     const token = authHeader.replace('Bearer ', '');
     if (!token || token === authHeader) {
-      return c.json({ error: 'Invalid Authorization format. Use: Bearer sk-xxx' }, 401);
+      return errorResponse(c, 401, 'invalid_authorization_format', 'Invalid Authorization format. Use: Bearer sk-xxx');
     }
 
     const apiKey = keyManager.validate(token);
     if (!apiKey) {
-      return c.json({ error: 'Invalid or disabled API key' }, 401);
+      return errorResponse(c, 401, 'invalid_api_key', 'Invalid or disabled API key');
     }
 
     c.set('apiKey', apiKey);

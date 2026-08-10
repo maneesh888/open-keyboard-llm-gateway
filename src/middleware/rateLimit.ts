@@ -1,5 +1,6 @@
 import type { Context, Next } from 'hono';
 import type { ApiKey } from '../types/index.js';
+import { errorResponse } from '../lib/errors.js';
 
 /**
  * Token Bucket Rate Limiter
@@ -111,12 +112,11 @@ export class RateLimiter {
         c.header('X-RateLimit-Remaining', '0');
         c.header('X-RateLimit-Reset', String(Math.ceil((Date.now() + (retryAfter * 1000)) / 1000)));
         
-        return c.json({
-          error: 'Rate limit exceeded',
+        return errorResponse(c, 429, 'rate_limit_exceeded', 'Rate limit exceeded', {
           retryAfter,
           limit: bucket.capacity,
           remaining: 0
-        }, 429);
+        });
       }
 
       // Success - add rate limit headers

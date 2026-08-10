@@ -1,6 +1,13 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import type { Context } from 'hono';
 import type { ApiKey } from '../types/index.js';
+import { errorResponse, type GatewayErrorCode } from '../lib/errors.js';
+import {
+  parseChatCompletionRequest,
+  prepareChatCompletionStream,
+  validateChatCompletionResponse,
+  type ChatCompletionRequest,
+} from './openaiCompatibility.js';
 
 type OperationName = 'fix_grammar' | 'summarize' | 'rewrite' | 'continue_writing' | 'translate';
 
@@ -14,6 +21,12 @@ type OperationRequest = {
 
 type OpenAIRequestBody = OperationRequest & Record<string, unknown>;
 type EffortTarget = 'chat' | 'responses';
+type OperationParseResult =
+  | { ok: true; parsed?: OpenAIRequestBody }
+  | { ok: false; error: string; code: GatewayErrorCode };
+type OperationResponseNormalizationResult =
+  | { ok: true; body: string }
+  | { ok: false; error: string; code: 'upstream_error' };
 
 type OperationResultItem = {
   id: string;
@@ -41,6 +54,13 @@ type OpenAIModel = {
   created: number;
   owned_by: string;
 };
+
+export class UpstreamResponseError extends Error {
+  constructor(message: string, readonly upstreamStatus: number) {
+    super(message);
+    this.name = 'UpstreamResponseError';
+  }
+}
 
 export class OllamaProxy {
   private host: string;
@@ -82,10 +102,15 @@ export class OllamaProxy {
   async listModels(): Promise<string[]> {
     const tagsRes = await fetch(`${this.host}/api/tags`, { signal: AbortSignal.timeout(5000) });
     if (!tagsRes.ok) {
-      throw new Error(`Ollama model list failed (${tagsRes.status})`);
+      throw new UpstreamResponseError(`Ollama model list failed (${tagsRes.status})`, tagsRes.status);
     }
 
-    const tags = await tagsRes.json() as { models?: Array<{ name?: string; model?: string }> };
+    let tags: { models?: Array<{ name?: string; model?: string }> };
+    try {
+      tags = await tagsRes.json() as { models?: Array<{ name?: string; model?: string }> };
+    } catch {
+      throw new UpstreamResponseError('Ollama model list returned invalid JSON', tagsRes.status);
+    }
     const models = new Set<string>(this.loadKnownModels());
     for (const model of tags.models || []) {
       const name = model.name || model.model;
@@ -148,7 +173,15 @@ export class OllamaProxy {
       const models = await this.publicModelsForKey(c.get('apiKey') as ApiKey | undefined);
       return c.json(this.openAIModelsResponse(models));
     } catch (e: any) {
-      return c.json({ error: 'Upstream model backend is not reachable', detail: e?.message || String(e) }, 503);
+      if (e instanceof UpstreamResponseError) {
+        return errorResponse(c, 502, 'upstream_error', 'Upstream model request failed.', {
+          upstreamStatus: e.upstreamStatus,
+        });
+      }
+      if (e?.name === 'TimeoutError') {
+        return errorResponse(c, 504, 'upstream_timeout', 'Ollama request timed out');
+      }
+      return errorResponse(c, 503, 'upstream_unreachable', 'Upstream model backend is not reachable');
     }
   }
 
@@ -173,20 +206,24 @@ export class OllamaProxy {
     }
   }
 
-  private parseOperationRequest(body?: string): { parsed?: OpenAIRequestBody; error?: string } {
-    if (!body) return {};
+  private parseOperationRequest(body?: string): OperationParseResult {
+    if (!body) return { ok: true };
     try {
       const raw = JSON.parse(body) as unknown;
-      if (!this.isRecord(raw)) return {};
+      if (!this.isRecord(raw)) return { ok: true };
       const parsed = raw as OpenAIRequestBody;
       const operation = typeof parsed.operation === 'string' ? parsed.operation.trim() : '';
-      if (!operation) return { parsed };
-      if (!this.operationNames.has(operation as OperationName)) return { error: `Unsupported operation '${operation}'` };
+      if (!operation) return { ok: true, parsed };
+      if (!this.operationNames.has(operation as OperationName)) {
+        return { ok: false, error: `Unsupported operation '${operation}'`, code: 'unsupported_operation' };
+      }
       const inputText = typeof parsed.input_text === 'string' ? parsed.input_text : '';
-      if (!inputText.trim()) return { error: 'input_text is required when operation is provided' };
-      return { parsed };
+      if (!inputText.trim()) {
+        return { ok: false, error: 'input_text is required when operation is provided', code: 'input_text_required' };
+      }
+      return { ok: true, parsed };
     } catch {
-      return {};
+      return { ok: true };
     }
   }
 
@@ -221,16 +258,25 @@ export class OllamaProxy {
     });
   }
 
-  private normalizeOperationResponseBody(responseBody: string, operation: string, inputText: string): string {
+  private normalizeOperationResponseBody(responseBody: string, operation: string, inputText: string): OperationResponseNormalizationResult {
+    let response: Record<string, unknown>;
     try {
-      const response = JSON.parse(responseBody) as { choices?: Array<{ message?: { content?: string } }> };
-      const content = response.choices?.[0]?.message?.content;
-      if (typeof content !== 'string') return responseBody;
-      response.choices![0]!.message!.content = JSON.stringify(this.parseOperationResultContent(content, operation, inputText));
-      return JSON.stringify(response);
+      const parsed = JSON.parse(responseBody) as unknown;
+      if (!this.isRecord(parsed)) throw new Error('Response body is not an object');
+      response = parsed;
     } catch {
-      return responseBody;
+      return { ok: false, code: 'upstream_error', error: 'Upstream model request failed.' };
     }
+
+    const choices = response.choices;
+    const firstChoice = Array.isArray(choices) ? choices[0] : undefined;
+    const message = this.isRecord(firstChoice) && this.isRecord(firstChoice.message) ? firstChoice.message : undefined;
+    if (!message || typeof message.content !== 'string') {
+      return { ok: false, code: 'upstream_error', error: 'Upstream model request failed.' };
+    }
+
+    message.content = JSON.stringify(this.parseOperationResultContent(message.content, operation, inputText));
+    return { ok: true, body: JSON.stringify(response) };
   }
 
   private parseOperationResultContent(content: string, operation: string, inputText: string): OperationResult {
@@ -240,8 +286,12 @@ export class OllamaProxy {
       const rawItems = Array.isArray(parsed.results) ? parsed.results : Array.isArray(parsed.items) ? parsed.items : [];
       const normalizedOperation = this.cleanString(parsed.operation) || operation;
       const correctedText = this.cleanCorrectedText(parsed.corrected_text);
-      const normalizedItems = rawItems.map((item, index) => this.normalizeResultItem(item, index)).filter((item): item is OperationResultItem => Boolean(item));
-      const explicitlyEmpty = normalizedItems.length === 0 && (Array.isArray(parsed.results) || Array.isArray(parsed.items)) && !correctedText;
+      const normalizedItems = rawItems
+        .map((item, index) => this.normalizeResultItem(item, index))
+        .filter((item): item is OperationResultItem => Boolean(item));
+      const explicitlyEmpty = normalizedItems.length === 0
+        && (Array.isArray(parsed.results) || Array.isArray(parsed.items))
+        && !correctedText;
       const results = explicitlyEmpty ? [] : normalizedItems;
       if (results.length || parsed.corrected_text || parsed.summary || parsed.operation || Array.isArray(parsed.results) || Array.isArray(parsed.items)) {
         return {
@@ -252,10 +302,10 @@ export class OllamaProxy {
         };
       }
     } catch {}
-    const legacy = stripped;
-    const nestedLegacy = this.tryParseNestedOperationResult(legacy, operation, inputText);
+
+    const nestedLegacy = this.tryParseNestedOperationResult(stripped, operation, inputText);
     if (nestedLegacy) return nestedLegacy;
-    if (this.isJSONLike(legacy)) {
+    if (this.isJSONLike(stripped)) {
       return {
         operation,
         results: [{
@@ -266,27 +316,22 @@ export class OllamaProxy {
         }],
       };
     }
+
     const itemType = operation === 'summarize' ? 'summary' : 'correction';
     const title = operation === 'summarize' ? 'Summary' : operation === 'fix_grammar' ? 'Grammar correction' : 'Writing result';
-    const legacyResults = [{ id: 'legacy-1', type: itemType, title, text: legacy, ...(operation === 'fix_grammar' ? { original: inputText, replacement: legacy } : {}) }] as OperationResultItem[];
     return {
       operation,
-      results: legacyResults,
-      ...(operation === 'fix_grammar' ? { corrected_text: this.cleanCorrectedText(legacy) || legacy } : { summary: legacy }),
+      results: [{
+        id: 'legacy-1',
+        type: itemType,
+        title,
+        text: stripped,
+        ...(operation === 'fix_grammar' ? { original: inputText, replacement: stripped } : {}),
+      }],
+      ...(operation === 'fix_grammar'
+        ? { corrected_text: this.cleanCorrectedText(stripped) || stripped }
+        : { summary: stripped }),
     };
-  }
-
-
-  private cleanCorrectedText(value: unknown): string | undefined {
-    const cleaned = this.cleanString(value);
-    if (!cleaned) return undefined;
-    if (!this.isJSONLike(cleaned)) return cleaned;
-    try {
-      const parsed = JSON.parse(cleaned) as Partial<OperationResult> & { corrected_text?: unknown };
-      const nested = this.cleanString(parsed.corrected_text);
-      if (nested && !this.isJSONLike(nested)) return nested;
-    } catch {}
-    return undefined;
   }
 
   private tryParseNestedOperationResult(value: string, operation: string, inputText: string): OperationResult | undefined {
@@ -298,6 +343,19 @@ export class OllamaProxy {
       if (parsed.operation || parsed.results || parsed.corrected_text || parsed.summary) {
         return this.parseOperationResultContent(JSON.stringify(parsed), operation, inputText);
       }
+    } catch {}
+    return undefined;
+  }
+
+
+  private cleanCorrectedText(value: unknown): string | undefined {
+    const cleaned = this.cleanString(value);
+    if (!cleaned) return undefined;
+    if (!this.isJSONLike(cleaned)) return cleaned;
+    try {
+      const parsed = JSON.parse(cleaned) as Partial<OperationResult> & { corrected_text?: unknown };
+      const nested = this.cleanString(parsed.corrected_text);
+      if (nested && !this.isJSONLike(nested)) return nested;
     } catch {}
     return undefined;
   }
@@ -324,7 +382,9 @@ export class OllamaProxy {
     return trimmed.startsWith('{') || trimmed.startsWith('[');
   }
 
-  private normalizeResultItem(item: Partial<OperationResultItem>, index: number): OperationResultItem | null {
+  private normalizeResultItem(value: unknown, index: number): OperationResultItem | null {
+    if (!this.isRecord(value)) return null;
+    const item = value as Partial<OperationResultItem>;
     const text = this.cleanString(item.text || item.replacement || item.explanation || item.title);
     if (!text) return null;
     const type = this.cleanString(item.type) || 'suggestion';
@@ -398,25 +458,45 @@ export class OllamaProxy {
       return this.handlePublicModels(c);
     }
 
+    const isChatCompletions = c.req.path === '/v1/chat/completions';
+    if (isChatCompletions && c.req.method !== 'POST') {
+      return errorResponse(c, 405, 'invalid_request', 'Chat Completions requires POST.');
+    }
+
+    let chatRequest: ChatCompletionRequest | undefined;
+    if (isChatCompletions) {
+      const contentType = c.req.header('Content-Type') || '';
+      if (contentType && !contentType.toLowerCase().includes('application/json')) {
+        return errorResponse(c, 415, 'invalid_request', 'Content-Type must be application/json.');
+      }
+      const compatibility = parseChatCompletionRequest(body);
+      if (!compatibility.ok) {
+        return errorResponse(c, 400, 'invalid_request', compatibility.message);
+      }
+      chatRequest = compatibility.value;
+    }
+
     // Extract model and optional OpenKeyboard operation contract fields for checks and prompt shaping.
     let model: string | undefined;
     let outboundBody = body;
     let operation: string | undefined;
     let inputText: string | undefined;
     if (body) {
-      const shouldHandleOperation = c.req.method === 'POST' && c.req.path === '/v1/chat/completions';
-      const operationRequest = shouldHandleOperation ? this.parseOperationRequest(body) : {};
-      if (operationRequest.error) return c.json({ error: operationRequest.error }, 400);
-      const parsed = operationRequest.parsed || this.parseJSONRequestBody(body);
+      const shouldHandleOperation = c.req.method === 'POST' && isChatCompletions;
+      const operationRequest: OperationParseResult = shouldHandleOperation ? this.parseOperationRequest(body) : { ok: true };
+      if (!operationRequest.ok) return errorResponse(c, 400, operationRequest.code, operationRequest.error);
+      const parsed = chatRequest || operationRequest.parsed || this.parseJSONRequestBody(body);
       if (parsed?.model && typeof parsed.model === 'string') {
         model = parsed.model;
         c.set('model', model);
       }
       if (shouldHandleOperation && parsed?.operation && typeof parsed.operation === 'string') {
-        if (parsed.stream === true) return c.json({ error: 'stream must be false when operation is provided' }, 400);
+        if (parsed.stream === true) {
+          return errorResponse(c, 400, 'stream_not_supported_for_operation', 'stream must be false when operation is provided');
+        }
         operation = parsed.operation.trim();
         inputText = typeof parsed.input_text === 'string' ? parsed.input_text.slice(0, 2000) : '';
-        outboundBody = this.structuredOperationBody({ ...parsed, stream: false });
+        outboundBody = this.structuredOperationBody({ ...(parsed as OpenAIRequestBody), stream: false });
       }
     }
 
@@ -427,7 +507,7 @@ export class OllamaProxy {
     if (model && apiKey) {
       const allowed = apiKey.allowedModels as string[] | undefined;
       if (allowed && !allowed.includes('*') && !allowed.includes(model)) {
-        return c.json({ error: `Model '${model}' is not allowed for this API key` }, 403);
+        return errorResponse(c, 403, 'model_not_allowed', `Model '${model}' is not allowed for this API key`);
       }
     }
 
@@ -436,43 +516,90 @@ export class OllamaProxy {
     try {
       url = new URL(this.targetHostForModel(model) + c.req.path);
     } catch {
-      return c.json({ error: 'Upstream model backend is not reachable', detail: 'Invalid upstream host configuration' }, 503);
+      return errorResponse(c, 503, 'upstream_unreachable', 'Upstream model backend is not reachable');
     }
 
     const headers = new Headers();
     headers.set('Content-Type', c.req.header('Content-Type') || 'application/json');
+    const upstreamController = new AbortController();
+    const timeoutSignal = AbortSignal.timeout(300000);
+    const upstreamSignal = AbortSignal.any([c.req.raw.signal, timeoutSignal, upstreamController.signal]);
 
     try {
       const res = await fetch(url.toString(), {
         method: c.req.method,
         headers,
         body: outboundBody,
-        signal: AbortSignal.timeout(300000),
+        signal: upstreamSignal,
       });
 
-      if (res.ok && model) this.rememberModel(model);
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => undefined);
+        return errorResponse(c, 502, 'upstream_error', 'Upstream model request failed.', {
+          upstreamStatus: res.status,
+        });
+      }
 
       const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('text/event-stream') || contentType.includes('ndjson')) {
+      const streamRequested = chatRequest?.stream === true;
+      if (streamRequested) {
+        if (!contentType.toLowerCase().includes('text/event-stream')) {
+          upstreamController.abort('Unsupported upstream streaming content type');
+          await res.body?.cancel().catch(() => undefined);
+          return errorResponse(c, 502, 'invalid_stream', 'The upstream did not return an OpenAI-compatible SSE stream.');
+        }
+        const prepared = await prepareChatCompletionStream(res.body, upstreamController);
+        if (!prepared.ok) {
+          return errorResponse(c, 502, 'invalid_stream', 'The upstream emitted an invalid Chat Completions stream.');
+        }
+        if (model) this.rememberModel(model);
+        return new Response(prepared.value.stream, {
+          status: res.status,
+          headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
+        });
+      }
+
+      if (!isChatCompletions && (contentType.includes('text/event-stream') || contentType.includes('ndjson'))) {
+        if (model) this.rememberModel(model);
         return new Response(res.body, {
           status: res.status,
           headers: { 'Content-Type': contentType, 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' },
         });
       }
 
+      if (isChatCompletions && (contentType.includes('text/event-stream') || contentType.includes('ndjson'))) {
+        upstreamController.abort('Unexpected upstream streaming response');
+        await res.body?.cancel().catch(() => undefined);
+        return errorResponse(c, 502, 'invalid_upstream_response', 'The upstream returned an unexpected streaming response.');
+      }
+
       const rawResponseBody = await res.text();
-      const responseBody = operation && inputText && c.req.path === '/v1/chat/completions' && res.ok
-        ? this.normalizeOperationResponseBody(rawResponseBody, operation, inputText)
-        : rawResponseBody;
+      let responseBody = rawResponseBody;
+      if (operation && inputText && isChatCompletions) {
+        const normalization = this.normalizeOperationResponseBody(rawResponseBody, operation, inputText);
+        if (!normalization.ok) {
+          return errorResponse(c, 502, normalization.code, normalization.error);
+        }
+        responseBody = normalization.body;
+      } else if (isChatCompletions) {
+        const compatibility = validateChatCompletionResponse(rawResponseBody);
+        if (!compatibility.ok) {
+          return errorResponse(c, 502, 'invalid_upstream_response', compatibility.message);
+        }
+      }
+      if (model) this.rememberModel(model);
       return new Response(responseBody, {
         status: res.status,
-        headers: { 'Content-Type': contentType },
+        headers: { 'Content-Type': isChatCompletions ? 'application/json' : contentType },
       });
     } catch (e: any) {
-      if (e.name === 'TimeoutError') {
-        return c.json({ error: 'Ollama request timed out' }, 504);
+      if (e?.name === 'TimeoutError' || (timeoutSignal.aborted && timeoutSignal.reason?.name === 'TimeoutError')) {
+        return errorResponse(c, 504, 'upstream_timeout', 'Ollama request timed out');
       }
-      return c.json({ error: 'Upstream model backend is not reachable', detail: e.message }, 503);
+      if (c.req.raw.signal.aborted) {
+        return errorResponse(c, 408, 'request_cancelled', 'The client cancelled the request.');
+      }
+      return errorResponse(c, 503, 'upstream_unreachable', 'Upstream model backend is not reachable');
     }
   }
 }
