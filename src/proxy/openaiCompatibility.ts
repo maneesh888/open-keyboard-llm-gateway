@@ -36,6 +36,7 @@ const numericGenerationFields = [
 ] as const;
 
 const encoder = new TextEncoder();
+const MAX_SSE_EVENT_LENGTH = 1024 * 1024;
 
 function isRecord(value: unknown): value is RecordValue {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -250,14 +251,28 @@ export async function prepareChatCompletionStream(
   let buffer = '';
   let firstChunkSeen = false;
   let terminalSeen = false;
+  let upstreamDone = false;
 
   try {
     while (!firstChunkSeen && !terminalSeen) {
       const read = await reader.read();
+      upstreamDone = read.done;
       buffer += decoder.decode(read.value, { stream: !read.done });
 
       let split = takeEvent(buffer);
+      if (!split && buffer.length > MAX_SSE_EVENT_LENGTH) {
+        const message = 'The upstream emitted an oversized SSE event.';
+        await reader.cancel(message).catch(() => undefined);
+        upstreamController.abort(message);
+        return failure(message);
+      }
       while (split) {
+        if (split.event.length > MAX_SSE_EVENT_LENGTH) {
+          const message = 'The upstream emitted an oversized SSE event.';
+          await reader.cancel(message).catch(() => undefined);
+          upstreamController.abort(message);
+          return failure(message);
+        }
         buffer = split.rest;
         const checked = validator.event(split.event);
         if (!checked.ok) {
@@ -268,10 +283,11 @@ export async function prepareChatCompletionStream(
         if (checked.value.output) prefetched.push(checked.value.output);
         firstChunkSeen ||= checked.value.chunk;
         terminalSeen ||= checked.value.terminal;
+        if (firstChunkSeen || terminalSeen) break;
         split = takeEvent(buffer);
       }
 
-      if (read.done) {
+      if (upstreamDone && !firstChunkSeen && !terminalSeen) {
         const finished = validator.finish();
         return finished.ok ? failure('The upstream returned an empty Chat Completions stream.') : finished;
       }
@@ -283,47 +299,69 @@ export async function prepareChatCompletionStream(
 
   let cancelled = false;
   const stream = new ReadableStream<Uint8Array>({
-    async start(controller) {
+    async pull(controller) {
       try {
-        for (const output of prefetched) controller.enqueue(output);
-        if (terminalSeen) {
-          await reader.cancel('OpenAI stream completed').catch(() => undefined);
-          controller.close();
+        const prefetchedOutput = prefetched.shift();
+        if (prefetchedOutput) {
+          controller.enqueue(prefetchedOutput);
+          if (terminalSeen) {
+            await reader.cancel('OpenAI stream completed').catch(() => undefined);
+            controller.close();
+          }
           return;
         }
 
         while (!cancelled) {
-          const read = await reader.read();
-          buffer += decoder.decode(read.value, { stream: !read.done });
-
           let split = takeEvent(buffer);
-          while (split) {
-            buffer = split.rest;
-            const checked = validator.event(split.event);
-            if (!checked.ok) {
-              controller.enqueue(streamFailureEvent());
-              upstreamController.abort(checked.message);
-              await reader.cancel(checked.message).catch(() => undefined);
-              controller.close();
-              return;
-            }
-            if (checked.value.output) controller.enqueue(checked.value.output);
-            terminalSeen ||= checked.value.terminal;
-            split = takeEvent(buffer);
+          if (split && split.event.length > MAX_SSE_EVENT_LENGTH) {
+            const message = 'The upstream emitted an oversized SSE event.';
+            controller.enqueue(streamFailureEvent());
+            upstreamController.abort(message);
+            await reader.cancel(message).catch(() => undefined);
+            controller.close();
+            return;
           }
-
-          if (terminalSeen) {
-            await reader.cancel('OpenAI stream completed').catch(() => undefined);
+          if (!split && buffer.length > MAX_SSE_EVENT_LENGTH) {
+            const message = 'The upstream emitted an oversized SSE event.';
+            controller.enqueue(streamFailureEvent());
+            upstreamController.abort(message);
+            await reader.cancel(message).catch(() => undefined);
             controller.close();
             return;
           }
 
-          if (read.done) {
+          if (!split && upstreamDone) {
             const finished = validator.finish();
             if (!finished.ok) controller.enqueue(streamFailureEvent());
             controller.close();
             return;
           }
+
+          if (!split) {
+            const read = await reader.read();
+            upstreamDone = read.done;
+            buffer += decoder.decode(read.value, { stream: !read.done });
+            continue;
+          }
+
+          buffer = split.rest;
+          const checked = validator.event(split.event);
+          if (!checked.ok) {
+            controller.enqueue(streamFailureEvent());
+            upstreamController.abort(checked.message);
+            await reader.cancel(checked.message).catch(() => undefined);
+            controller.close();
+            return;
+          }
+          terminalSeen ||= checked.value.terminal;
+          if (!checked.value.output) continue;
+
+          controller.enqueue(checked.value.output);
+          if (terminalSeen) {
+            await reader.cancel('OpenAI stream completed').catch(() => undefined);
+            controller.close();
+          }
+          return;
         }
       } catch (error) {
         if (!cancelled) controller.error(error);
@@ -334,7 +372,7 @@ export async function prepareChatCompletionStream(
       upstreamController.abort(reason);
       await reader.cancel(reason).catch(() => undefined);
     },
-  });
+  }, { highWaterMark: 0 });
 
   return { ok: true, value: { stream } };
 }

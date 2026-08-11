@@ -17,6 +17,16 @@ function chatCompletion(content = 'Hello', extra: Record<string, unknown> = {}) 
   });
 }
 
+function chatCompletionChunk(content: string) {
+  return `data: ${JSON.stringify({
+    id: 'chatcmpl-test',
+    object: 'chat.completion.chunk',
+    created: 1_700_000_000,
+    model: 'gemma4',
+    choices: [{ index: 0, delta: { content }, finish_reason: null }],
+  })}\n\n`;
+}
+
 function gatewayError(message: string, type: string, code: string, extra: Record<string, unknown> = {}) {
   return { ...extra, error: { message, type, code } };
 }
@@ -396,6 +406,111 @@ describe('OllamaProxy', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/event-stream');
     expect(await res.text()).toBe(sseBody);
+  });
+
+  it('reads upstream SSE only when the downstream consumer requests another event', async () => {
+    const textEncoder = new TextEncoder();
+    const textDecoder = new TextDecoder();
+    let upstreamPullCount = 0;
+    let upstreamCancelled = false;
+    const upstream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        upstreamPullCount += 1;
+        controller.enqueue(textEncoder.encode(chatCompletionChunk(`chunk-${upstreamPullCount}`)));
+      },
+      cancel() {
+        upstreamCancelled = true;
+      },
+    }, { highWaterMark: 0 });
+    fetchSpy.mockResolvedValueOnce(new Response(upstream, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(upstreamPullCount).toBe(1);
+    await Promise.resolve();
+    expect(upstreamPullCount).toBe(1);
+
+    const downstream = res.body?.getReader();
+    expect(downstream).toBeDefined();
+    const first = await downstream!.read();
+    expect(textDecoder.decode(first.value)).toContain('chunk-1');
+    expect(upstreamPullCount).toBe(1);
+
+    const second = await downstream!.read();
+    expect(textDecoder.decode(second.value)).toContain('chunk-2');
+    expect(upstreamPullCount).toBe(2);
+    await Promise.resolve();
+    expect(upstreamPullCount).toBe(2);
+
+    await downstream!.cancel('slow client disconnected');
+    expect(upstreamCancelled).toBe(true);
+  });
+
+  it('rejects an oversized incomplete first SSE event', async () => {
+    const oversizedEvent = `data: ${'x'.repeat(1024 * 1024)}`;
+    fetchSpy.mockResolvedValueOnce(new Response(oversizedEvent, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual(gatewayError(
+      'The upstream emitted an invalid Chat Completions stream.',
+      'server_error',
+      'invalid_stream',
+    ));
+  });
+
+  it('terminates an oversized incomplete later SSE event without exposing it', async () => {
+    const textEncoder = new TextEncoder();
+    const first = chatCompletionChunk('hello');
+    const oversizedEvent = `data: ${'x'.repeat(1024 * 1024)}`;
+    const upstream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(textEncoder.encode(first));
+      },
+      pull(controller) {
+        controller.enqueue(textEncoder.encode(oversizedEvent));
+        controller.close();
+      },
+    });
+    fetchSpy.mockResolvedValueOnce(new Response(upstream, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const streamed = await res.text();
+    expect(streamed.startsWith(first)).toBe(true);
+    expect(streamed).toContain('"code":"invalid_stream"');
+    expect(streamed).not.toContain('x'.repeat(64));
+    expect(streamed.endsWith('data: [DONE]\n\n')).toBe(true);
   });
 
   it('rejects a malformed first SSE event with a safe HTTP error', async () => {
