@@ -2,9 +2,10 @@ import { Hono } from 'hono';
 import { randomBytes } from 'crypto';
 import type { Context } from 'hono';
 import type { ApiKey, AuthToken, ClientFeatures, CustomAction, EffortMode, ModelConfig, RateLimitConfig } from '../types/index.js';
-import { OllamaProxy } from '../proxy/ollama.js';
+import { OllamaProxy, UpstreamResponseError } from '../proxy/ollama.js';
 import { KeyManager } from '../keys/manager.js';
 import { AdminAuth } from './auth.js';
+import { errorResponse } from '../lib/errors.js';
 
 type AdminVariables = { admin: AuthToken };
 type KeyCreateInput = Pick<ApiKey, 'name'> & Partial<Pick<ApiKey, 'owner' | 'description' | 'enabled' | 'rateLimitConfig' | 'features' | 'modelConfig' | 'allowedModels'>>;
@@ -165,7 +166,7 @@ function parseUpdateInput(body: unknown): KeyUpdateInput {
 
 function validationResponse(c: Context, error: unknown): Response | null {
   if (error instanceof ValidationError) {
-    return c.json({ error: error.message }, 400);
+    return errorResponse(c, 400, 'validation_error', error.message);
   }
   return null;
 }
@@ -177,14 +178,14 @@ export function createAdminRoutes(keyManager: KeyManager, adminAuth: AdminAuth, 
   app.use('*', async (c, next) => {
     const authHeader = c.req.header('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      return errorResponse(c, 401, 'admin_unauthorized', 'Unauthorized');
     }
 
     const token = authHeader.substring(7);
     const payload = adminAuth.verifyToken(token);
     
     if (!payload) {
-      return c.json({ error: 'Invalid or expired token' }, 401);
+      return errorResponse(c, 401, 'admin_invalid_token', 'Invalid or expired token');
     }
 
     c.set('admin', payload);
@@ -197,7 +198,18 @@ export function createAdminRoutes(keyManager: KeyManager, adminAuth: AdminAuth, 
       const models = proxy ? await proxy.listModels() : [];
       return c.json({ models });
     } catch (error: any) {
-      return c.json({ error: 'Failed to load models', detail: error?.message || String(error), models: [] }, 502);
+      if (error instanceof UpstreamResponseError) {
+        return errorResponse(c, 502, 'upstream_error', 'Upstream model request failed.', {
+          upstreamStatus: error.upstreamStatus,
+          models: [],
+        });
+      }
+      if (error?.name === 'TimeoutError') {
+        return errorResponse(c, 504, 'upstream_timeout', 'Ollama request timed out', { models: [] });
+      }
+      return errorResponse(c, 502, 'upstream_unreachable', 'Failed to load models', {
+        models: [],
+      });
     }
   });
 
@@ -230,7 +242,7 @@ export function createAdminRoutes(keyManager: KeyManager, adminAuth: AdminAuth, 
       const response = validationResponse(c, error);
       if (response) return response;
       console.error('[admin] Error creating key:', error);
-      return c.json({ error: 'Internal server error' }, 500);
+      return errorResponse(c, 500, 'internal_error', 'Internal server error');
     }
   });
 
@@ -251,7 +263,7 @@ export function createAdminRoutes(keyManager: KeyManager, adminAuth: AdminAuth, 
     const key = keyManager.getKeys().find(k => k.id === id);
     
     if (!key) {
-      return c.json({ error: 'Key not found' }, 404);
+      return errorResponse(c, 404, 'key_not_found', 'Key not found');
     }
 
     return c.json(key);
@@ -267,7 +279,7 @@ export function createAdminRoutes(keyManager: KeyManager, adminAuth: AdminAuth, 
       const keyIndex = allKeys.findIndex(k => k.id === id);
 
       if (keyIndex === -1) {
-        return c.json({ error: 'Key not found' }, 404);
+        return errorResponse(c, 404, 'key_not_found', 'Key not found');
       }
 
       // Merge updates
@@ -286,7 +298,7 @@ export function createAdminRoutes(keyManager: KeyManager, adminAuth: AdminAuth, 
       const response = validationResponse(c, error);
       if (response) return response;
       console.error('[admin] Error updating key:', error);
-      return c.json({ error: 'Internal server error' }, 500);
+      return errorResponse(c, 500, 'internal_error', 'Internal server error');
     }
   });
 
@@ -299,7 +311,7 @@ export function createAdminRoutes(keyManager: KeyManager, adminAuth: AdminAuth, 
       const filtered = allKeys.filter(k => k.id !== id);
 
       if (filtered.length === allKeys.length) {
-        return c.json({ error: 'Key not found' }, 404);
+        return errorResponse(c, 404, 'key_not_found', 'Key not found');
       }
 
       await keyManager.saveKeys(filtered);
@@ -307,7 +319,7 @@ export function createAdminRoutes(keyManager: KeyManager, adminAuth: AdminAuth, 
       return c.json({ message: 'Key deleted successfully' });
     } catch (error) {
       console.error('[admin] Error deleting key:', error);
-      return c.json({ error: 'Internal server error' }, 500);
+      return errorResponse(c, 500, 'internal_error', 'Internal server error');
     }
   });
 

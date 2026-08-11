@@ -14,6 +14,7 @@ This is an independently selectable OpenAI-compatible backend. It is not a Unive
 | Capability | Level | Tested contract |
 |---|---|---|
 | Bearer API-key authentication | Supported | Missing, malformed, disabled, and invalid keys are rejected; credentials are not forwarded upstream. |
+| Gateway-generated JSON errors | Supported | Always returns `{ "error": { "message", "type", "code" } }`; no custom negotiation header is required. |
 | `GET /v1/models` | Supported | Returns `{ "object": "list", "data": [...] }`; each item has `id`, `object`, `created`, and `owned_by`; per-key model restrictions are applied. |
 | Non-streaming `POST /v1/chat/completions` | Supported | Validates `model`, `messages`, and common generation-field types; preserves the request values; requires an OpenAI text response with `choices[].message.content`. |
 | Streaming Chat Completions | Supported | Requires `text/event-stream`, validates `chat.completion.chunk` events, preserves event order, requires terminal `[DONE]`, and propagates downstream cancellation upstream. |
@@ -35,15 +36,9 @@ For non-streaming standard requests, the upstream response must be JSON with `id
 
 For streaming requests, every data event must contain an OpenAI-style object with `object: "chat.completion.chunk"`, `id`, `created`, `model`, and `choices`. A usage-only chunk with empty `choices` is allowed when it contains `usage`. The stream must end with `data: [DONE]`. An invalid first event is returned as HTTP 502. If a later event or termination is invalid after streaming has begun, the gateway emits a safe nested SSE error followed by `[DONE]` and aborts the upstream stream.
 
-## Errors and migration
+## Errors
 
-Existing OpenKeyboard clients may decode the deployed flat error shape, so it remains the default:
-
-```json
-{ "error": "Missing Authorization header", "code": "missing_authorization" }
-```
-
-Clients that want the OpenAI nested error shape send `X-Gateway-Error-Format: openai`:
+Every gateway-generated JSON error uses the OpenAI nested error shape without content negotiation or a gateway-specific request header:
 
 ```json
 {
@@ -55,7 +50,7 @@ Clients that want the OpenAI nested error shape send `X-Gateway-Error-Format: op
 }
 ```
 
-This opt-in is the backward-compatible migration path; the response header `X-Gateway-Error-Formats: legacy, openai` advertises both formats. Streaming protocol failures always use a nested error event because a flat HTTP error can no longer be substituted after response streaming has started. Error messages never contain raw upstream bodies, credentials, or configured upstream URLs.
+Streaming protocol failures also use a nested error event because an HTTP error can no longer be substituted after response streaming has started. Error messages never contain raw upstream bodies, credentials, or configured upstream URLs.
 
 ## Copy-paste examples
 
@@ -92,19 +87,17 @@ curl -N "$BASE_URL/chat/completions" \
   -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Count to three.\"}],\"stream\":true}"
 ```
 
-Authentication failure using the nested error migration format:
+Authentication failure:
 
 ```bash
-curl "$BASE_URL/models" \
-  -H "X-Gateway-Error-Format: openai"
+curl "$BASE_URL/models"
 ```
 
 Rate limiting (repeat until HTTP 429; the key's configured limit determines when):
 
 ```bash
 curl -i "$BASE_URL/models" \
-  -H "Authorization: Bearer $GATEWAY_API_KEY" \
-  -H "X-Gateway-Error-Format: openai"
+  -H "Authorization: Bearer $GATEWAY_API_KEY"
 ```
 
 Rate-limited responses include `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` headers plus the configured error envelope.

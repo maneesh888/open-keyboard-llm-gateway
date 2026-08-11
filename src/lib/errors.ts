@@ -45,17 +45,12 @@ export function errorResponse(
   message: string,
   extra?: Record<string, unknown>,
 ): Response {
-  c.header('X-Gateway-Error-Formats', 'legacy, openai');
-  const requestedFormat = c.req.header('X-Gateway-Error-Format');
-  if (requestedFormat?.toLowerCase() === 'openai') {
-    return c.json({
-      ...extra,
-      error: {
-        message,
-        type: openAIErrorType(status),
-        code,
-      },
-    }, status);
-  }
-  return c.json({ ...extra, error: message, code }, status);
+  return c.json({
+    ...extra,
+    error: {
+      message,
+      type: openAIErrorType(status),
+      code,
+    },
+  }, status);
 }

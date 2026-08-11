@@ -12,7 +12,7 @@ GET  /v1/models
 POST /v1/chat/completions
 ```
 
-Every gateway-generated non-2xx JSON API response uses one decodable envelope with a displayable `error` string and a stable `code`; optional diagnostic fields may be added without changing that base decoder. Open Keyboard should decode this common envelope for every gateway failure and tolerate unknown future codes without discarding the human-readable message.
+Every gateway-generated non-2xx JSON API response uses the OpenAI nested error envelope `{ "error": { "message": "...", "type": "...", "code": "..." } }`. Open Keyboard should decode `error.message` for display, branch and localize using `error.code`, and tolerate unknown future codes without discarding the human-readable message.
 
 Structured results that satisfy the requested contract remain HTTP 200, including explicit empty `results` arrays. For deployed-client compatibility, plain model text is normalized into the established structured result and malformed JSON-like output becomes a safe warning result rather than exposing raw model output. Upstream non-2xx or an invalid outer response envelope uses `upstream_error`. See the error-code table and Open Keyboard integration section in [README.md](../README.md) for the gateway source of truth.
 

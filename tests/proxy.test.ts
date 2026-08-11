@@ -17,6 +17,10 @@ function chatCompletion(content = 'Hello', extra: Record<string, unknown> = {}) 
   });
 }
 
+function gatewayError(message: string, type: string, code: string, extra: Record<string, unknown> = {}) {
+  return { ...extra, error: { message, type, code } };
+}
+
 // Helper: build a minimal app that injects an API key into context and uses the proxy
 function buildApp(proxy: OllamaProxy, keyOverrides: Record<string, unknown> = {}) {
   const app = new Hono();
@@ -180,7 +184,13 @@ describe('OllamaProxy', () => {
     });
 
     expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: expect.any(String), code: 'invalid_request' });
+    expect(await res.json()).toMatchObject({
+      error: {
+        message: expect.any(String),
+        type: 'invalid_request_error',
+        code: 'invalid_request',
+      },
+    });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -305,8 +315,9 @@ describe('OllamaProxy', () => {
 
     expect(res.status).toBe(503);
     const body = await res.json();
-    expect(body.error).toMatch(/not reachable/i);
-    expect(body.code).toBe('upstream_unreachable');
+    expect(body.error.message).toMatch(/not reachable/i);
+    expect(body.error.type).toBe('server_error');
+    expect(body.error.code).toBe('upstream_unreachable');
   });
 
   it('normalizes upstream non-2xx responses into the gateway error envelope', async () => {
@@ -326,11 +337,14 @@ describe('OllamaProxy', () => {
     });
 
     expect(res.status).toBe(502);
-    await expect(res.json()).resolves.toEqual({
-      error: 'Upstream model request failed.',
-      code: 'upstream_error',
-      upstreamStatus: 500,
-    });
+    await expect(res.json()).resolves.toEqual(gatewayError(
+      'Upstream model request failed.',
+      'server_error',
+      'upstream_error',
+      {
+        upstreamStatus: 500,
+      },
+    ));
   });
 
   it('returns 504 on timeout', async () => {
@@ -347,7 +361,13 @@ describe('OllamaProxy', () => {
     });
 
     expect(res.status).toBe(504);
-    await expect(res.json()).resolves.toMatchObject({ error: expect.any(String), code: 'upstream_timeout' });
+    await expect(res.json()).resolves.toMatchObject({
+      error: {
+        message: expect.any(String),
+        type: 'server_error',
+        code: 'upstream_timeout',
+      },
+    });
   });
 
   it('streams SSE responses through without buffering', async () => {
@@ -393,10 +413,11 @@ describe('OllamaProxy', () => {
     });
 
     expect(res.status).toBe(502);
-    expect(await res.json()).toEqual({
-      error: 'The upstream emitted an invalid Chat Completions stream.',
-      code: 'invalid_stream',
-    });
+    expect(await res.json()).toEqual(gatewayError(
+      'The upstream emitted an invalid Chat Completions stream.',
+      'server_error',
+      'invalid_stream',
+    ));
   });
 
   it('turns a malformed later SSE event into a nested stream error and [DONE]', async () => {
@@ -506,7 +527,7 @@ describe('OllamaProxy', () => {
     });
 
     expect(res.status).toBe(502);
-    expect(await res.json()).toMatchObject({ code: 'invalid_stream' });
+    expect(await res.json()).toMatchObject({ error: { code: 'invalid_stream' } });
   });
 
   it('aborts the upstream stream when the downstream client cancels', async () => {
@@ -563,7 +584,7 @@ describe('OllamaProxy', () => {
 
     expect(upstreamSignal?.aborted).toBe(true);
     expect(res.status).toBe(408);
-    expect(await res.json()).toMatchObject({ code: 'request_cancelled' });
+    expect(await res.json()).toMatchObject({ error: { code: 'request_cancelled' } });
   });
 
   it('rejects malformed successful non-streaming responses without exposing their body', async () => {
@@ -582,7 +603,7 @@ describe('OllamaProxy', () => {
     const responseBody = await res.text();
 
     expect(res.status).toBe(502);
-    expect(JSON.parse(responseBody)).toMatchObject({ code: 'invalid_upstream_response' });
+    expect(JSON.parse(responseBody)).toMatchObject({ error: { code: 'invalid_upstream_response' } });
     expect(responseBody).not.toContain('private_internal_detail');
     expect(responseBody).not.toContain('do not expose');
   });
@@ -876,10 +897,11 @@ describe('OllamaProxy', () => {
 
     expect(res.status).toBe(400);
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(await res.json()).toEqual({
-      error: 'stream must be false when operation is provided',
-      code: 'stream_not_supported_for_operation',
-    });
+    expect(await res.json()).toEqual(gatewayError(
+      'stream must be false when operation is provided',
+      'invalid_request_error',
+      'stream_not_supported_for_operation',
+    ));
   });
 
   it('does not validate or mutate operation-shaped payloads on non-chat proxy endpoints', async () => {
@@ -965,10 +987,11 @@ describe('OllamaProxy', () => {
     });
 
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({
-      error: "Unsupported operation 'delete_everything'",
-      code: 'unsupported_operation',
-    });
+    expect(await res.json()).toEqual(gatewayError(
+      "Unsupported operation 'delete_everything'",
+      'invalid_request_error',
+      'unsupported_operation',
+    ));
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -1123,10 +1146,11 @@ describe('OllamaProxy', () => {
     });
 
     expect(res.status).toBe(502);
-    await expect(res.json()).resolves.toEqual({
-      error: 'Upstream model request failed.',
-      code: 'upstream_error',
-    });
+    await expect(res.json()).resolves.toEqual(gatewayError(
+      'Upstream model request failed.',
+      'server_error',
+      'upstream_error',
+    ));
   });
 
   it('rejects blank input_text when operation is provided before upstream calls', async () => {
@@ -1139,10 +1163,11 @@ describe('OllamaProxy', () => {
     });
 
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({
-      error: 'input_text is required when operation is provided',
-      code: 'input_text_required',
-    });
+    expect(await res.json()).toEqual(gatewayError(
+      'input_text is required when operation is provided',
+      'invalid_request_error',
+      'input_text_required',
+    ));
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

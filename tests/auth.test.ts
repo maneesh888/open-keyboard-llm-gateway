@@ -35,37 +35,56 @@ describe('Auth Middleware', () => {
   it('rejects missing header', async () => {
     const res = await app.request('/test');
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: 'Missing Authorization header', code: 'missing_authorization' });
+    expect(await res.json()).toEqual({
+      error: {
+        message: 'Missing Authorization header',
+        type: 'authentication_error',
+        code: 'missing_authorization',
+      },
+    });
   });
 
   it('rejects invalid key', async () => {
     const res = await app.request('/test', { headers: { Authorization: 'Bearer sk-wrong' } });
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: 'Invalid or disabled API key', code: 'invalid_api_key' });
+    expect(await res.json()).toEqual({
+      error: {
+        message: 'Invalid or disabled API key',
+        type: 'authentication_error',
+        code: 'invalid_api_key',
+      },
+    });
   });
 
   it('rejects disabled key', async () => {
     const res = await app.request('/test', { headers: { Authorization: 'Bearer sk-test-disabled' } });
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: 'Invalid or disabled API key', code: 'invalid_api_key' });
+    expect(await res.json()).toEqual({
+      error: {
+        message: 'Invalid or disabled API key',
+        type: 'authentication_error',
+        code: 'invalid_api_key',
+      },
+    });
   });
 
   it('rejects malformed auth header', async () => {
     const res = await app.request('/test', { headers: { Authorization: 'Basic abc123' } });
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({
-      error: 'Invalid Authorization format. Use: Bearer sk-xxx',
-      code: 'invalid_authorization_format',
+      error: {
+        message: 'Invalid Authorization format. Use: Bearer sk-xxx',
+        type: 'authentication_error',
+        code: 'invalid_authorization_format',
+      },
     });
   });
 
-  it('supports the nested OpenAI error envelope without changing the legacy default', async () => {
-    const res = await app.request('/test', {
-      headers: { 'X-Gateway-Error-Format': 'openai' },
-    });
+  it('always returns the nested OpenAI error envelope without negotiation headers', async () => {
+    const res = await app.request('/test');
 
     expect(res.status).toBe(401);
-    expect(res.headers.get('x-gateway-error-formats')).toBe('legacy, openai');
+    expect(res.headers.get('x-gateway-error-formats')).toBeNull();
     expect(await res.json()).toEqual({
       error: {
         message: 'Missing Authorization header',

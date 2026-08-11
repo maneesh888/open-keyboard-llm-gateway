@@ -349,18 +349,18 @@ Use the client base URL `https://host/v1`. The tested compatibility surface is `
 
 ### Error responses
 
-Every gateway-generated non-2xx JSON response on the authenticated `/v1` API contains a stable code. The deployed flat error shape remains the default for OpenKeyboard compatibility. Clients can send `X-Gateway-Error-Format: openai` to receive an OpenAI-style nested error object; see [Errors and migration](docs/OPENAI_COMPATIBILITY.md#errors-and-migration).
+Every gateway-generated non-2xx JSON response uses the OpenAI-style nested error envelope with a stable code; see [Error responses](docs/OPENAI_COMPATIBILITY.md#errors).
 
 ```json
-{ "error": "Missing Authorization header", "code": "missing_authorization" }
+{ "error": { "message": "Missing Authorization header", "type": "authentication_error", "code": "missing_authorization" } }
 ```
 
 ```json
-{ "error": "Rate limit exceeded", "code": "rate_limit_exceeded", "retryAfter": 2, "limit": 10, "remaining": 0 }
+{ "error": { "message": "Rate limit exceeded", "type": "rate_limit_error", "code": "rate_limit_exceeded" }, "retryAfter": 2, "limit": 10, "remaining": 0 }
 ```
 
 ```json
-{ "error": "Upstream model request failed.", "code": "upstream_error", "upstreamStatus": 500 }
+{ "error": { "message": "Upstream model request failed.", "type": "server_error", "code": "upstream_error" }, "upstreamStatus": 500 }
 ```
 
 | Code | Meaning |
