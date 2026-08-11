@@ -364,7 +364,12 @@ export async function prepareChatCompletionStream(
           return;
         }
       } catch (error) {
-        if (!cancelled) controller.error(error);
+        if (!cancelled) {
+          controller.enqueue(streamFailureEvent());
+          upstreamController.abort('The upstream stream failed after the response started.');
+          await reader.cancel(error).catch(() => undefined);
+          controller.close();
+        }
       }
     },
     async cancel(reason) {

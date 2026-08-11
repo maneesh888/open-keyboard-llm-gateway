@@ -567,6 +567,38 @@ describe('OllamaProxy', () => {
     expect(streamed.endsWith('data: [DONE]\n\n')).toBe(true);
   });
 
+  it('turns a late upstream read failure into a safe stream error and [DONE]', async () => {
+    const first = chatCompletionChunk('hello');
+    const upstream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(first));
+      },
+      pull() {
+        throw new Error('private upstream transport detail');
+      },
+    }, { highWaterMark: 0 });
+    fetchSpy.mockResolvedValueOnce(new Response(upstream, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const streamed = await res.text();
+    expect(streamed.startsWith(first)).toBe(true);
+    expect(streamed).toContain('"type":"server_error"');
+    expect(streamed).toContain('"code":"invalid_stream"');
+    expect(streamed).not.toContain('private upstream transport detail');
+    expect(streamed.endsWith('data: [DONE]\n\n')).toBe(true);
+  });
+
   it('treats [DONE] as terminal without waiting for upstream EOF', async () => {
     const complete = [
       'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[{"index":0,"delta":{"content":"hello"},"finish_reason":"stop"}]}',
