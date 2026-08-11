@@ -34,7 +34,7 @@ The gateway does not invent generation defaults. Common generation parameters an
 
 The preceding pass-through statement applies to Ollama and Apfel. For the privileged Codex alias, the supported request fields are `model`, `messages`, optional `stream: false`, and optional OpenKeyboard `operation` plus `input_text`. Messages must use `system`, `developer`, `user`, or `assistant` roles with string content. Codex rejects streaming, multimodal parts, tools, response formats, unknown additive fields, and Chat Completions generation parameters instead of silently ignoring them. The deployment-configured underlying Codex model is never taken from the client request.
 
-Codex requests are bounded by configured input/output sizes, overall timeout, concurrency, and queue length. Client cancellation reaches the isolated turn. A timeout, cancellation, malformed/empty output, saturated queue, missing runtime/credential, or execution failure is normalized into the same safe error envelope without returning prompts, raw Codex events, stderr, paths, responses, or credentials.
+Codex requests are bounded by configured input/output sizes, overall timeout, concurrency, and queue length. When Codex is enabled, a 1 MiB transport limit is applied to `/v1/chat/completions` before JSON materialization; because provider selection occurs inside that JSON, the transport cap also covers Ollama and Apfel requests on the endpoint. Client cancellation reaches the isolated turn. A timeout, cancellation, malformed/empty output, saturated queue, missing runtime/credential, or execution failure is normalized into the same safe error envelope without returning prompts, raw Codex events, stderr, paths, responses, or credentials.
 
 For non-streaming standard requests, the upstream response must be JSON with `id`, `object: "chat.completion"`, `created`, `model`, and at least one choice containing `index`, `message.role`, and string `message.content`. Unknown additive fields remain intact.
 
@@ -56,7 +56,7 @@ Every gateway-generated JSON error uses the OpenAI nested error shape without co
 
 Streaming protocol failures also use a nested error event because an HTTP error can no longer be substituted after response streaming has started. Error messages never contain raw upstream bodies, credentials, or configured upstream URLs.
 
-Codex-specific safe codes are `stream_not_supported_for_provider`, `unsupported_parameter`, `provider_overloaded`, and `provider_unavailable`; common `upstream_timeout`, `request_cancelled`, `upstream_error`, and `invalid_upstream_response` codes are reused where appropriate.
+Codex-specific safe codes are `stream_not_supported_for_provider`, `unsupported_parameter`, `provider_overloaded`, `provider_unavailable`, and `request_too_large`; common `upstream_timeout`, `request_cancelled`, `upstream_error`, and `invalid_upstream_response` codes are reused where appropriate.
 
 ## Copy-paste examples
 

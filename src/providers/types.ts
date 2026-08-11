@@ -40,6 +40,7 @@ export interface GatewayProvider {
   readonly requiresExplicitGrant: boolean;
   status(): ProviderHealthStatus;
   handlesModel(model: string): boolean;
+  requestBodyLimitBytes?(path: string): number | undefined;
   execute(request: ProviderRequest): Promise<ProviderResponse>;
 }
 
@@ -73,5 +74,13 @@ export class ProviderRegistry {
 
   status(providerId: string): ProviderHealthStatus | undefined {
     return this.providers.find((provider) => provider.id === providerId)?.status();
+  }
+
+  requestBodyLimitBytes(path: string): number | undefined {
+    const limits = this.providers
+      .filter((provider) => provider.status() !== 'disabled')
+      .map((provider) => provider.requestBodyLimitBytes?.(path))
+      .filter((limit): limit is number => typeof limit === 'number');
+    return limits.length > 0 ? Math.min(...limits) : undefined;
   }
 }

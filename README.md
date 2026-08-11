@@ -141,7 +141,9 @@ Codex is disabled by default. To opt in, copy the full `codex` object from `conf
 
 Provide the service credential only through the protected `CODEX_API_KEY` process environment. Do not put it in `config.json`, Compose files, command arguments, logs, or repository files, and never mount or copy a personal `~/.codex/auth.json`. A file config containing a Codex credential field is rejected.
 
-Each invocation uses the pinned official `@openai/codex` runtime with fixed arguments, prompt input over stdin, read-only sandboxing, approval policy `never`, disabled model tool networking/integrations, an empty temporary working directory, a dedicated temporary `CODEX_HOME`, and ephemeral session storage. User/project config, rules, repository instructions, hooks, apps, memories, multi-agent tools, web search, and MCP/plugin state are absent or disabled; the temporary directories are removed after the turn. The Codex runtime still needs outbound access to the OpenAI service. Client requests cannot supply executable paths, CLI flags, working directories, or environment variables.
+Each invocation uses the pinned official `@openai/codex` runtime with fixed arguments, strict config validation, prompt input over stdin, read-only sandboxing, approval policy `never`, disabled shell, local-image, image-generation, model tool networking/integrations, an empty temporary working directory, a dedicated temporary `CODEX_HOME`, and ephemeral session storage. User/project config, rules, repository instructions, hooks, apps, memories, multi-agent tools, web search, and MCP/plugin state are absent or disabled; the temporary directories are removed after the turn. The Codex runtime still needs outbound access to the OpenAI service. Client requests cannot supply executable paths, CLI flags, working directories, or environment variables.
+
+When Codex is enabled, authenticated `/v1/chat/completions` request bodies have a 1 MiB transport cap applied before JSON materialization. This cap also applies to Ollama or Apfel requests on that endpoint because the provider model is selected from the JSON body. The existing `maxInputChars` limit then bounds the prompt actually sent to Codex.
 
 The implementation was checked against the current official [Codex SDK contract](https://learn.chatgpt.com/docs/codex-sdk) and [non-interactive CLI contract](https://learn.chatgpt.com/docs/non-interactive-mode). The TypeScript SDK is not used directly because its public interface does not expose the required ephemeral/config-isolation flags or bounded subprocess output capture. The gateway instead invokes the SDK's underlying official CLI contract through a fixed, bounded runner.
 
@@ -417,6 +419,7 @@ Every gateway-generated non-2xx JSON response uses the OpenAI-style nested error
 | `unsupported_parameter` | A Codex request used an unsupported message shape, field, or size. |
 | `provider_overloaded` | Codex concurrency and queue capacity are both full. |
 | `provider_unavailable` | Codex is enabled but its protected credential or runtime is unavailable. |
+| `request_too_large` | The request exceeded the pre-parse transport limit active when Codex is enabled. |
 | `model_not_allowed` | The requested model is outside the API key's allowlist. |
 | `invalid_request` | The Chat Completions request does not satisfy the documented JSON contract. |
 | `invalid_upstream_response` | A successful upstream response did not satisfy the guaranteed non-streaming contract. |

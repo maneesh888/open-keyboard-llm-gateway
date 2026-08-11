@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { bodyLimit } from 'hono/body-limit';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { KeyManager } from './keys/manager.js';
@@ -14,6 +15,7 @@ import { DEFAULT_CODEX_CONFIG } from './config/appConfig.js';
 import { CodexProvider } from './providers/codex.js';
 import type { CodexRunner } from './providers/codexCliRunner.js';
 import { ProviderRegistry } from './providers/types.js';
+import { errorResponse } from './lib/errors.js';
 
 export type AppDependencies = {
   codexApiKey?: string;
@@ -33,11 +35,12 @@ export function createApp(
     apiKey: dependencies.codexApiKey ?? process.env.CODEX_API_KEY,
     runner: dependencies.codexRunner,
   });
+  const providers = new ProviderRegistry([codex]);
   const proxy = new OllamaProxy(
     config.ollamaHost,
     config.apfelHost,
     './config/known-models.json',
-    new ProviderRegistry([codex]),
+    providers,
   );
 
   keyManager.watchForChanges();
@@ -87,6 +90,18 @@ export function createApp(
   app.use('/v1/*', authMiddleware(keyManager));
   app.use('/v1/*', rateLimiter.middleware());
   app.use('/v1/*', loggingMiddleware());
+  const chatRequestBodyLimit = providers.requestBodyLimitBytes('/v1/chat/completions');
+  if (chatRequestBodyLimit !== undefined) {
+    app.use('/v1/chat/completions', bodyLimit({
+      maxSize: chatRequestBodyLimit,
+      onError: (c) => errorResponse(
+        c,
+        413,
+        'request_too_large',
+        'The request body exceeds the configured provider transport limit.',
+      ),
+    }));
+  }
 
   app.all('/v1/*', (c) => proxy.forward(c));
 

@@ -209,6 +209,7 @@ export class CodexCliRunner implements CodexRunner {
 export function codexArguments(model: string, workingDirectory: string): string[] {
   return [
     'exec',
+    '--strict-config',
     '--json',
     '--ephemeral',
     '--ignore-user-config',
@@ -227,7 +228,9 @@ export function codexArguments(model: string, workingDirectory: string): string[
     '--config',
     'tools.web_search=false',
     '--config',
-    'tools.view_image=false',
+    'features.view_image=false',
+    '--config',
+    'features.image_generation=false',
     '--config',
     'features.apps=false',
     '--config',

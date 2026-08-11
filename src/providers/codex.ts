@@ -12,6 +12,7 @@ import {
 
 const SUPPORTED_ROLES = new Set(['system', 'developer', 'user', 'assistant']);
 const SUPPORTED_FIELDS = new Set(['model', 'messages', 'stream', 'operation', 'input_text']);
+export const CODEX_REQUEST_BODY_LIMIT_BYTES = 1024 * 1024;
 const KNOWN_UNSUPPORTED_FIELDS = [
   'temperature',
   'top_p',
@@ -100,6 +101,10 @@ export class CodexProvider implements GatewayProvider {
 
   handlesModel(model: string): boolean {
     return model === this.publicModel;
+  }
+
+  requestBodyLimitBytes(path: string): number | undefined {
+    return path === '/v1/chat/completions' ? CODEX_REQUEST_BODY_LIMIT_BYTES : undefined;
   }
 
   async execute(request: ProviderRequest): Promise<ProviderResponse> {

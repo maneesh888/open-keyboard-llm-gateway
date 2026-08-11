@@ -3,7 +3,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createApp } from '../src/server.js';
-import { CodexProvider, mapChatMessagesToCodexPrompt } from '../src/providers/codex.js';
+import {
+  CODEX_REQUEST_BODY_LIMIT_BYTES,
+  CodexProvider,
+  mapChatMessagesToCodexPrompt,
+} from '../src/providers/codex.js';
 import {
   CodexRunnerError,
   codexArguments,
@@ -108,6 +112,7 @@ describe('Codex provider configuration and discovery', () => {
   it('uses only fixed isolation flags and a minimal process environment', () => {
     const args = codexArguments('configured-model', '/isolated/empty-work');
     expect(args).toEqual(expect.arrayContaining([
+      '--strict-config',
       '--ephemeral',
       '--ignore-user-config',
       '--ignore-rules',
@@ -115,6 +120,8 @@ describe('Codex provider configuration and discovery', () => {
       'read-only',
       'approval_policy="never"',
       'features.apps=false',
+      'features.view_image=false',
+      'features.image_generation=false',
       'features.hooks=false',
       'features.memories=false',
       'features.multi_agent=false',
@@ -125,6 +132,7 @@ describe('Codex provider configuration and discovery', () => {
       'features.skill_mcp_dependency_install=false',
       'shell_environment_policy.inherit="none"',
     ]));
+    expect(args).not.toContain('tools.view_image=false');
     expect(args.at(-1)).toBe('-');
 
     const env = codexEnvironment('protected-value', '/isolated/codex-home');
@@ -305,6 +313,25 @@ describe('Codex request routing and compatibility', () => {
     });
     expect(oversized.status).toBe(400);
     expect((await oversized.json()).error.code).toBe('unsupported_parameter');
+    expect(runner.calls).toHaveLength(0);
+  });
+
+  it('rejects an oversized request body before JSON materialization or execution', async () => {
+    const runner = new FakeRunner();
+    const marker = 'private-oversized-marker';
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const response = await chat(appWith(runner), 'gateway-explicit', {
+      model: 'codex',
+      messages: [{ role: 'user', content: 'hello' }],
+      unsupported: marker.repeat(Math.ceil(CODEX_REQUEST_BODY_LIMIT_BYTES / marker.length) + 1),
+    });
+    const responseBody = JSON.stringify(await response.json());
+    const logs = log.mock.calls.flat().join(' ');
+
+    expect(response.status).toBe(413);
+    expect(responseBody).toContain('request_too_large');
+    expect(responseBody).not.toContain(marker);
+    expect(logs).not.toContain(marker);
     expect(runner.calls).toHaveLength(0);
   });
 

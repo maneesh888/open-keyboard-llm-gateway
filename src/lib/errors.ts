@@ -16,6 +16,7 @@ export type GatewayErrorCode =
   | 'unsupported_parameter'
   | 'provider_overloaded'
   | 'provider_unavailable'
+  | 'request_too_large'
   | 'model_not_allowed'
   | 'invalid_request'
   | 'invalid_upstream_response'
