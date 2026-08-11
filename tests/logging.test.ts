@@ -19,7 +19,7 @@ describe('request logging privacy', () => {
     app.use('*', loggingMiddleware());
     app.post('/v1/chat/completions', (c) => c.json({ ok: true }));
 
-    const secret = 'sk-sensitive-gateway-credential';
+    const secret = 'fixture-sensitive-gateway-credential';
     const sensitiveBody = 'private keyboard text that must not be logged';
     const res = await app.request('/v1/chat/completions', {
       method: 'POST',

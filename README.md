@@ -15,7 +15,7 @@ A self-hosted API gateway for routing AI requests through user-controlled infras
 - Structured OpenKeyboard operation support for grammar correction, rewrite, summarize, continuation, and translate-style workflows.
 - Model discovery through the configured backend, with optional Apfel routing for `apple-foundationmodel` when configured.
 - JSON request logging without exposing Authorization headers.
-- Build, test, Docker preflight, and secret-scan scripts for local release checks.
+- Cumulative hygiene/quick/full release gates, committed hooks, and read-only GitHub CI.
 
 ## Architecture
 
@@ -414,13 +414,19 @@ curl http://localhost:8080/v1/chat/completions \
 
 ## Testing
 
+Use Node 24 LTS for production-equivalent work; Node 22 is the supported compatibility lane. Install from the committed lockfile with `npm ci`.
+
 ```bash
-npm run build        # TypeScript compile
-npm test             # run unit/integration tests once
-npm run secret-scan  # scan tracked source for accidental secrets
-npm run precommit    # build, test, and secret scan
-npm run test:watch   # watch mode
+npm test                    # run unit/integration tests once
+npm run build               # TypeScript compile
+npm run check:hygiene       # policy, secrets, syntax, whitespace
+npm run check:quick         # hygiene + tests + build
+npm run check:full          # quick + Docker build/runtime smoke
+./scripts/install-hooks.sh  # enable committed pre-commit/pre-push gates
+npm run test:watch          # watch mode
 ```
+
+The Docker smoke expects the safe fixture backend to be disconnected. It proves image startup, `/health`, and `/ui`, not a real Ollama/Apfel model call. See `docs/DEVELOPMENT_WORKFLOW.md` for proof boundaries and `.github/CI-CD-SETUP.md` for the pull-request workflow.
 
 ## Docker Commands
 
