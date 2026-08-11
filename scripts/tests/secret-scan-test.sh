@@ -45,4 +45,30 @@ if LLM_GATEWAY_REPOSITORY_ROOT="$FIXTURE_REPOSITORY" \
   exit 1
 fi
 
+git -C "$FIXTURE_REPOSITORY" rm --force --quiet .env.example
+
+mkdir -p "$FIXTURE_REPOSITORY/src"
+printf '%s\n' 'export const config = { jwtSecret: "test-production-secret-should-fail" };' > \
+  "$FIXTURE_REPOSITORY/src/config.ts"
+git -C "$FIXTURE_REPOSITORY" add src/config.ts
+
+if LLM_GATEWAY_REPOSITORY_ROOT="$FIXTURE_REPOSITORY" \
+  node "$ROOT/scripts/secret-scan.mjs" >/dev/null 2>&1; then
+  echo "secret scan fixture unexpectedly accepted a test-prefixed production JWT secret." >&2
+  exit 1
+fi
+
+git -C "$FIXTURE_REPOSITORY" rm --force --quiet src/config.ts
+
+mkdir -p "$FIXTURE_REPOSITORY/src"
+printf '%s\n' 'export const passwordHash = "$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234";' > \
+  "$FIXTURE_REPOSITORY/src/password.ts"
+git -C "$FIXTURE_REPOSITORY" add src/password.ts
+
+if LLM_GATEWAY_REPOSITORY_ROOT="$FIXTURE_REPOSITORY" \
+  node "$ROOT/scripts/secret-scan.mjs" >/dev/null 2>&1; then
+  echo "secret scan fixture unexpectedly accepted a production password hash." >&2
+  exit 1
+fi
+
 echo "Secret scan policy test passed."

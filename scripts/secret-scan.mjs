@@ -31,6 +31,11 @@ const secretPatterns = [
   { name: 'JWT', expression: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g },
   { name: 'Bearer token', expression: /\bBearer\s+[A-Za-z0-9._-]{20,}\b/g },
   { name: 'private key', expression: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g },
+  { name: 'bcrypt password hash', expression: /\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}/g },
+  {
+    name: 'Argon2 password hash',
+    expression: /\$argon2(?:id|i|d)\$v=\d+\$m=\d+,t=\d+,p=\d+\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+/g,
+  },
   {
     name: 'provider environment secret',
     expression: /\b(?:OPENAI_API_KEY|OPENROUTER_API_KEY|ANTHROPIC_API_KEY)\s*[:=]\s*["']?[^\s"']{12,}/g,
@@ -57,6 +62,10 @@ function trackedFiles() {
 
 function isExample(path) {
   return path.endsWith('.example') || path.includes('.example.');
+}
+
+function isTestFixture(path) {
+  return path.startsWith('tests/') || path.startsWith('scripts/tests/') || /(?:^|\/)[^/]+\.(?:test|spec)\.[^/]+$/.test(path);
 }
 
 function normalizedRelativePath(path) {
@@ -100,7 +109,15 @@ for (const file of files) {
         const matchedValue = match[0];
         if (allowedFakeValues.has(matchedValue)) continue;
         if (isExample(relativePath) && [...allowedExampleSecrets].some(value => matchedValue.includes(value))) continue;
-        if (name === 'hard-coded JWT secret' && /["'`]test-[^"'`]+["'`]$/.test(matchedValue)) continue;
+        if (
+          (isExample(relativePath) || isTestFixture(relativePath)) &&
+          (name === 'bcrypt password hash' || name === 'Argon2 password hash')
+        ) continue;
+        if (
+          (isExample(relativePath) || isTestFixture(relativePath)) &&
+          name === 'hard-coded JWT secret' &&
+          /["'`]test-[^"'`]+["'`]$/.test(matchedValue)
+        ) continue;
         findings.push({ path: relativePath, line: index + 1, kind: name });
       }
     }
