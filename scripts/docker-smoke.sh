@@ -5,7 +5,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHORT_SHA="$(git -C "$ROOT" rev-parse --short=12 HEAD 2>/dev/null || echo local)"
 IMAGE_TAG="llm-gateway-ci:$SHORT_SHA"
 CONTAINER_NAME="llm-gateway-ci-$SHORT_SHA-$$"
-FIXTURE_DIRECTORY="$(mktemp -d)"
+RESULTS_DIRECTORY="$ROOT/.ci-results"
+mkdir -p "$RESULTS_DIRECTORY"
+FIXTURE_DIRECTORY="$(mktemp -d "$RESULTS_DIRECTORY/docker-smoke.XXXXXX")"
 CONTAINER_STARTED=false
 
 cleanup() {
