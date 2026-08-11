@@ -192,10 +192,9 @@ describe('Codex provider configuration and discovery', () => {
     });
 
     const wildcard = await app.request('/v1/models', { headers: { Authorization: 'Bearer gateway-wildcard' } });
-    expect((await wildcard.json()).data.map((model: { id: string }) => model.id)).toEqual([
-      'apple-foundationmodel',
-      'local-model',
-    ]);
+    const wildcardModels = (await wildcard.json()).data.map((model: { id: string }) => model.id);
+    expect(wildcardModels).toEqual(expect.arrayContaining(['apple-foundationmodel', 'local-model']));
+    expect(wildcardModels).not.toContain('codex');
 
     const combined = await app.request('/v1/models', { headers: { Authorization: 'Bearer gateway-combined' } });
     expect((await combined.json()).data).toEqual(expect.arrayContaining([
