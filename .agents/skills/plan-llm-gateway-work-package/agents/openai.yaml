@@ -1,0 +1,6 @@
+interface:
+  display_name: "Plan LLM Gateway Work Package"
+  short_description: "Create source-bound LLM Gateway plans"
+  default_prompt: "Use $plan-llm-gateway-work-package to create a concise, source-bound work order for the next gateway task."
+policy:
+  allow_implicit_invocation: false

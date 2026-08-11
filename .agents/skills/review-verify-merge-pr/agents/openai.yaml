@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review, Verify, and Merge PR"
+  short_description: "Independently review and gate gateway PRs"
+  default_prompt: "Use $review-verify-merge-pr to review the exact gateway pull-request head and carry it through guarded readiness and merge."

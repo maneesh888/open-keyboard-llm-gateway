@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-const nodeImage = process.env.NODE_IMAGE || 'node:20-alpine';
+const nodeImage = process.env.NODE_IMAGE || 'node:24-alpine';
 const timeoutMs = Number(process.env.DOCKER_PREFLIGHT_TIMEOUT_MS || 15000);
 const killGraceMs = Number(process.env.DOCKER_PREFLIGHT_KILL_GRACE_MS || 2000);
 

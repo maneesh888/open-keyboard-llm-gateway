@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+HEAD_SHA="$(git -C "$ROOT" rev-parse --verify HEAD)"
+
+"$ROOT/scripts/validate-push-refs.sh" "$HEAD_SHA"
+
+if [[ -n "$(git -C "$ROOT" status --porcelain=v1 --untracked-files=all)" ]]; then
+  echo "Pre-push requires a clean checkout bound to committed HEAD." >&2
+  exit 1
+fi
+
+"$ROOT/scripts/check.sh" --full

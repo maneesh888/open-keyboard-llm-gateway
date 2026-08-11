@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+if ! git -C "$ROOT" diff --quiet || [[ -n "$(git -C "$ROOT" ls-files --others --exclude-standard)" ]]; then
+  echo "Pre-commit requires all intended worktree changes to be staged." >&2
+  exit 1
+fi
+
+"$ROOT/scripts/check.sh" --quick

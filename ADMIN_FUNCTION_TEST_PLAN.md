@@ -56,6 +56,6 @@ Requires `Authorization: Bearer <client API key>`.
 - `tests/admin/ui-static.test.ts`
   - Admin UI responsive/static wiring contract.
 
-## Known Test Harness Issue
+## Test Harness
 
-Running plain `npm test` currently also collects Playwright E2E specs inside `.claude/worktrees/...`, causing Vitest suite failures unrelated to production code. Use targeted Vitest paths until config excludes `.claude` worktrees.
+`vitest.config.ts` excludes private agent worktrees (`.claude` and `.claire`) and E2E specs, so plain `npm test` is the canonical deterministic suite. The full release gate additionally builds and starts the Docker image with safe fixture configuration.
