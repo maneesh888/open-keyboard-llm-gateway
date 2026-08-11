@@ -16,6 +16,7 @@ describe('RateLimiter - Token Bucket', () => {
     let responseBody: any = null;
 
     return {
+      req: { header: () => undefined },
       get: (key: string) => key === 'apiKey' ? apiKey : undefined,
       set: () => {},
       header: (key: string, value: string) => { headers[key] = value; },
@@ -82,7 +83,14 @@ describe('RateLimiter - Token Bucket', () => {
       const ctx = createMockContext(apiKey) as any;
       await middleware(ctx, mockNext);
       expect(ctx.getStatus()).toBe(429);
-      expect(ctx.getBody().error).toBe('Rate limit exceeded');
+      expect(ctx.getBody().error).toEqual({
+        message: 'Rate limit exceeded',
+        type: 'rate_limit_error',
+        code: 'rate_limit_exceeded',
+      });
+      expect(ctx.getBody().retryAfter).toBeGreaterThan(0);
+      expect(ctx.getBody().limit).toBe(5);
+      expect(ctx.getBody().remaining).toBe(0);
     });
   });
 

@@ -335,6 +335,8 @@ Supported operation names:
 
 When `operation` is present, the gateway validates `input_text`, rejects streaming operation requests, adds structured response instructions for the upstream model, and normalizes the returned content into a JSON string inside the OpenAI-compatible `choices[0].message.content` field. Clean grammar input can return an empty `results` array without fabricated corrections.
 
+Valid structured results remain HTTP 200, including explicit empty `results` arrays and optional `summary` or `corrected_text` fields. For deployed-client compatibility, plain text is normalized into the established structured result and malformed JSON-like output becomes a safe warning result without exposing the raw model output. Invalid outer upstream envelopes fail safely.
+
 More detail:
 
 ```text
@@ -343,7 +345,41 @@ docs/OPEN_KEYBOARD_CLIENT.md
 
 ## API Usage
 
-The gateway proxies all `/v1/*` routes to Ollama. Use it as an OpenAI-compatible endpoint.
+Use the client base URL `https://host/v1`. The tested compatibility surface is `GET /v1/models` plus non-streaming and streaming `POST /v1/chat/completions`; see [the precise compatibility contract](docs/OPENAI_COMPATIBILITY.md). Other `/v1/*` routes may remain proxied for backward compatibility but are not covered by the OpenAI compatibility claim. `/v1/responses` is experimental pass-through behavior.
+
+### Error responses
+
+Every gateway-generated non-2xx JSON response uses the OpenAI-style nested error envelope with a stable code; see [Error responses](docs/OPENAI_COMPATIBILITY.md#errors).
+
+```json
+{ "error": { "message": "Missing Authorization header", "type": "authentication_error", "code": "missing_authorization" } }
+```
+
+```json
+{ "error": { "message": "Rate limit exceeded", "type": "rate_limit_error", "code": "rate_limit_exceeded" }, "retryAfter": 2, "limit": 10, "remaining": 0 }
+```
+
+```json
+{ "error": { "message": "Upstream model request failed.", "type": "server_error", "code": "upstream_error" }, "upstreamStatus": 500 }
+```
+
+| Code | Meaning |
+|---|---|
+| `missing_authorization` | The gateway API-key Authorization header is missing. |
+| `invalid_authorization_format` | The API-key Authorization header is not in Bearer format. |
+| `invalid_api_key` | The gateway API key is invalid or disabled. |
+| `rate_limit_exceeded` | The API key's request limit has been exceeded. |
+| `upstream_unreachable` | The configured model backend could not be reached or queried. |
+| `upstream_timeout` | The model backend request timed out. |
+| `upstream_error` | The model backend returned a non-success or invalid protocol response. |
+| `unsupported_operation` | The requested structured operation is not supported. |
+| `input_text_required` | A structured operation did not include usable input text. |
+| `stream_not_supported_for_operation` | Streaming was requested for a structured operation. |
+| `model_not_allowed` | The requested model is outside the API key's allowlist. |
+| `invalid_request` | The Chat Completions request does not satisfy the documented JSON contract. |
+| `invalid_upstream_response` | A successful upstream response did not satisfy the guaranteed non-streaming contract. |
+| `invalid_stream` | The upstream stream had an unsupported content type, event, chunk, order, or termination. |
+| `request_cancelled` | The client cancelled the request and the gateway aborted the upstream request. |
 
 **Health check (no auth):**
 ```bash
