@@ -1,0 +1,4 @@
+interface:
+  display_name: "Develop LLM Gateway"
+  short_description: "Build and verify bounded gateway changes"
+  default_prompt: "Use $develop-llm-gateway to execute a bounded LLM Gateway task through its guarded repository lifecycle."

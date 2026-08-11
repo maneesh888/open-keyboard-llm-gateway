@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+HEAD_SHA="$(git -C "$ROOT" rev-parse --verify HEAD)"
+
+require_clean_head() {
+  local current_head
+
+  current_head="$(git -C "$ROOT" rev-parse --verify HEAD)"
+  if [[ "$current_head" != "$HEAD_SHA" ]]; then
+    echo "Pre-push HEAD changed while the release gate was running." >&2
+    exit 1
+  fi
+
+  if [[ -n "$(git -C "$ROOT" status --porcelain=v1 --untracked-files=all)" ]]; then
+    echo "Pre-push requires a clean checkout bound to committed HEAD." >&2
+    exit 1
+  fi
+}
+
+"$ROOT/scripts/validate-push-refs.sh" "$HEAD_SHA"
+require_clean_head
+"$ROOT/scripts/check.sh" --full
+require_clean_head
