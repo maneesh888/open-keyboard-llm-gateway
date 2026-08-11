@@ -19,6 +19,7 @@ public/admin/*.backup-*
 .agent/
 .claude/
 .claire/
+.ua/
 
 # Local generated reports / live run artifacts
 LIVE_FUNCTION_TEST_RESULTS.md

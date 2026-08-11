@@ -76,6 +76,9 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('class="tester-summary"');
     expect(html).toContain('function testerSelectedModel()');
     expect(html).toContain('function updateTesterReadiness()');
+    expect(html).toContain('function setTesterModel(value)');
+    expect(html).toContain('function syncTesterModelForKey()');
+    expect(html).toContain('syncTesterModelForKey();updateModelCatalogStatus()');
     expect(html).toContain('Selected model: ${model}');
     expect(html).toContain('Fetch on test');
     expect(html).toContain('fetchPolicy:\'on-test-only\'');
@@ -134,6 +137,7 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('Endpoint or model not found: verify /v1/chat/completions and the selected model name.');
     expect(html).toContain('Upstream unavailable: Ollama/Apfel backend is not reachable.');
     expect(html).toContain('Network/browser error: check gateway reachability and TLS/CORS from this admin session.');
+    expect(html.indexOf("if(/Failed to fetch|NetworkError|Load failed/i.test(text))")).toBeLessThan(html.indexOf("if(status>=500||/Ollama|reachable/i.test(text))"));
     expect(html).toContain('history.replaceState(null');
     expect(html).toContain("history.pushState(null,'',next);applyRoute()");
     expect(html).toContain("window.addEventListener('popstate',applyRoute)");
