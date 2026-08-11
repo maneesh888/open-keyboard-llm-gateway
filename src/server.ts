@@ -10,12 +10,35 @@ import { OllamaProxy } from './proxy/ollama.js';
 import { loggingMiddleware } from './logging/logger.js';
 import { createAdminApp } from './admin/index.js';
 import type { AppConfig, AdminConfig } from './types/index.js';
+import { DEFAULT_CODEX_CONFIG } from './config/appConfig.js';
+import { CodexProvider } from './providers/codex.js';
+import type { CodexRunner } from './providers/codexCliRunner.js';
+import { ProviderRegistry } from './providers/types.js';
 
-export function createApp(config: AppConfig, keysPath: string, adminConfig?: AdminConfig) {
+export type AppDependencies = {
+  codexApiKey?: string;
+  codexRunner?: CodexRunner;
+};
+
+export function createApp(
+  config: AppConfig,
+  keysPath: string,
+  adminConfig?: AdminConfig,
+  dependencies: AppDependencies = {},
+) {
   const app = new Hono();
   const keyManager = new KeyManager(keysPath);
   const rateLimiter = new RateLimiter();
-  const proxy = new OllamaProxy(config.ollamaHost, config.apfelHost);
+  const codex = new CodexProvider(config.codex || DEFAULT_CODEX_CONFIG, {
+    apiKey: dependencies.codexApiKey ?? process.env.CODEX_API_KEY,
+    runner: dependencies.codexRunner,
+  });
+  const proxy = new OllamaProxy(
+    config.ollamaHost,
+    config.apfelHost,
+    './config/known-models.json',
+    new ProviderRegistry([codex]),
+  );
 
   keyManager.watchForChanges();
 
@@ -26,7 +49,11 @@ export function createApp(config: AppConfig, keysPath: string, adminConfig?: Adm
 
   const healthCheck = async () => {
     const ollamaOk = await proxy.healthCheck();
-    return { status: 'ok', ollama: ollamaOk ? 'connected' : 'disconnected' } as const;
+    return {
+      status: 'ok',
+      ollama: ollamaOk ? 'connected' : 'disconnected',
+      codex: proxy.providerStatus('codex') || 'disabled',
+    } as const;
   };
 
   app.get('/', async (c) => c.json(await healthCheck()));

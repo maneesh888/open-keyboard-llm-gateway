@@ -14,6 +14,7 @@ A self-hosted API gateway for routing AI requests through user-controlled infras
 - Live LLM playground for validating a selected key against `/v1/chat/completions`.
 - Structured OpenKeyboard operation support for grammar correction, rewrite, summarize, continuation, and translate-style workflows.
 - Model discovery through the configured backend, with optional Apfel routing for `apple-foundationmodel` when configured.
+- An opt-in, private/trusted-user Codex provider with explicit per-key grants and non-streaming Chat Completions support.
 - JSON request logging without exposing Authorization headers.
 - Cumulative hygiene/quick/full release gates, committed hooks, and read-only GitHub CI.
 
@@ -33,7 +34,7 @@ Client (iPhone/OpenClaw/etc.)
 │  ├───────────────┤  │
 │  │    Logger     │  │  JSON logs
 │  ├───────────────┤  │
-│  │  Ollama Proxy │  │  forward request
+│  │Provider Router│  │  select Ollama, Apfel, or Codex
 │  └───────────────┘  │
 └─────────────────────┘
         │
@@ -45,6 +46,8 @@ Client (iPhone/OpenClaw/etc.)
 ```
 
 Optional Apfel support can route `apple-foundationmodel` requests to an Apfel OpenAI-compatible server when `APFEL_HOST` or `apfelHost` is configured. See `docs/APFEL_PORTAL_POC.md` for the PoC notes and constraints.
+
+Optional Codex support reserves the configured public alias (default `codex`) and maps it to a separately configured Codex model. It is intended only for private deployments and trusted users; do not expose it to public or untrusted multi-tenant clients.
 
 ## Screenshots
 
@@ -117,6 +120,39 @@ docker compose up -d
 docker compose logs -f
 ```
 
+### Optional private Codex provider
+
+Codex is disabled by default. To opt in, copy the full `codex` object from `config/config.example.json`, set `enabled` to `true`, and replace `model` with an approved underlying Codex model available to the deployment service account. The stable client-facing alias remains separate:
+
+```json
+{
+  "codex": {
+    "enabled": true,
+    "publicModel": "codex",
+    "model": "replace-with-approved-codex-model",
+    "timeoutMs": 120000,
+    "maxConcurrent": 1,
+    "maxQueue": 2,
+    "maxInputChars": 32000,
+    "maxOutputChars": 16000
+  }
+}
+```
+
+Provide the service credential only through the protected `CODEX_API_KEY` process environment. Do not put it in `config.json`, Compose files, command arguments, logs, or repository files, and never mount or copy a personal `~/.codex/auth.json`. A file config containing a Codex credential field is rejected.
+
+Each invocation uses the pinned official `@openai/codex` runtime with fixed arguments, prompt input over stdin, read-only sandboxing, approval policy `never`, disabled model tool networking/integrations, an empty temporary working directory, a dedicated temporary `CODEX_HOME`, and ephemeral session storage. User/project config, rules, repository instructions, hooks, apps, memories, multi-agent tools, web search, and MCP/plugin state are absent or disabled; the temporary directories are removed after the turn. The Codex runtime still needs outbound access to the OpenAI service. Client requests cannot supply executable paths, CLI flags, working directories, or environment variables.
+
+The implementation was checked against the current official [Codex SDK contract](https://learn.chatgpt.com/docs/codex-sdk) and [non-interactive CLI contract](https://learn.chatgpt.com/docs/non-interactive-mode). The TypeScript SDK is not used directly because its public interface does not expose the required ephemeral/config-isolation flags or bounded subprocess output capture. The gateway instead invokes the SDK's underlying official CLI contract through a fixed, bounded runner.
+
+`/health` reports one of these Codex states without making a paid inference call:
+
+- `disabled`: opt-in configuration is off.
+- `configured/ready`: configuration, protected credential presence, and the pinned runtime are present.
+- `unavailable`: Codex was enabled but the credential or runtime is missing.
+
+`configured/ready` does not validate the credential, model entitlement, network path, billing, or live inference. Codex failure does not change the top-level health status or Ollama/Apfel routing.
+
 ## Managing Keys
 
 Keys are defined in `config/keys.json` and hot-reloaded every 5 seconds — no restart needed.
@@ -137,6 +173,8 @@ Keys are defined in `config/keys.json` and hot-reloaded every 5 seconds — no r
 **Revoke a key:** set `"enabled": false` or remove the entry.
 
 **Restrict models:** set `"allowedModels": ["gemma4:26b-a4b-it-q4_K_M"]` to limit which models a key can use.
+
+**Grant Codex explicitly:** set `"allowedModels": ["codex"]` or include `"codex"` alongside other entries. `"allowedModels": ["*"]` does not authorize, discover, or execute Codex. This deliberate exception prevents a wildcard from exposing privileged agent execution.
 
 **Use a lighter sub-model:** set `"modelConfig.model"` to the exact lighter model or sub-model exposed by your backend. Optional `"modelConfig.effort"` is only a request-level reasoning hint for compatible backends; the gateway does not infer hidden effort tiers.
 
@@ -375,6 +413,10 @@ Every gateway-generated non-2xx JSON response uses the OpenAI-style nested error
 | `unsupported_operation` | The requested structured operation is not supported. |
 | `input_text_required` | A structured operation did not include usable input text. |
 | `stream_not_supported_for_operation` | Streaming was requested for a structured operation. |
+| `stream_not_supported_for_provider` | Streaming was requested for the non-streaming Codex MVP. |
+| `unsupported_parameter` | A Codex request used an unsupported message shape, field, or size. |
+| `provider_overloaded` | Codex concurrency and queue capacity are both full. |
+| `provider_unavailable` | Codex is enabled but its protected credential or runtime is unavailable. |
 | `model_not_allowed` | The requested model is outside the API key's allowlist. |
 | `invalid_request` | The Chat Completions request does not satisfy the documented JSON contract. |
 | `invalid_upstream_response` | A successful upstream response did not satisfy the guaranteed non-streaming contract. |
@@ -426,7 +468,7 @@ npm run check:full          # quick + Docker build/runtime smoke
 npm run test:watch          # watch mode
 ```
 
-The Docker smoke expects the safe fixture backend to be disconnected. It proves image startup, `/health`, and `/ui`, not a real Ollama/Apfel model call. See `docs/DEVELOPMENT_WORKFLOW.md` for proof boundaries and `.github/CI-CD-SETUP.md` for the pull-request workflow.
+The Docker smoke expects the safe fixture backend to be disconnected and Codex to be disabled. It proves image startup, `/health`, and `/ui`, not a real Ollama/Apfel/Codex model call. Deterministic Codex tests use an injected fake runner and never contact OpenAI. See `docs/DEVELOPMENT_WORKFLOW.md` for proof boundaries and `.github/CI-CD-SETUP.md` for the pull-request workflow.
 
 ## Docker Commands
 
