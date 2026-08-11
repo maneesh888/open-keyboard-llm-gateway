@@ -6,6 +6,31 @@ import { OllamaProxy } from '../src/proxy/ollama.js';
 // OllamaProxy's default knownModelsPath is relative to cwd; keep tests isolated from real disk state.
 const KNOWN_MODELS_PATH = './config/known-models.json';
 
+function chatCompletion(content = 'Hello', extra: Record<string, unknown> = {}) {
+  return JSON.stringify({
+    id: 'chatcmpl-test',
+    object: 'chat.completion',
+    created: 1_700_000_000,
+    model: 'gemma4',
+    choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
+    ...extra,
+  });
+}
+
+function chatCompletionChunk(content: string) {
+  return `data: ${JSON.stringify({
+    id: 'chatcmpl-test',
+    object: 'chat.completion.chunk',
+    created: 1_700_000_000,
+    model: 'gemma4',
+    choices: [{ index: 0, delta: { content }, finish_reason: null }],
+  })}\n\n`;
+}
+
+function gatewayError(message: string, type: string, code: string, extra: Record<string, unknown> = {}) {
+  return { ...extra, error: { message, type, code } };
+}
+
 // Helper: build a minimal app that injects an API key into context and uses the proxy
 function buildApp(proxy: OllamaProxy, keyOverrides: Record<string, unknown> = {}) {
   const app = new Hono();
@@ -90,7 +115,7 @@ describe('OllamaProxy', () => {
 
   it('forwards POST request body to Ollama', async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [] }), {
+      new Response(chatCompletion(), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       }),
@@ -112,9 +137,91 @@ describe('OllamaProxy', () => {
     expect(opts.body).toBe(payload);
   });
 
+  it('preserves standard generation fields and unknown additive request values exactly', async () => {
+    const upstreamBody = JSON.parse(chatCompletion('Preserved'));
+    upstreamBody.system_fingerprint = 'fp_test';
+    upstreamBody.gateway_unknown = { retained: true };
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify(upstreamBody), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    const payload = {
+      model: 'gemma4',
+      messages: [{ role: 'user', content: 'hi' }],
+      temperature: 0,
+      top_p: 0.75,
+      n: 1,
+      max_tokens: 0,
+      max_completion_tokens: 64,
+      presence_penalty: -0.5,
+      frequency_penalty: 0.25,
+      seed: 0,
+      stop: ['END'],
+      stream: false,
+      response_format: { type: 'json_object' },
+      vendor_extension: { enabled: false },
+    };
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    expect(res.status).toBe(200);
+    const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(opts.body))).toEqual(payload);
+    expect(await res.json()).toEqual(upstreamBody);
+  });
+
+  it.each([
+    ['malformed JSON', '{'],
+    ['a missing model', JSON.stringify({ messages: [] })],
+    ['missing messages', JSON.stringify({ model: 'gemma4' })],
+    ['a non-boolean stream', JSON.stringify({ model: 'gemma4', messages: [], stream: 'true' })],
+    ['a non-numeric generation field', JSON.stringify({ model: 'gemma4', messages: [], temperature: '0.2' })],
+    ['an invalid message', JSON.stringify({ model: 'gemma4', messages: [{ content: 'hi' }] })],
+  ])('rejects %s before calling upstream', async (_label, requestBody) => {
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: requestBody,
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      error: {
+        message: expect.any(String),
+        type: 'invalid_request_error',
+        code: 'invalid_request',
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-JSON content types and non-POST Chat Completions calls', async () => {
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const wrongType = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'text/plain' },
+      body: JSON.stringify({ model: 'gemma4', messages: [] }),
+    });
+    const wrongMethod = await app.request('/v1/chat/completions');
+
+    expect(wrongType.status).toBe(415);
+    expect(wrongMethod.status).toBe(405);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('adds configured effort to chat completion requests when caller leaves it unset', async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [] }), {
+      new Response(chatCompletion(), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       }),
@@ -162,7 +269,7 @@ describe('OllamaProxy', () => {
 
   it('preserves caller-provided effort settings over key defaults', async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [] }), {
+      new Response(chatCompletion(), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       }),
@@ -218,7 +325,36 @@ describe('OllamaProxy', () => {
 
     expect(res.status).toBe(503);
     const body = await res.json();
-    expect(body.error).toMatch(/not reachable/i);
+    expect(body.error.message).toMatch(/not reachable/i);
+    expect(body.error.type).toBe('server_error');
+    expect(body.error.code).toBe('upstream_unreachable');
+  });
+
+  it('normalizes upstream non-2xx responses into the gateway error envelope', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: 'raw upstream error', code: 'raw_code' }), {
+        status: 500,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [] }),
+    });
+
+    expect(res.status).toBe(502);
+    await expect(res.json()).resolves.toEqual(gatewayError(
+      'Upstream model request failed.',
+      'server_error',
+      'upstream_error',
+      {
+        upstreamStatus: 500,
+      },
+    ));
   });
 
   it('returns 504 on timeout', async () => {
@@ -235,10 +371,23 @@ describe('OllamaProxy', () => {
     });
 
     expect(res.status).toBe(504);
+    await expect(res.json()).resolves.toMatchObject({
+      error: {
+        message: expect.any(String),
+        type: 'server_error',
+        code: 'upstream_timeout',
+      },
+    });
   });
 
   it('streams SSE responses through without buffering', async () => {
-    const sseBody = 'data: {"content":"hello"}\n\ndata: [DONE]\n\n';
+    const sseBody = [
+      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}',
+      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[{"index":0,"delta":{"content":"hello"},"finish_reason":"stop"}]}',
+      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}',
+      'data: [DONE]',
+      '',
+    ].join('\n\n');
     fetchSpy.mockResolvedValueOnce(
       new Response(sseBody, {
         status: 200,
@@ -256,6 +405,354 @@ describe('OllamaProxy', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/event-stream');
+    expect(await res.text()).toBe(sseBody);
+  });
+
+  it('reads upstream SSE only when the downstream consumer requests another event', async () => {
+    const textEncoder = new TextEncoder();
+    const textDecoder = new TextDecoder();
+    let upstreamPullCount = 0;
+    let upstreamCancelled = false;
+    const upstream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        upstreamPullCount += 1;
+        controller.enqueue(textEncoder.encode(chatCompletionChunk(`chunk-${upstreamPullCount}`)));
+      },
+      cancel() {
+        upstreamCancelled = true;
+      },
+    }, { highWaterMark: 0 });
+    fetchSpy.mockResolvedValueOnce(new Response(upstream, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(upstreamPullCount).toBe(1);
+    await Promise.resolve();
+    expect(upstreamPullCount).toBe(1);
+
+    const downstream = res.body?.getReader();
+    expect(downstream).toBeDefined();
+    const first = await downstream!.read();
+    expect(textDecoder.decode(first.value)).toContain('chunk-1');
+    expect(upstreamPullCount).toBe(1);
+
+    const second = await downstream!.read();
+    expect(textDecoder.decode(second.value)).toContain('chunk-2');
+    expect(upstreamPullCount).toBe(2);
+    await Promise.resolve();
+    expect(upstreamPullCount).toBe(2);
+
+    await downstream!.cancel('slow client disconnected');
+    expect(upstreamCancelled).toBe(true);
+  });
+
+  it('rejects an oversized incomplete first SSE event', async () => {
+    const oversizedEvent = `data: ${'x'.repeat(1024 * 1024)}`;
+    fetchSpy.mockResolvedValueOnce(new Response(oversizedEvent, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual(gatewayError(
+      'The upstream emitted an invalid Chat Completions stream.',
+      'server_error',
+      'invalid_stream',
+    ));
+  });
+
+  it('terminates an oversized incomplete later SSE event without exposing it', async () => {
+    const textEncoder = new TextEncoder();
+    const first = chatCompletionChunk('hello');
+    const oversizedEvent = `data: ${'x'.repeat(1024 * 1024)}`;
+    const upstream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(textEncoder.encode(first));
+      },
+      pull(controller) {
+        controller.enqueue(textEncoder.encode(oversizedEvent));
+        controller.close();
+      },
+    });
+    fetchSpy.mockResolvedValueOnce(new Response(upstream, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const streamed = await res.text();
+    expect(streamed.startsWith(first)).toBe(true);
+    expect(streamed).toContain('"code":"invalid_stream"');
+    expect(streamed).not.toContain('x'.repeat(64));
+    expect(streamed.endsWith('data: [DONE]\n\n')).toBe(true);
+  });
+
+  it('rejects a malformed first SSE event with a safe HTTP error', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response('data: {"content":"not-an-openai-chunk"}\n\n', {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual(gatewayError(
+      'The upstream emitted an invalid Chat Completions stream.',
+      'server_error',
+      'invalid_stream',
+    ));
+  });
+
+  it('turns a malformed later SSE event into a nested stream error and [DONE]', async () => {
+    const first = 'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[{"index":0,"delta":{"content":"hello"},"finish_reason":null}]}\n\n';
+    const upstream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(first));
+      },
+      pull(controller) {
+        controller.enqueue(new TextEncoder().encode('data: not-json\n\n'));
+        controller.close();
+      },
+    });
+    fetchSpy.mockResolvedValueOnce(new Response(upstream, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const streamed = await res.text();
+    expect(streamed.startsWith(first)).toBe(true);
+    expect(streamed).toContain('"type":"server_error"');
+    expect(streamed).toContain('"code":"invalid_stream"');
+    expect(streamed.endsWith('data: [DONE]\n\n')).toBe(true);
+  });
+
+  it('turns a late upstream read failure into a safe stream error and [DONE]', async () => {
+    const first = chatCompletionChunk('hello');
+    const upstream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(first));
+      },
+      pull() {
+        throw new Error('private upstream transport detail');
+      },
+    }, { highWaterMark: 0 });
+    fetchSpy.mockResolvedValueOnce(new Response(upstream, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const streamed = await res.text();
+    expect(streamed.startsWith(first)).toBe(true);
+    expect(streamed).toContain('"type":"server_error"');
+    expect(streamed).toContain('"code":"invalid_stream"');
+    expect(streamed).not.toContain('private upstream transport detail');
+    expect(streamed.endsWith('data: [DONE]\n\n')).toBe(true);
+  });
+
+  it('treats [DONE] as terminal without waiting for upstream EOF', async () => {
+    const complete = [
+      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[{"index":0,"delta":{"content":"hello"},"finish_reason":"stop"}]}',
+      'data: [DONE]',
+      '',
+    ].join('\n\n');
+    let upstreamCancelled = false;
+    const upstream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(complete));
+      },
+      cancel() {
+        upstreamCancelled = true;
+      },
+    });
+    fetchSpy.mockResolvedValueOnce(new Response(upstream, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+
+    expect(await res.text()).toBe(complete);
+    expect(upstreamCancelled).toBe(true);
+  });
+
+  it('turns a stream missing [DONE] into a safe terminal error event', async () => {
+    const first = 'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[{"index":0,"delta":{"content":"hello"},"finish_reason":null}]}\n\n';
+    const upstream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(first));
+        controller.close();
+      },
+    });
+    fetchSpy.mockResolvedValueOnce(new Response(upstream, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const streamed = await res.text();
+    expect(streamed.startsWith(first)).toBe(true);
+    expect(streamed).toContain('"code":"invalid_stream"');
+    expect(streamed.endsWith('data: [DONE]\n\n')).toBe(true);
+  });
+
+  it('rejects unsupported streaming content types', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response('{"message":{"content":"hello"}}\n', {
+      status: 200,
+      headers: { 'content-type': 'application/x-ndjson' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toMatchObject({ error: { code: 'invalid_stream' } });
+  });
+
+  it('aborts the upstream stream when the downstream client cancels', async () => {
+    const first = 'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[{"index":0,"delta":{"content":"hello"},"finish_reason":null}]}\n\n';
+    let upstreamSignal: AbortSignal | undefined;
+    let upstreamCancelled = false;
+    const upstream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(first));
+      },
+      cancel() {
+        upstreamCancelled = true;
+      },
+    });
+    fetchSpy.mockImplementationOnce(async (_url: string, init: RequestInit) => {
+      upstreamSignal = init.signal as AbortSignal;
+      return new Response(upstream, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+    });
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [], stream: true }),
+    });
+    await res.body?.cancel('client disconnected');
+
+    expect(upstreamSignal?.aborted).toBe(true);
+    expect(upstreamCancelled).toBe(true);
+  });
+
+  it('propagates request aborts to an in-flight upstream fetch', async () => {
+    let upstreamSignal: AbortSignal | undefined;
+    fetchSpy.mockImplementationOnce(async (_url: string, init: RequestInit) => {
+      upstreamSignal = init.signal as AbortSignal;
+      return await new Promise<Response>((_resolve, reject) => {
+        upstreamSignal?.addEventListener('abort', () => reject(upstreamSignal?.reason), { once: true });
+      });
+    });
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const client = new AbortController();
+    const pending = app.request(new Request('http://localhost/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [] }),
+      signal: client.signal,
+    }));
+    await vi.waitFor(() => expect(upstreamSignal).toBeDefined());
+    client.abort('client disconnected');
+    const res = await pending;
+
+    expect(upstreamSignal?.aborted).toBe(true);
+    expect(res.status).toBe(408);
+    expect(await res.json()).toMatchObject({ error: { code: 'request_cancelled' } });
+  });
+
+  it('rejects malformed successful non-streaming responses without exposing their body', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response('{"private_internal_detail":"do not expose"}', {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [] }),
+    });
+    const responseBody = await res.text();
+
+    expect(res.status).toBe(502);
+    expect(JSON.parse(responseBody)).toMatchObject({ error: { code: 'invalid_upstream_response' } });
+    expect(responseBody).not.toContain('private_internal_detail');
+    expect(responseBody).not.toContain('do not expose');
   });
 
   it('returns 403 when model is not in allowedModels', async () => {
@@ -275,7 +772,7 @@ describe('OllamaProxy', () => {
 
   it('allows request when model matches allowedModels', async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } }),
+      new Response(chatCompletion(), { status: 200, headers: { 'content-type': 'application/json' } }),
     );
 
     const proxy = new OllamaProxy('http://localhost:11434');
@@ -292,7 +789,7 @@ describe('OllamaProxy', () => {
 
   it('routes apple-foundationmodel chat completions to Apfel when configured', async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response('{"choices":[]}', { status: 200, headers: { 'content-type': 'application/json' } }),
+      new Response(chatCompletion(undefined, { model: 'apple-foundationmodel' }), { status: 200, headers: { 'content-type': 'application/json' } }),
     );
 
     const proxy = new OllamaProxy('http://localhost:11434', 'http://localhost:11435');
@@ -307,6 +804,8 @@ describe('OllamaProxy', () => {
     expect(res.status).toBe(200);
     const [url] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('http://localhost:11435/v1/chat/completions');
+    const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect((opts.headers as Headers).get('authorization')).toBeNull();
   });
 
   it('adds Apfel models to the admin model list when Apfel is reachable', async () => {
@@ -323,7 +822,7 @@ describe('OllamaProxy', () => {
 
   it('adds operation schema instructions and bounded input text for OpenKeyboard operation requests', async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: 'Corrected text.' } }] }), {
+      new Response(JSON.stringify({ choices: [{ message: { content: '{"operation":"fix_grammar","results":[]}' } }] }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       }),
@@ -393,6 +892,10 @@ describe('OllamaProxy', () => {
       expect.objectContaining({ title: 'Spelling', original: 'ths', replacement: 'this' }),
     ]));
     expect(content.corrected_text).toBe('i has an apple, this is nt sound god');
+    expect(content).not.toHaveProperty('error');
+    expect(content).not.toHaveProperty('code');
+    expect(content).not.toHaveProperty('degraded');
+    expect(content).not.toHaveProperty('degraded_reason');
   });
 
   it('normalizes complex OpenKeyboard spell-fix responses matching the keyboard mock contract', async () => {
@@ -541,7 +1044,11 @@ describe('OllamaProxy', () => {
 
     expect(res.status).toBe(400);
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(await res.json()).toEqual({ error: 'stream must be false when operation is provided' });
+    expect(await res.json()).toEqual(gatewayError(
+      'stream must be false when operation is provided',
+      'invalid_request_error',
+      'stream_not_supported_for_operation',
+    ));
   });
 
   it('does not validate or mutate operation-shaped payloads on non-chat proxy endpoints', async () => {
@@ -590,7 +1097,7 @@ describe('OllamaProxy', () => {
   });
 
 
-  it('wraps legacy corrected text into a structured operation result for migration compatibility', async () => {
+  it('wraps legacy plain model text for OpenKeyboard migration compatibility', async () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ choices: [{ message: { content: 'I have an apple.' } }] }), {
         status: 200,
@@ -610,7 +1117,11 @@ describe('OllamaProxy', () => {
     const body = await res.json();
     const content = JSON.parse(body.choices[0].message.content);
     expect(content).toMatchObject({ operation: 'fix_grammar', corrected_text: 'I have an apple.' });
-    expect(content.results[0]).toMatchObject({ type: 'correction', original: 'i has a apple', replacement: 'I have an apple.' });
+    expect(content.results[0]).toMatchObject({
+      type: 'correction',
+      original: 'i has a apple',
+      replacement: 'I have an apple.',
+    });
   });
 
   it('rejects unsupported OpenKeyboard operations before upstream calls', async () => {
@@ -623,7 +1134,11 @@ describe('OllamaProxy', () => {
     });
 
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "Unsupported operation 'delete_everything'" });
+    expect(await res.json()).toEqual(gatewayError(
+      "Unsupported operation 'delete_everything'",
+      'invalid_request_error',
+      'unsupported_operation',
+    ));
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -704,9 +1219,13 @@ describe('OllamaProxy', () => {
     const body = await res.json();
     const content = JSON.parse(body.choices[0].message.content);
     expect(content).toEqual({ operation: 'fix_grammar', results: [] });
+    expect(body).not.toHaveProperty('error');
+    expect(body).not.toHaveProperty('code');
+    expect(content).not.toHaveProperty('degraded');
+    expect(content).not.toHaveProperty('degraded_reason');
   });
 
-  it('does not wrap malformed JSON-like operation output as corrected text', async () => {
+  it('turns malformed JSON-like operation output into a safe warning result', async () => {
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ choices: [{ message: { content: '{"operation":"fix_grammar","results":[' } }] }), {
         status: 200,
@@ -730,8 +1249,55 @@ describe('OllamaProxy', () => {
       results: [expect.objectContaining({ id: 'invalid-structured-response', type: 'warning' })],
     });
     expect(content.results[0].text).not.toContain('{"operation":"fix_grammar","results":[');
-    expect(content.results[0].replacement).toBeUndefined();
-    expect(content.corrected_text).toBeUndefined();
+  });
+
+  it('turns valid JSON with the wrong operation schema into a safe warning result', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ choices: [{ message: { content: '{"message":"Done"}' } }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', operation: 'summarize', input_text: 'Summarize this.', messages: [] }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const content = JSON.parse(body.choices[0].message.content);
+    expect(content).toMatchObject({
+      operation: 'summarize',
+      results: [expect.objectContaining({ id: 'invalid-structured-response', type: 'warning' })],
+    });
+  });
+
+  it('rejects an invalid outer OpenAI-compatible response envelope', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response('{"choices":[]}', {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', operation: 'summarize', input_text: 'Summarize this.', messages: [] }),
+    });
+
+    expect(res.status).toBe(502);
+    await expect(res.json()).resolves.toEqual(gatewayError(
+      'Upstream model request failed.',
+      'server_error',
+      'upstream_error',
+    ));
   });
 
   it('rejects blank input_text when operation is provided before upstream calls', async () => {
@@ -744,13 +1310,17 @@ describe('OllamaProxy', () => {
     });
 
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: 'input_text is required when operation is provided' });
+    expect(await res.json()).toEqual(gatewayError(
+      'input_text is required when operation is provided',
+      'invalid_request_error',
+      'input_text_required',
+    ));
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('bounds long input_text before upstream prompt shaping', async () => {
     fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: 'Done.' } }] }), {
+      new Response(JSON.stringify({ choices: [{ message: { content: '{"operation":"summarize","results":[]}' } }] }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       }),

@@ -4,6 +4,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FIXTURE_REPOSITORY="$(mktemp -d)"
 
+# Git hooks export repository-local variables such as GIT_INDEX_FILE. Clear
+# them before operating on the fixture repository so its staged files cannot
+# alter the caller's real index.
+while IFS= read -r git_environment_variable; do
+  unset "$git_environment_variable"
+done < <(git rev-parse --local-env-vars)
+
 cleanup() {
   rm -rf -- "$FIXTURE_REPOSITORY"
 }

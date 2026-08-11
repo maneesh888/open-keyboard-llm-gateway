@@ -44,6 +44,14 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('fetch(`/admin/keys/${keyId}`');
   });
 
+  it('decodes nested OpenAI error messages in admin and playground requests', () => {
+    expect(html).toContain('function apiErrorMessage(data,fallback)');
+    expect(html).toContain("typeof error==='object'&&typeof error.message==='string'");
+    expect(html).toContain('new Error(apiErrorMessage(data,`Request failed (${r.status})`))');
+    expect(html).toContain("new Error(apiErrorMessage(data,'Invalid credentials'))");
+    expect(html).toContain('new Error(apiErrorMessage(data,data.detail||raw||`HTTP ${r.status}`))');
+  });
+
   it('persists admin login until token expiry', () => {
     expect(html).toContain("const AUTH_STORAGE_KEY='llmGatewayAdminSession'");
     expect(html).toContain('function saveSession(token,expiresIn)');

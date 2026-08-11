@@ -4,6 +4,7 @@ import { createAdminRoutes } from './keyRoutes.js';
 import type { AdminConfig, AppConfig } from '../types/index.js';
 import { OllamaProxy } from '../proxy/ollama.js';
 import type { KeyManager } from '../keys/manager.js';
+import { errorResponse } from '../lib/errors.js';
 
 export function createAdminApp(adminConfig: AdminConfig, keyManager: KeyManager, proxy?: OllamaProxy, appConfig?: AppConfig) {
   const app = new Hono();
@@ -51,20 +52,20 @@ export function createAdminApp(adminConfig: AdminConfig, keyManager: KeyManager,
     try {
       const attemptKey = loginAttemptKey(c);
       if (isLoginRateLimited(attemptKey)) {
-        return c.json({ error: 'Too many login attempts. Try again later.' }, 429);
+        return errorResponse(c, 429, 'admin_login_rate_limited', 'Too many login attempts. Try again later.');
       }
 
       const { username, password } = await c.req.json();
 
       if (!username || !password) {
         recordFailedLogin(attemptKey);
-        return c.json({ error: 'Invalid credentials' }, 401);
+        return errorResponse(c, 401, 'admin_invalid_credentials', 'Invalid credentials');
       }
 
       const isValid = await adminAuth.verifyPassword(username, password);
       if (!isValid) {
         recordFailedLogin(attemptKey);
-        return c.json({ error: 'Invalid credentials' }, 401);
+        return errorResponse(c, 401, 'admin_invalid_credentials', 'Invalid credentials');
       }
 
       clearFailedLogins(attemptKey);
@@ -76,7 +77,7 @@ export function createAdminApp(adminConfig: AdminConfig, keyManager: KeyManager,
       });
     } catch (error) {
       console.error('[admin] Login error:', error);
-      return c.json({ error: 'Internal server error' }, 500);
+      return errorResponse(c, 500, 'internal_error', 'Internal server error');
     }
   });
 

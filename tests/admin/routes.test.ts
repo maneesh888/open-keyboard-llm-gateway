@@ -63,6 +63,13 @@ describe('Admin key routes', () => {
   it('rejects requests without admin token', async () => {
     const res = await app.request('/admin/keys');
     expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toEqual({
+      error: {
+        message: 'Unauthorized',
+        type: 'authentication_error',
+        code: 'admin_unauthorized',
+      },
+    });
   });
 
   it('lists keys with sanitized key values', async () => {
@@ -141,7 +148,9 @@ describe('Admin key routes', () => {
 
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toMatch(/rateLimitConfig\.requestsPerMinute/);
+    expect(body.error.message).toMatch(/rateLimitConfig\.requestsPerMinute/);
+    expect(body.error.code).toBe('validation_error');
+    expect(body.error.type).toBe('invalid_request_error');
   });
 
   it('rejects invalid model effort values', async () => {
@@ -156,7 +165,7 @@ describe('Admin key routes', () => {
 
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toMatch(/modelConfig\.effort/);
+    expect(body.error.message).toMatch(/modelConfig\.effort/);
   });
 
   it('updates mutable fields with validated settings', async () => {
@@ -196,7 +205,7 @@ describe('Admin key routes', () => {
 
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toMatch(/Unknown field/);
+    expect(body.error.message).toMatch(/Unknown field/);
   });
 
   it('rejects invalid update types', async () => {
@@ -210,7 +219,7 @@ describe('Admin key routes', () => {
 
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toMatch(/enabled/);
+    expect(body.error.message).toMatch(/enabled/);
   });
 
   it('deletes a key', async () => {
@@ -227,6 +236,13 @@ describe('Admin key routes', () => {
   it('returns 404 for missing key update/delete/get', async () => {
     const get = await app.request('/admin/keys/missing', { headers: authHeaders() });
     expect(get.status).toBe(404);
+    await expect(get.json()).resolves.toEqual({
+      error: {
+        message: 'Key not found',
+        type: 'invalid_request_error',
+        code: 'key_not_found',
+      },
+    });
 
     const patch = await app.request('/admin/keys/missing', {
       method: 'PATCH',
