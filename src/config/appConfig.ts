@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'fs';
-import type { AppConfig } from '../types/index.js';
+import type { AppConfig, CodexConfig } from '../types/index.js';
 
 export type ConfigEnv = {
   PORT?: string;
@@ -7,13 +7,80 @@ export type ConfigEnv = {
   APFEL_HOST?: string;
 };
 
+export const DEFAULT_CODEX_CONFIG: CodexConfig = {
+  enabled: false,
+  publicModel: 'codex',
+  timeoutMs: 120000,
+  maxConcurrent: 1,
+  maxQueue: 2,
+  maxInputChars: 32000,
+  maxOutputChars: 16000,
+};
+
 export function defaultConfig(env: ConfigEnv = process.env): AppConfig {
   return {
     port: parseInt(env.PORT || '8080'),
     ollamaHost: env.OLLAMA_HOST || 'http://host.docker.internal:11434',
     apfelHost: env.APFEL_HOST || undefined,
+    codex: { ...DEFAULT_CODEX_CONFIG },
     logLevel: 'info',
     corsOrigins: ['*'],
+  };
+}
+
+function validateBoundedInteger(value: unknown, field: string, minimum: number, maximum: number): number {
+  if (!Number.isInteger(value) || typeof value !== 'number' || value < minimum || value > maximum) {
+    throw new Error(`${field} must be an integer between ${minimum} and ${maximum}`);
+  }
+  return value;
+}
+
+export function validateCodexConfig(raw: unknown): CodexConfig {
+  if (raw === undefined) return { ...DEFAULT_CODEX_CONFIG };
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error('codex must be an object');
+  }
+
+  const value = raw as Partial<CodexConfig> & Record<string, unknown>;
+  const supportedFields = new Set([
+    'enabled',
+    'publicModel',
+    'model',
+    'timeoutMs',
+    'maxConcurrent',
+    'maxQueue',
+    'maxInputChars',
+    'maxOutputChars',
+  ]);
+  if ('apiKey' in value || 'credential' in value || 'secret' in value) {
+    throw new Error('Codex credentials must be supplied through the protected CODEX_API_KEY environment variable');
+  }
+  if (Object.keys(value).some((field) => !supportedFields.has(field))) {
+    throw new Error('codex contains unsupported configuration fields');
+  }
+  if (typeof value.enabled !== 'boolean') throw new Error('codex.enabled must be a boolean');
+  if (value.publicModel === '*' || value.publicModel === 'apple-foundationmodel') {
+    throw new Error('codex.publicModel conflicts with a reserved model identifier');
+  }
+  if (typeof value.publicModel !== 'string' || !/^[A-Za-z0-9._:-]{1,128}$/.test(value.publicModel)) {
+    throw new Error('codex.publicModel must be a non-empty model alias without whitespace');
+  }
+
+  const model = typeof value.model === 'string' ? value.model.trim() : undefined;
+  if (value.enabled && !model) throw new Error('codex.model must be configured when codex.enabled is true');
+  if (model && !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(model)) {
+    throw new Error('codex.model must be a bounded model identifier without whitespace');
+  }
+
+  return {
+    enabled: value.enabled,
+    publicModel: value.publicModel,
+    ...(model ? { model } : {}),
+    timeoutMs: validateBoundedInteger(value.timeoutMs, 'codex.timeoutMs', 1000, 300000),
+    maxConcurrent: validateBoundedInteger(value.maxConcurrent, 'codex.maxConcurrent', 1, 4),
+    maxQueue: validateBoundedInteger(value.maxQueue, 'codex.maxQueue', 0, 100),
+    maxInputChars: validateBoundedInteger(value.maxInputChars, 'codex.maxInputChars', 100, 100000),
+    maxOutputChars: validateBoundedInteger(value.maxOutputChars, 'codex.maxOutputChars', 100, 100000),
   };
 }
 
@@ -59,6 +126,7 @@ export function validateConfig(raw: unknown): AppConfig {
     port,
     ollamaHost: validateURL(config.ollamaHost, 'ollamaHost'),
     apfelHost: config.apfelHost === undefined ? undefined : validateURL(config.apfelHost, 'apfelHost'),
+    codex: validateCodexConfig(config.codex),
     logLevel: config.logLevel.trim(),
     corsOrigins: config.corsOrigins.map((origin) => origin.trim()),
     trustedProxies: config.trustedProxies?.map((cidr) => cidr.trim()),

@@ -35,5 +35,8 @@ console.log(`[gateway] Proxying to ${config.ollamaHost}`);
 if (config.apfelHost) {
   console.log(`[gateway] Apfel backend enabled at ${config.apfelHost}`);
 }
+if (config.codex?.enabled) {
+  console.log('[gateway] Codex provider enabled for explicitly granted keys');
+}
 
 serve({ fetch: app.fetch, port: config.port });

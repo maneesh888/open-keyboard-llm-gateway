@@ -17,6 +17,15 @@
       "rateLimit": 60,
       "allowedModels": ["*"],
       "createdAt": "2026-04-14T00:00:00Z"
+    },
+    {
+      "id": "key_003",
+      "name": "Trusted Codex Client",
+      "key": "replace-with-a-generated-gateway-key",
+      "enabled": false,
+      "rateLimit": 10,
+      "allowedModels": ["codex"],
+      "createdAt": "2026-04-14T00:00:00Z"
     }
   ]
 }
