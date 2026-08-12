@@ -57,6 +57,9 @@ When the optional Codex alias is used, its text-only, non-streaming provider con
 client message conversation without adding Open Keyboard operation instructions. The Codex MVP
 supports `response_format: {"type":"json_object"}` by validating that the returned content parses
 as one JSON object; it does not add JSON instructions or support JSON Schema mode.
+For compatibility with Open Keyboard's canonical request builder, the Codex route accepts
+`temperature` and `max_tokens`; its CLI transport does not expose matching controls, so these two
+fields do not alter Codex execution. Other unsupported generation fields are rejected.
 The gateway key must explicitly list the Codex alias; a wildcard model grant alone is intentionally
 insufficient.
 

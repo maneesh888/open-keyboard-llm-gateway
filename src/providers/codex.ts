@@ -11,13 +11,20 @@ import {
 } from './types.js';
 
 const SUPPORTED_ROLES = new Set(['system', 'developer', 'user', 'assistant']);
-const SUPPORTED_FIELDS = new Set(['model', 'messages', 'stream', 'operation', 'input_text', 'response_format']);
+const SUPPORTED_FIELDS = new Set([
+  'model',
+  'messages',
+  'stream',
+  'operation',
+  'input_text',
+  'response_format',
+  'temperature',
+  'max_tokens',
+]);
 export const CODEX_REQUEST_BODY_LIMIT_BYTES = 1024 * 1024;
 const KNOWN_UNSUPPORTED_FIELDS = [
-  'temperature',
   'top_p',
   'n',
-  'max_tokens',
   'max_completion_tokens',
   'presence_penalty',
   'frequency_penalty',
