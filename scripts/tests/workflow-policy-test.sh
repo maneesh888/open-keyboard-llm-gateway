@@ -53,6 +53,12 @@ for required_path in \
   [[ -f "$ROOT/$required_path" ]] || fail "$required_path is missing."
 done
 
+[[ -f "$ROOT/docs/CODEX_PROVIDER_PLAN.md" ]] || fail "docs/CODEX_PROVIDER_PLAN.md is missing."
+rg --fixed-strings --quiet 'docs/CODEX_PROVIDER_PLAN.md' "$ROOT/.agents/skills/develop-llm-gateway/SKILL.md" ||
+  fail "the implementation workflow no longer routes Codex-provider work through its plan."
+rg --fixed-strings --quiet 'docs/CODEX_PROVIDER_PLAN.md' "$ROOT/.agents/skills/plan-llm-gateway-work-package/SKILL.md" ||
+  fail "the planning workflow no longer treats the Codex-provider plan as a focused source."
+
 if rg --quiet 'TODO|\[TODO' "$ROOT/.agents" "$ROOT/.codex"; then
   fail "repository skills or agents still contain placeholders."
 fi
