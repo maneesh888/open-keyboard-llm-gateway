@@ -10,7 +10,7 @@ Work on one bounded gateway package while preserving API compatibility, secret b
 ## Establish context
 
 1. Resolve the repository root, inspect `git status --short --branch`, and read `AGENTS.md` completely.
-2. Read the relevant README sections and only the focused requirement sources for the changed surface: `ADMIN_FUNCTION_TEST_PLAN.md`, `ADMIN_UI_REQUIREMENTS.md`, `docs/OPEN_KEYBOARD_CLIENT.md`, or `docs/APFEL_PORTAL_POC.md`.
+2. Read the relevant README sections and only the focused requirement sources for the changed surface: `ADMIN_FUNCTION_TEST_PLAN.md`, `ADMIN_UI_REQUIREMENTS.md`, `docs/OPEN_KEYBOARD_CLIENT.md`, `docs/APFEL_PORTAL_POC.md`, or `docs/CODEX_PROVIDER_PLAN.md`. Read `docs/CODEX_PROVIDER_PLAN.md` for any Codex-provider implementation, hardening, verification, or deployment task.
 3. Read `docs/DEVELOPMENT_WORKFLOW.md` when choosing checks or changing scripts, hooks, CI, Docker, skills, agents, or release behavior.
 4. If the user requests a plan, invoke the read-only `work-package-planner`; otherwise keep a compact internal work order and proceed.
 5. Preserve unrelated work and use an isolated branch/worktree when a dirty integration checkout makes exact-head work unsafe.
