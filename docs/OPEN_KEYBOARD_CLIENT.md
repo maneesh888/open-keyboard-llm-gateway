@@ -1,5 +1,17 @@
 # Open Keyboard Client Integration
 
+## Shared semantic package
+
+Semantic test cases are supplied by the pinned `Vendor/semantic-prompt-contract` Git submodule at
+contract version `2.0.1`. The gateway serves its generated browser adapter to the admin playground;
+it does not construct, prepend, alter, or own the production client's messages. The connectivity
+smoke remains gateway-owned because it tests transport rather than semantic behavior.
+
+Initialize the dependency with `git submodule update --init --recursive`. Upgrade by reviewing the
+package changelog and equivalence fixtures, advancing the gitlink to an immutable contract commit,
+and running `./scripts/check-semantic-prompt-contract.sh` plus the gateway full check. Never copy
+canonical prompt wording into gateway TypeScript or HTML.
+
 LLM Gateway is the backend companion for [Open Keyboard](../open-keyboard), an iOS AI keyboard that needs a user-controlled gateway for authentication, model routing, rate limits, and OpenAI-compatible chat completions.
 
 ## Contract used by Open Keyboard

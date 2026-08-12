@@ -57,6 +57,13 @@ describe('Integration', () => {
     expect(body.codex).toBe('disabled');
   });
 
+  it('serves the pinned semantic prompt browser adapter without auth', async () => {
+    const res = await app.request('/ui/semantic-prompt-contract.js');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/javascript');
+    expect(await res.text()).toContain('SemanticPromptContractBrowser');
+  });
+
   it('rejects unauthenticated /v1/ requests with 401', async () => {
     const res = await app.request('/v1/models');
     expect(res.status).toBe(401);

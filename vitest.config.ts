@@ -9,6 +9,7 @@ export default defineConfig({
       '**/.git/**',
       '**/.claude/**',
       '**/.claire/**',
+      '**/Vendor/**',
       '**/tests/e2e/**',
     ],
   },

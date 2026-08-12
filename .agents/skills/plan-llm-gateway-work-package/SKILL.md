@@ -13,8 +13,9 @@ Produce one compact read-only work order without editing files or changing proje
 2. Read only the current capability/setup sections in `README.md` relevant to the request.
 3. Select only directly relevant focused sources: `ADMIN_FUNCTION_TEST_PLAN.md`, `ADMIN_UI_REQUIREMENTS.md`, `docs/OPEN_KEYBOARD_CLIENT.md`, `docs/APFEL_PORTAL_POC.md`, or `docs/CODEX_PROVIDER_PLAN.md`. Use `docs/CODEX_PROVIDER_PLAN.md` for Codex-provider implementation, hardening, verification, rollout, or deployment planning.
 4. Read the applicable mode, routing row, and proof boundary in `docs/DEVELOPMENT_WORKFLOW.md`.
-5. Treat old completion reports or test notes as historical unless a current source makes them authoritative.
-6. Compute `git hash-object` digests for every source used in the work order.
+5. For semantic diagnostics, generated adapters, or OpenKeyboard prompt compatibility, include the pinned `Vendor/semantic-prompt-contract` manifest, changelog, and relevant canonical pack as requirement sources.
+6. Treat old completion reports or test notes as historical unless a current source makes them authoritative.
+7. Compute `git hash-object` digests for every source used in the work order.
 
 ## Keep planning non-blocking
 

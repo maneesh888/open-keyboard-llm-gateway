@@ -1,0 +1,3 @@
+[submodule "Vendor/semantic-prompt-contract"]
+	path = Vendor/semantic-prompt-contract
+	url = ../semantic-prompt-contract.git

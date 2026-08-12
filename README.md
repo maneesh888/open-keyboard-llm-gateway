@@ -1,5 +1,30 @@
 # LLM Gateway
 
+Semantic diagnostics in the admin playground come from the pinned
+`Vendor/semantic-prompt-contract` version `2.0.1` package. This path is a checkout of a separate
+repository, and the gateway repository's immutable gitlink pins it to one exact commit/version. The
+gateway owns transport, authentication, rate limits, logging, and provider routing; it preserves
+client messages and does not inject application prompt instructions.
+
+For a fresh checkout, clone with the submodule initialized:
+
+```bash
+git clone --recurse-submodules https://github.com/maneesh888/open-keyboard-llm-gateway.git
+```
+
+For an existing clone, or if `Vendor/semantic-prompt-contract` is empty, recover the pinned checkout
+from the gateway repository root:
+
+```bash
+git submodule update --init --recursive
+```
+
+Contract validation requires Git and npm with Node.js `^22.12.0` or `^24.0.0`. Do not edit the
+vendored checkout directly. Make contract changes in the standalone `semantic-prompt-contract`
+repository, validate and version them there, then deliberately advance this repository's submodule
+gitlink. Run `./scripts/check-semantic-prompt-contract.sh` after initialization and whenever the
+pinned contract changes.
+
 A self-hosted API gateway for routing AI requests through user-controlled infrastructure. It authenticates API keys, applies per-key limits, proxies OpenAI-compatible chat requests to local/private model backends, and provides an admin UI for managing keys and testing live requests.
 
 > Companion backend for [Open Keyboard](../open-keyboard): the iOS keyboard uses this gateway for API-key auth, model discovery, rate limiting, and OpenAI-compatible chat completions while keeping infrastructure under user control.
