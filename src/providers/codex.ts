@@ -11,7 +11,7 @@ import {
 } from './types.js';
 
 const SUPPORTED_ROLES = new Set(['system', 'developer', 'user', 'assistant']);
-const SUPPORTED_FIELDS = new Set(['model', 'messages', 'stream', 'operation', 'input_text']);
+const SUPPORTED_FIELDS = new Set(['model', 'messages', 'stream', 'operation', 'input_text', 'response_format']);
 export const CODEX_REQUEST_BODY_LIMIT_BYTES = 1024 * 1024;
 const KNOWN_UNSUPPORTED_FIELDS = [
   'temperature',
@@ -25,7 +25,6 @@ const KNOWN_UNSUPPORTED_FIELDS = [
   'stop',
   'top_logprobs',
   'reasoning_effort',
-  'response_format',
   'tools',
   'tool_choice',
   'parallel_tool_calls',
@@ -41,6 +40,28 @@ type QueueWaiter = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function requestsJSONObject(request: ChatCompletionRequest): boolean {
+  if (!Object.prototype.hasOwnProperty.call(request, 'response_format')) return false;
+  if (!isRecord(request.response_format)
+    || request.response_format.type !== 'json_object'
+    || Object.keys(request.response_format).some((field) => field !== 'type')) {
+    throw new ProviderError('unsupported_request', "The Codex provider supports only response_format.type 'json_object'.");
+  }
+  return true;
+}
+
+function validateJSONObjectOutput(output: string): void {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(output) as unknown;
+  } catch {
+    throw new ProviderError('invalid_output', 'The Codex provider did not return the requested JSON object.');
+  }
+  if (!isRecord(parsed)) {
+    throw new ProviderError('invalid_output', 'The Codex provider did not return the requested JSON object.');
+  }
 }
 
 export function mapChatMessagesToCodexPrompt(request: ChatCompletionRequest, maxInputChars: number): string {
@@ -127,6 +148,7 @@ export class CodexProvider implements GatewayProvider {
       throw new ProviderError('unsupported_request', 'The Codex provider does not support one or more request fields.');
     }
 
+    const expectsJSONObject = requestsJSONObject(request.chatRequest);
     const prompt = mapChatMessagesToCodexPrompt(request.chatRequest, this.config.maxInputChars);
     const timeoutController = new AbortController();
     const timeout = setTimeout(() => timeoutController.abort(), this.config.timeoutMs);
@@ -146,6 +168,7 @@ export class CodexProvider implements GatewayProvider {
         if (typeof output !== 'string' || !output.trim() || output.length > this.config.maxOutputChars) {
           throw new ProviderError('invalid_output', 'The Codex provider returned an invalid response.');
         }
+        if (expectsJSONObject) validateJSONObjectOutput(output.trim());
 
         return {
           contentType: 'application/json',

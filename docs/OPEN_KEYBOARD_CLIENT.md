@@ -14,7 +14,13 @@ POST /v1/chat/completions
 
 Every gateway-generated non-2xx JSON API response uses the OpenAI nested error envelope `{ "error": { "message": "...", "type": "...", "code": "..." } }`. Open Keyboard should decode `error.message` for display, branch and localize using `error.code`, and tolerate unknown future codes without discarding the human-readable message.
 
-Structured results that satisfy the requested contract remain HTTP 200, including explicit empty `results` arrays. For deployed-client compatibility, plain model text is normalized into the established structured result and malformed JSON-like output becomes a safe warning result rather than exposing raw model output. Upstream non-2xx or an invalid outer response envelope uses `upstream_error`. See the error-code table and Open Keyboard integration section in [README.md](../README.md) for the gateway source of truth.
+Open Keyboard owns the semantic system/user prompts, operation-specific rules, JSON contract, and
+assistant-content parsing. The gateway requires the standard `model` and `messages` fields, forwards
+the client-provided message array unchanged, and never adds operation prompts or normalizes the
+assistant content. Optional `operation` and `input_text` fields are additive metadata only.
+Backend-supported structured requests can include `response_format: {"type":"json_object"}`.
+Upstream non-2xx or an invalid outer Chat Completions envelope fails through the generic gateway
+error contract. See [README.md](../README.md) for the gateway source of truth.
 
 Authentication:
 
@@ -47,7 +53,12 @@ Open Keyboard currently uses these requests for:
 - Gateway logs should not include Authorization headers, API keys, or full private user text.
 - Public fixtures/docs must avoid real private text.
 
-When the optional Codex alias is used, the gateway preserves the same structured-operation normalization, but Codex is non-streaming and text-only for this MVP. The gateway key must explicitly list the Codex alias; a wildcard model grant alone is intentionally insufficient.
+When the optional Codex alias is used, its text-only, non-streaming provider consumes the exact
+client message conversation without adding Open Keyboard operation instructions. The Codex MVP
+supports `response_format: {"type":"json_object"}` by validating that the returned content parses
+as one JSON object; it does not add JSON instructions or support JSON Schema mode.
+The gateway key must explicitly list the Codex alias; a wildcard model grant alone is intentionally
+insufficient.
 
 ## Development notes
 

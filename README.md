@@ -12,7 +12,7 @@ A self-hosted API gateway for routing AI requests through user-controlled infras
 - Admin API and responsive admin web UI at `/ui`.
 - API key dashboard with create, edit, disable, delete, reveal, copy, and test actions.
 - Live LLM playground for validating a selected key against `/v1/chat/completions`.
-- Structured OpenKeyboard operation support for grammar correction, rewrite, summarize, continuation, and translate-style workflows.
+- Transparent forwarding of client-owned Chat Completions messages and backend-supported response formats.
 - Model discovery through the configured backend, with optional Apfel routing for `apple-foundationmodel` when configured.
 - An opt-in, private/trusted-user Codex provider with explicit per-key grants and non-streaming Chat Completions support.
 - JSON request logging without exposing Authorization headers.
@@ -59,7 +59,7 @@ The screenshots below use approved, partially redacted local captures. Do not re
 
 ### Live request playground
 
-<img src="docs/screenshots/llm-gateway-playground.png" alt="LLM Gateway playground screen showing a structured OpenKeyboard rewrite request and successful model response." width="900">
+<img src="docs/screenshots/llm-gateway-playground.png" alt="LLM Gateway playground screen showing a live chat request and successful model response." width="900">
 
 ## Setup
 
@@ -142,6 +142,10 @@ Codex is disabled by default. To opt in, copy the full `codex` object from `conf
 Provide the service credential only through the protected `CODEX_API_KEY` process environment. Do not put it in `config.json`, Compose files, command arguments, logs, or repository files, and never mount or copy a personal `~/.codex/auth.json`. A file config containing a Codex credential field is rejected.
 
 Each invocation uses the pinned official `@openai/codex` runtime with fixed arguments, strict config validation, prompt input over stdin, read-only sandboxing, approval policy `never`, disabled shell, local-image, image-generation, model tool networking/integrations, an empty temporary working directory, a dedicated temporary `CODEX_HOME`, and ephemeral session storage. User/project config, rules, repository instructions, hooks, apps, memories, multi-agent tools, web search, and MCP/plugin state are absent or disabled; the temporary directories are removed after the turn. The Codex runtime still needs outbound access to the OpenAI service. Client requests cannot supply executable paths, CLI flags, working directories, or environment variables.
+
+The Codex route accepts text messages plus `response_format: {"type":"json_object"}`. It forwards
+only the client messages to the isolated turn and validates that JSON-object mode returns one
+parseable object; it does not inject application instructions or support JSON Schema mode.
 
 When Codex is enabled, authenticated `/v1/chat/completions` request bodies have a 1 MiB transport cap applied before JSON materialization. This cap also applies to Ollama or Apfel requests on that endpoint because the provider model is selected from the JSON body. The existing `maxInputChars` limit then bounds the prompt actually sent to Codex.
 
@@ -227,7 +231,7 @@ The UI supports:
 - enable/disable and delete actions
 - responsive mobile navigation for API Keys and Playground
 - live playground tests using the selected key and model
-- structured OpenKeyboard samples for grammar correction, rewrite, and summarization
+- a generic connection-smoke preset with editable system and user messages
 - diagnostics for status, latency, selected key, request shape, and failure classification
 
 ### 3. Admin API Endpoints
@@ -365,29 +369,28 @@ LLM Gateway is designed to pair with Open Keyboard as its self-hosted backend:
 - `POST /v1/chat/completions` for grammar, rewrite, summarize, translate, and continuation actions.
 - Bearer API keys created through the gateway admin UI/API.
 
-OpenKeyboard structured operation requests can include:
+Open Keyboard owns its operation-specific prompts and response parsing. A structured request uses
+ordinary client-provided messages and can ask a compatible backend for JSON mode:
 
 ```json
 {
   "model": "gemma4:latest",
   "operation": "fix_grammar",
   "input_text": "i has a apple",
-  "messages": [],
+  "messages": [
+    {"role": "system", "content": "Client-owned JSON contract and safety rules"},
+    {"role": "user", "content": "Client-owned fix_grammar instructions and input text"}
+  ],
+  "response_format": {"type": "json_object"},
   "stream": false
 }
 ```
 
-Supported operation names:
-
-- `fix_grammar`
-- `rewrite`
-- `summarize`
-- `continue_writing`
-- `translate`
-
-When `operation` is present, the gateway validates `input_text`, rejects streaming operation requests, adds structured response instructions for the upstream model, and normalizes the returned content into a JSON string inside the OpenAI-compatible `choices[0].message.content` field. Clean grammar input can return an empty `results` array without fabricated corrections.
-
-Valid structured results remain HTTP 200, including explicit empty `results` arrays and optional `summary` or `corrected_text` fields. For deployed-client compatibility, plain text is normalized into the established structured result and malformed JSON-like output becomes a safe warning result without exposing the raw model output. Invalid outer upstream envelopes fail safely.
+`operation` and `input_text` remain optional additive metadata for deployed-client compatibility, but
+the gateway does not interpret them. It requires the standard `model` and `messages` fields, forwards
+the client message array unchanged, and does not add system/user messages or rewrite assistant
+content. `response_format` support is backend-dependent. Open Keyboard validates and parses the
+assistant content; the gateway only validates the generic outer Chat Completions envelope.
 
 More detail:
 
@@ -424,9 +427,6 @@ Every gateway-generated non-2xx JSON response uses the OpenAI-style nested error
 | `upstream_unreachable` | The configured model backend could not be reached or queried. |
 | `upstream_timeout` | The model backend request timed out. |
 | `upstream_error` | The model backend returned a non-success or invalid protocol response. |
-| `unsupported_operation` | The requested structured operation is not supported. |
-| `input_text_required` | A structured operation did not include usable input text. |
-| `stream_not_supported_for_operation` | Streaming was requested for a structured operation. |
 | `stream_not_supported_for_provider` | Streaming was requested for the non-streaming Codex MVP. |
 | `unsupported_parameter` | A Codex request used an unsupported message shape, field, or size. |
 | `provider_overloaded` | Codex concurrency and queue capacity are both full. |

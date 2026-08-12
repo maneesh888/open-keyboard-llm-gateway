@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import type { Context } from 'hono';
 import type { ApiKey } from '../types/index.js';
-import { errorResponse, type GatewayErrorCode } from '../lib/errors.js';
+import { errorResponse } from '../lib/errors.js';
 import { ProviderError, ProviderRegistry } from '../providers/types.js';
 import {
   applyChatCompletionCompatibilityProfile,
@@ -12,44 +12,8 @@ import {
   type ChatCompletionRequest,
 } from './openaiCompatibility.js';
 
-type OperationName = 'fix_grammar' | 'summarize' | 'rewrite' | 'continue_writing' | 'translate';
-
-type OperationRequest = {
-  operation?: string;
-  input_text?: string;
-  messages?: Array<{ role?: string; content?: string }>;
-  stream?: boolean;
-  model?: string;
-};
-
-type OpenAIRequestBody = OperationRequest & Record<string, unknown>;
+type OpenAIRequestBody = Record<string, unknown>;
 type EffortTarget = 'chat' | 'responses';
-type OperationParseResult =
-  | { ok: true; parsed?: OpenAIRequestBody }
-  | { ok: false; error: string; code: GatewayErrorCode };
-type OperationResponseNormalizationResult =
-  | { ok: true; body: string }
-  | { ok: false; error: string; code: 'upstream_error' };
-
-type OperationResultItem = {
-  id: string;
-  type: string;
-  title: string;
-  text: string;
-  original?: string;
-  replacement?: string;
-  range?: { start: number; end: number };
-  confidence?: number;
-  explanation?: string;
-  category?: string;
-};
-
-type OperationResult = {
-  operation: string;
-  results: OperationResultItem[];
-  summary?: string;
-  corrected_text?: string;
-};
 
 type OpenAIModel = {
   id: string;
@@ -201,10 +165,6 @@ export class OllamaProxy {
       return errorResponse(c, 503, 'upstream_unreachable', 'Upstream model backend is not reachable');
     }
   }
-
-
-  private operationNames = new Set<OperationName>(['fix_grammar', 'summarize', 'rewrite', 'continue_writing', 'translate']);
-
   private hasOwnField(value: Record<string, unknown>, field: string): boolean {
     return Object.prototype.hasOwnProperty.call(value, field);
   }
@@ -221,213 +181,6 @@ export class OllamaProxy {
     } catch {
       return undefined;
     }
-  }
-
-  private parseOperationRequest(body?: string): OperationParseResult {
-    if (!body) return { ok: true };
-    try {
-      const raw = JSON.parse(body) as unknown;
-      if (!this.isRecord(raw)) return { ok: true };
-      const parsed = raw as OpenAIRequestBody;
-      const operation = typeof parsed.operation === 'string' ? parsed.operation.trim() : '';
-      if (!operation) return { ok: true, parsed };
-      if (!this.operationNames.has(operation as OperationName)) {
-        return { ok: false, error: `Unsupported operation '${operation}'`, code: 'unsupported_operation' };
-      }
-      const inputText = typeof parsed.input_text === 'string' ? parsed.input_text : '';
-      if (!inputText.trim()) {
-        return { ok: false, error: 'input_text is required when operation is provided', code: 'input_text_required' };
-      }
-      return { ok: true, parsed };
-    } catch {
-      return { ok: true };
-    }
-  }
-
-  private operationSystemPrompt(operation: string): string {
-    return [
-      'You are an API gateway formatting assistant for an iOS keyboard.',
-      `Requested operation: ${operation}.`,
-      'Return strict JSON only with this contract:',
-      '{"operation":"fix_grammar|summarize|rewrite|continue_writing|translate","results":[{"id":"...","type":"correction|suggestion|summary|warning|explanation","title":"...","text":"...","original":"...","replacement":"...","range":{"start":0,"end":0},"confidence":0.0,"explanation":"...","category":"..."}],"summary":"...","corrected_text":"..."}',
-      'Use only the supplied input_text and current conversation. Unknown result item types are allowed, but every result item must have type, title, and text.',
-      'For fix_grammar, return one correction item per distinct issue. Do not collapse multiple issues into one corrected sentence item.',
-      'For fix_grammar item titles should be specific (Capitalization, Subject-verb agreement, Article, Spelling, Missing word, Word choice, Punctuation). Include original, replacement, short explanation, confidence, and range when available.',
-      'For clean/no-issue fix_grammar input, return an empty results array and do not invent corrections.',
-      'For summarize, return a summary item.',
-      'Do not include markdown.',
-    ].join('\n');
-  }
-
-  private structuredOperationBody(parsed: OperationRequest & Record<string, unknown>): string {
-    const operation = parsed.operation?.trim();
-    if (!operation) return JSON.stringify(parsed);
-    const messages = Array.isArray(parsed.messages) ? parsed.messages : [];
-    const inputText = String(parsed.input_text || '').slice(0, 2000);
-    return JSON.stringify({
-      ...parsed,
-      input_text: inputText,
-      messages: [
-        { role: 'system', content: this.operationSystemPrompt(operation) },
-        ...messages,
-        { role: 'user', content: `operation=${operation}\ninput_text:\n<<<${inputText}>>>` },
-      ],
-    });
-  }
-
-  private normalizeOperationResponseBody(responseBody: string, operation: string, inputText: string): OperationResponseNormalizationResult {
-    let response: Record<string, unknown>;
-    try {
-      const parsed = JSON.parse(responseBody) as unknown;
-      if (!this.isRecord(parsed)) throw new Error('Response body is not an object');
-      response = parsed;
-    } catch {
-      return { ok: false, code: 'upstream_error', error: 'Upstream model request failed.' };
-    }
-
-    const choices = response.choices;
-    const firstChoice = Array.isArray(choices) ? choices[0] : undefined;
-    const message = this.isRecord(firstChoice) && this.isRecord(firstChoice.message) ? firstChoice.message : undefined;
-    if (!message || typeof message.content !== 'string') {
-      return { ok: false, code: 'upstream_error', error: 'Upstream model request failed.' };
-    }
-
-    message.content = JSON.stringify(this.parseOperationResultContent(message.content, operation, inputText));
-    return { ok: true, body: JSON.stringify(response) };
-  }
-
-  private parseOperationResultContent(content: string, operation: string, inputText: string): OperationResult {
-    const stripped = this.unwrapNestedJSONText(this.stripMarkdownFence(content).trim());
-    try {
-      const parsed = JSON.parse(stripped) as Partial<OperationResult> & { items?: OperationResultItem[] };
-      const rawItems = Array.isArray(parsed.results) ? parsed.results : Array.isArray(parsed.items) ? parsed.items : [];
-      const normalizedOperation = this.cleanString(parsed.operation) || operation;
-      const correctedText = this.cleanCorrectedText(parsed.corrected_text);
-      const normalizedItems = rawItems
-        .map((item, index) => this.normalizeResultItem(item, index))
-        .filter((item): item is OperationResultItem => Boolean(item));
-      const explicitlyEmpty = normalizedItems.length === 0
-        && (Array.isArray(parsed.results) || Array.isArray(parsed.items))
-        && !correctedText;
-      const results = explicitlyEmpty ? [] : normalizedItems;
-      if (results.length || parsed.corrected_text || parsed.summary || parsed.operation || Array.isArray(parsed.results) || Array.isArray(parsed.items)) {
-        return {
-          operation: normalizedOperation,
-          results,
-          ...(this.cleanString(parsed.summary) ? { summary: this.cleanString(parsed.summary) } : {}),
-          ...(correctedText ? { corrected_text: correctedText } : {}),
-        };
-      }
-    } catch {}
-
-    const nestedLegacy = this.tryParseNestedOperationResult(stripped, operation, inputText);
-    if (nestedLegacy) return nestedLegacy;
-    if (this.isJSONLike(stripped)) {
-      return {
-        operation,
-        results: [{
-          id: 'invalid-structured-response',
-          type: 'warning',
-          title: 'Invalid structured response',
-          text: 'The model returned malformed JSON and no safe keyboard text could be extracted.',
-        }],
-      };
-    }
-
-    const itemType = operation === 'summarize' ? 'summary' : 'correction';
-    const title = operation === 'summarize' ? 'Summary' : operation === 'fix_grammar' ? 'Grammar correction' : 'Writing result';
-    return {
-      operation,
-      results: [{
-        id: 'legacy-1',
-        type: itemType,
-        title,
-        text: stripped,
-        ...(operation === 'fix_grammar' ? { original: inputText, replacement: stripped } : {}),
-      }],
-      ...(operation === 'fix_grammar'
-        ? { corrected_text: this.cleanCorrectedText(stripped) || stripped }
-        : { summary: stripped }),
-    };
-  }
-
-  private tryParseNestedOperationResult(value: string, operation: string, inputText: string): OperationResult | undefined {
-    if (!this.isJSONLike(value)) return undefined;
-    try {
-      const parsed = JSON.parse(value) as Partial<OperationResult> & { choices?: Array<{ message?: { content?: string } }> };
-      const nestedContent = parsed.choices?.[0]?.message?.content;
-      if (typeof nestedContent === 'string') return this.parseOperationResultContent(nestedContent, operation, inputText);
-      if (parsed.operation || parsed.results || parsed.corrected_text || parsed.summary) {
-        return this.parseOperationResultContent(JSON.stringify(parsed), operation, inputText);
-      }
-    } catch {}
-    return undefined;
-  }
-
-
-  private cleanCorrectedText(value: unknown): string | undefined {
-    const cleaned = this.cleanString(value);
-    if (!cleaned) return undefined;
-    if (!this.isJSONLike(cleaned)) return cleaned;
-    try {
-      const parsed = JSON.parse(cleaned) as Partial<OperationResult> & { corrected_text?: unknown };
-      const nested = this.cleanString(parsed.corrected_text);
-      if (nested && !this.isJSONLike(nested)) return nested;
-    } catch {}
-    return undefined;
-  }
-
-  private unwrapNestedJSONText(value: string): string {
-    let current = value;
-    for (let i = 0; i < 3; i += 1) {
-      if (!this.isJSONLike(current)) return current;
-      try {
-        const parsed = JSON.parse(current) as unknown;
-        if (typeof parsed === 'string') {
-          current = parsed.trim();
-          continue;
-        }
-      } catch {}
-      return current;
-    }
-    return current;
-  }
-
-  private isJSONLike(value: unknown): boolean {
-    if (typeof value !== 'string') return false;
-    const trimmed = value.trim();
-    return trimmed.startsWith('{') || trimmed.startsWith('[');
-  }
-
-  private normalizeResultItem(value: unknown, index: number): OperationResultItem | null {
-    if (!this.isRecord(value)) return null;
-    const item = value as Partial<OperationResultItem>;
-    const text = this.cleanString(item.text || item.replacement || item.explanation || item.title);
-    if (!text) return null;
-    const type = this.cleanString(item.type) || 'suggestion';
-    return {
-      id: this.cleanString(item.id) || `item-${index + 1}`,
-      type,
-      title: this.cleanString(item.title) || (type === 'summary' ? 'Summary' : type === 'correction' ? 'Correction' : 'Writing result'),
-      text,
-      ...(this.cleanString(item.original) ? { original: this.cleanString(item.original) } : {}),
-      ...(this.cleanString(item.replacement) ? { replacement: this.cleanString(item.replacement) } : {}),
-      ...(item.range && Number.isFinite(item.range.start) && Number.isFinite(item.range.end) ? { range: { start: item.range.start, end: item.range.end } } : {}),
-      ...(typeof item.confidence === 'number' ? { confidence: item.confidence } : {}),
-      ...(this.cleanString(item.explanation) ? { explanation: this.cleanString(item.explanation) } : {}),
-      ...(this.cleanString(item.category) ? { category: this.cleanString(item.category) } : {}),
-    };
-  }
-
-  private cleanString(value: unknown): string | undefined {
-    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-  }
-
-  private stripMarkdownFence(value: string): string {
-    let trimmed = value.trim();
-    if (!trimmed.startsWith('```')) return value;
-    trimmed = trimmed.replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '');
-    return trimmed.trim();
   }
 
   private targetHostForModel(model?: string): string {
@@ -493,27 +246,14 @@ export class OllamaProxy {
       chatRequest = compatibility.value;
     }
 
-    // Extract model and optional OpenKeyboard operation contract fields for checks and prompt shaping.
+    // Extract the model for routing and policy checks. The client owns message semantics.
     let model: string | undefined;
     let outboundBody = body;
-    let operation: string | undefined;
-    let inputText: string | undefined;
     if (body) {
-      const shouldHandleOperation = c.req.method === 'POST' && isChatCompletions;
-      const operationRequest: OperationParseResult = shouldHandleOperation ? this.parseOperationRequest(body) : { ok: true };
-      if (!operationRequest.ok) return errorResponse(c, 400, operationRequest.code, operationRequest.error);
-      const parsed = chatRequest || operationRequest.parsed || this.parseJSONRequestBody(body);
+      const parsed = chatRequest || this.parseJSONRequestBody(body);
       if (parsed?.model && typeof parsed.model === 'string') {
         model = parsed.model;
         c.set('model', model);
-      }
-      if (shouldHandleOperation && parsed?.operation && typeof parsed.operation === 'string') {
-        if (parsed.stream === true) {
-          return errorResponse(c, 400, 'stream_not_supported_for_operation', 'stream must be false when operation is provided');
-        }
-        operation = parsed.operation.trim();
-        inputText = typeof parsed.input_text === 'string' ? parsed.input_text.slice(0, 2000) : '';
-        outboundBody = this.structuredOperationBody({ ...(parsed as OpenAIRequestBody), stream: false });
       }
     }
 
@@ -556,11 +296,7 @@ export class OllamaProxy {
           signal: c.req.raw.signal,
         });
         let responseBody = result.body;
-        if (operation && inputText && isChatCompletions) {
-          const normalization = this.normalizeOperationResponseBody(result.body, operation, inputText);
-          if (!normalization.ok) return errorResponse(c, 502, normalization.code, normalization.error);
-          responseBody = normalization.body;
-        } else if (isChatCompletions) {
+        if (isChatCompletions) {
           const compatibility = validateChatCompletionResponse(result.body);
           if (!compatibility.ok) {
             return errorResponse(c, 502, 'invalid_upstream_response', compatibility.message);
@@ -674,13 +410,7 @@ export class OllamaProxy {
 
       const rawResponseBody = await res.text();
       let responseBody = rawResponseBody;
-      if (operation && inputText && isChatCompletions) {
-        const normalization = this.normalizeOperationResponseBody(rawResponseBody, operation, inputText);
-        if (!normalization.ok) {
-          return errorResponse(c, 502, normalization.code, normalization.error);
-        }
-        responseBody = normalization.body;
-      } else if (isChatCompletions) {
+      if (isChatCompletions) {
         const compatibility = validateChatCompletionResponse(rawResponseBody);
         if (!compatibility.ok) {
           return errorResponse(c, 502, 'invalid_upstream_response', compatibility.message);

@@ -17,7 +17,6 @@ export type CompatibilityResult<T> = CompatibilitySuccess<T> | CompatibilityFail
 export type ChatCompletionRequest = RecordValue & {
   model?: string;
   messages?: unknown[];
-  operation?: string;
   stream?: boolean;
 };
 
@@ -79,14 +78,11 @@ export function parseChatCompletionRequest(body: string | undefined): Compatibil
   if (!isRecord(parsed)) return failure('Request body must be a JSON object.');
 
   const request = parsed as ChatCompletionRequest;
-  const isOperationRequest = typeof request.operation === 'string' && Boolean(request.operation.trim());
-
-  if ((!isOperationRequest || hasOwn(request, 'model'))
-    && (typeof request.model !== 'string' || !request.model.trim())) {
+  if (typeof request.model !== 'string' || !request.model.trim()) {
     return failure('model must be a non-empty string.');
   }
 
-  if ((!isOperationRequest || hasOwn(request, 'messages')) && !Array.isArray(request.messages)) {
+  if (!Array.isArray(request.messages)) {
     return failure('messages must be an array.');
   }
   if (Array.isArray(request.messages) && !request.messages.every(validMessage)) {

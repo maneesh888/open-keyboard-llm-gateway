@@ -105,10 +105,10 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('if(opts.clearConversation)clearPlaygroundConversation()');
     expect(html).toContain('onchange="applyPromptPreset(this.value,{clearConversation:true})"');
     expect(html).toContain('Connection smoke');
-    expect(html).toContain('Structured grammar · Multi-error');
-    expect(html).toContain('Structured grammar · Clean/no issue');
-    expect(html).toContain('Structured operation · Summarize');
-    expect(html).toContain('Structured operation · Rewrite');
+    expect(html).not.toContain('Structured grammar · Multi-error');
+    expect(html).not.toContain('Structured grammar · Clean/no issue');
+    expect(html).not.toContain('Structured operation · Summarize');
+    expect(html).not.toContain('Structured operation · Rewrite');
     expect(html).not.toContain('OpenKeyboardCore · Fix Grammar');
     expect(html).not.toContain('OpenKeyboardCore · Rewrite');
     expect(html).not.toContain('OpenKeyboardCore · Summarize');
@@ -126,14 +126,14 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('Will fetch full key when test runs');
     expect(html).toContain('fullKeyFetched');
     expect(html).toContain("role:'system'");
-    expect(html).toContain('messageRoles:(body.messages||[]).map');
+    expect(html).toContain('messageRoles:body.messages.map');
     expect(html).toContain('promptPreset:preset');
     expect(html).toContain('systemPromptLength:systemPrompt.length');
     expect(html).toContain("fetch('/v1/chat/completions'");
     expect(html).toContain("endpoint:'/v1/chat/completions'");
     expect(html).toContain('Selected key is disabled. Enable it before running a live chat test.');
     expect(html).toContain('function classify(status,data,err)');
-    expect(html).toContain('Request validation failed: check model, messages, operation, and input_text fields.');
+    expect(html).toContain('Request validation failed: check model and messages fields.');
     expect(html).toContain('Endpoint or model not found: verify /v1/chat/completions and the selected model name.');
     expect(html).toContain('Upstream unavailable: Ollama/Apfel backend is not reachable.');
     expect(html).toContain('Network/browser error: check gateway reachability and TLS/CORS from this admin session.');
@@ -169,72 +169,15 @@ describe('Admin UI static contract', () => {
   });
 
 
-  it('exposes OpenKeyboard structured operation playground samples', () => {
-    expect(html).toContain('OpenKeyboard structured operation samples');
-    expect(html).toContain('id="testerRequestJson"');
-    expect(html).toContain('id="testerExpectedSchema"');
-    expect(html).toContain('Developer/debug: view generated request and expected schema');
-    expect(html).toContain('Copy generated request');
-    expect(html).toContain('This preset sends operation + input_text and asks the model to return structured JSON results.');
-    expect(html).toContain('unsupported operation → 400');
-    expect(html).toContain('missing input_text with operation → 400');
-    expect(html).toContain('input_text is bounded server-side');
-    expect(html).toContain('Structured grammar · Multi-error');
-    expect(html).toContain('Structured grammar · Complex spell-fix');
-    expect(html).toContain('Structured grammar · Clean/no issue');
-    expect(html).toContain('Structured operation · Summarize');
-    expect(html).toContain('Structured operation · Rewrite');
-    expect(html).not.toContain('OpenKeyboard structured · Mixed result types');
-    expect(html).toContain("operation:'fix_grammar'");
-    expect(html).toContain("input_text:'i has a apple,ths is nt sound god'");
-    expect(html).toContain("input_text:'i definately recieve teh adress tomorow");
-    expect(html).toContain("operation:'summarize'");
-    expect(html).toContain("operation:'rewrite'");
-    expect(html).toContain('results:[');
-    expect(html).toContain("type:'correction'");
-    expect(html).toContain("type:'suggestion'");
-    expect(html).toContain("type:'warning'");
-    expect(html).toContain("type:'explanation'");
-    expect(html).toContain('corrected_text');
-    expect(html).toContain('Subject-verb agreement');
-    expect(html).toContain('range:{start:0,end:1}');
-    expect(html).toContain('confidence:0.98');
-    expect(html).toContain('category');
-    expect(html).toContain('spell-receive-2');
-    expect(html).toContain('Eleven corrections found.');
-    expect(html).toContain('summary');
-    expect(html).toContain('function copySampleJson()');
-    expect(html).toContain('JSON.parse(requestJson)');
-    expect(html).toContain("Generated request JSON must be an object.");
-    expect(html).toContain('body.model=selectedModel');
-    expect(html).toContain('body:JSON.stringify(body)');
-  });
-
-
-  it('keeps structured presets meaningful in visible prompt fields', () => {
-    const structuredIds = [
-      'structured-multi-error-grammar',
-      'structured-complex-spell-fix',
-      'structured-clean-grammar',
-      'structured-summarize',
-      'structured-rewrite',
-    ];
-
-    for (const id of structuredIds) {
-      const presetPattern = new RegExp(`id:'${id}'[^}]+system:'([^']+)'[^}]+user:'([^']+)'`);
-      const match = html.match(presetPattern);
-      expect(match, `missing visible prompt fields for ${id}`).not.toBeNull();
-      expect(match?.[1].length, `system prompt too short for ${id}`).toBeGreaterThan(40);
-      expect(match?.[2].length, `user prompt too short for ${id}`).toBeGreaterThan(60);
-    }
-
-    expect(html).toContain('Return JSON only with operation, results, and corrected_text');
-    expect(html).toContain('Stress test the OpenKeyboard correction-card contract');
-    expect(html).toContain('one result item per issue plus corrected_text');
-    expect(html).toContain('do not invent corrections');
-    expect(html).toContain('2 bullet action items');
-    expect(html).toContain('clear, professional, and friendly');
-    expect(html).not.toContain('correction, suggestion, warning, and explanation');
+  it('keeps the gateway playground generic and free of OpenKeyboard prompt semantics', () => {
+    expect(html).toContain('Connection smoke');
+    expect(html).toContain('The gateway forwards these messages without adding application-specific instructions.');
+    expect(html).not.toContain('OpenKeyboard structured operation samples');
+    expect(html).not.toContain('testerRequestJson');
+    expect(html).not.toContain('testerExpectedSchema');
+    expect(html).not.toContain("operation:'fix_grammar'");
+    expect(html).not.toContain('input_text');
+    expect(html).not.toContain('corrected_text');
   });
 
 
