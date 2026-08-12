@@ -15,6 +15,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 COPY public/ ./public/
+COPY Vendor/semantic-prompt-contract/ ./Vendor/semantic-prompt-contract/
 
 RUN mkdir -p /app/config && chown -R gateway:gateway /app
 USER gateway

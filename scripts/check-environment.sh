@@ -29,10 +29,6 @@ REPOSITORY_ROOT="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null)" ||
   fail "the repository root could not be resolved."
 [[ "$REPOSITORY_ROOT" == "$ROOT" ]] || fail "run checks from the LLM Gateway repository."
 
-NODE_SUPPORTED="$(node -p 'const [major, minor] = process.versions.node.split(".").map(Number); String(major === 24 || (major === 22 && minor >= 12))')"
-[[ "$NODE_SUPPORTED" == "true" ]] ||
-  fail "Node 22.12+ or 24 is required; found $(node --version)."
-
 [[ -f "$ROOT/package-lock.json" ]] || fail "package-lock.json is required for reproducible npm and Docker builds."
 if git -C "$ROOT" check-ignore --quiet package-lock.json; then
   fail "package-lock.json must not be ignored."

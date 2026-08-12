@@ -40,6 +40,14 @@ GitHub Actions runs repository hygiene, Node 24/22 tests, the Node 24 build, and
 - Never print or commit API keys, Authorization headers, JWT secrets, password hashes, local config, private prompts, raw gateway responses, `.ci-results`, `dist`, or `node_modules`.
 - Update README or focused docs when a public contract, setup route, verification route, or proof claim changes.
 
+## Shared Semantic Prompt Contract
+
+- Treat the pinned `Vendor/semantic-prompt-contract` Git submodule as the only canonical home for reusable prompt wording, semantic operation metadata, schemas, rendering rules, and semantic diagnostic fixtures.
+- Initialize submodules before implementation or verification and require the checkout to match the recorded gitlink. Do not use an adjacent mutable package checkout as release proof.
+- The gateway may serve generated package diagnostics in the admin tester, but production request handling must preserve client messages exactly and must not inject, rebuild, or own OpenKeyboard prompts.
+- Do not edit generated adapters or copy canonical prompt wording into HTML, TypeScript, tests, or docs. Change canonical JSON, classify the semantic-version impact, regenerate, inspect equivalence fixtures, and advance the gitlink intentionally.
+- Run `./scripts/check-semantic-prompt-contract.sh` for contract or adapter changes, then the proportional gateway gate. Live model proof remains distinct from deterministic package, mock, and Docker health checks.
+
 ## Verification Modes
 
 - **Fast:** targeted tests plus `./scripts/check.sh --hygiene`.

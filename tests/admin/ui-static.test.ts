@@ -3,6 +3,10 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 const html = readFileSync(join(process.cwd(), 'public/admin/index.html'), 'utf-8');
+const semanticAdapter = readFileSync(
+  join(process.cwd(), 'Vendor/semantic-prompt-contract/adapters/browser/semanticPromptContract.generated.js'),
+  'utf-8',
+);
 
 describe('Admin UI static contract', () => {
   it('includes responsive mobile card markers', () => {
@@ -105,10 +109,12 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('if(opts.clearConversation)clearPlaygroundConversation()');
     expect(html).toContain('onchange="applyPromptPreset(this.value,{clearConversation:true})"');
     expect(html).toContain('Connection smoke');
-    expect(html).not.toContain('Structured grammar · Multi-error');
-    expect(html).not.toContain('Structured grammar · Clean/no issue');
-    expect(html).not.toContain('Structured operation · Summarize');
-    expect(html).not.toContain('Structured operation · Rewrite');
+    expect(html).toContain('SemanticPromptContractBrowser');
+    expect(html).toContain("...(semanticContract?.gatewayPromptPresets||[])");
+    expect(semanticAdapter).toContain('Structured grammar · Multi-error');
+    expect(semanticAdapter).toContain('Structured grammar · Clean/no issue');
+    expect(semanticAdapter).toContain('Structured operation · Summarize');
+    expect(semanticAdapter).toContain('Structured operation · Rewrite');
     expect(html).not.toContain('OpenKeyboardCore · Fix Grammar');
     expect(html).not.toContain('OpenKeyboardCore · Rewrite');
     expect(html).not.toContain('OpenKeyboardCore · Summarize');
@@ -128,6 +134,8 @@ describe('Admin UI static contract', () => {
     expect(html).toContain("role:'system'");
     expect(html).toContain('messageRoles:body.messages.map');
     expect(html).toContain('promptPreset:preset');
+    expect(html).toContain('contractVersion:presetDefinition?.contractVersion||null');
+    expect(html).toContain('...(presetDefinition?.request||{})');
     expect(html).toContain('systemPromptLength:systemPrompt.length');
     expect(html).toContain("fetch('/v1/chat/completions'");
     expect(html).toContain("endpoint:'/v1/chat/completions'");
@@ -169,15 +177,18 @@ describe('Admin UI static contract', () => {
   });
 
 
-  it('keeps the gateway playground generic and free of OpenKeyboard prompt semantics', () => {
+  it('loads semantic diagnostics from the pinned generated contract adapter', () => {
     expect(html).toContain('Connection smoke');
     expect(html).toContain('The gateway forwards these messages without adding application-specific instructions.');
-    expect(html).not.toContain('OpenKeyboard structured operation samples');
+    expect(html).toContain('<script src="/ui/semantic-prompt-contract.js"></script>');
+    expect(html).not.toContain('one atomic correction result per distinct issue');
     expect(html).not.toContain('testerRequestJson');
     expect(html).not.toContain('testerExpectedSchema');
-    expect(html).not.toContain("operation:'fix_grammar'");
-    expect(html).not.toContain('input_text');
-    expect(html).not.toContain('corrected_text');
+    expect(semanticAdapter).toContain('Generated from contracts/*.json');
+    expect(semanticAdapter).toContain('"contractVersion":"1.0.0"');
+    expect(semanticAdapter).toContain('"operation":"fix_grammar"');
+    expect(semanticAdapter).toContain('"input_text"');
+    expect(semanticAdapter).toContain('"response_format":{"type":"json_object"}');
   });
 
 

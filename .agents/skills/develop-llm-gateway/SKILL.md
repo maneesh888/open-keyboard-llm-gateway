@@ -12,8 +12,9 @@ Work on one bounded gateway package while preserving API compatibility, secret b
 1. Resolve the repository root, inspect `git status --short --branch`, and read `AGENTS.md` completely.
 2. Read the relevant README sections and only the focused requirement sources for the changed surface: `ADMIN_FUNCTION_TEST_PLAN.md`, `ADMIN_UI_REQUIREMENTS.md`, `docs/OPEN_KEYBOARD_CLIENT.md`, `docs/APFEL_PORTAL_POC.md`, or `docs/CODEX_PROVIDER_PLAN.md`. Read `docs/CODEX_PROVIDER_PLAN.md` for any Codex-provider implementation, hardening, verification, or deployment task.
 3. Read `docs/DEVELOPMENT_WORKFLOW.md` when choosing checks or changing scripts, hooks, CI, Docker, skills, agents, or release behavior.
-4. If the user requests a plan, invoke the read-only `work-package-planner`; otherwise keep a compact internal work order and proceed.
-5. Preserve unrelated work and use an isolated branch/worktree when a dirty integration checkout makes exact-head work unsafe.
+4. For semantic diagnostics, initialize the pinned `Vendor/semantic-prompt-contract` submodule and treat its canonical JSON and generated browser adapter as the source of truth.
+5. If the user requests a plan, invoke the read-only `work-package-planner`; otherwise keep a compact internal work order and proceed.
+6. Preserve unrelated work and use an isolated branch/worktree when a dirty integration checkout makes exact-head work unsafe.
 
 ## Select the mode
 
@@ -31,6 +32,7 @@ Use the highest mode required by the requested outcome or affected surface.
 4. Keep mock, Docker smoke, and real Ollama/Apfel evidence distinct.
 5. Never print or commit keys, JWT secrets, password hashes, Authorization headers, local config, private prompts, or raw gateway responses.
 6. Update affected docs when public behavior or verification changes.
+7. Never copy canonical prompt wording into gateway code. The admin tester may consume package fixtures, while the production proxy must preserve client messages exactly.
 
 ## Lifecycle autonomy
 
@@ -42,6 +44,7 @@ Planning/review-only requests remain read-only. Stop for unavailable credentials
 
 - Run affected tests while iterating.
 - Run `./scripts/check.sh --hygiene` for Fast, `--quick` for Standard, and `--full` for Release.
+- Run `./scripts/check-semantic-prompt-contract.sh` when the contract gitlink, semantic fixtures, generated browser adapter, or adapter-serving route changes.
 - Install and never bypass the committed hooks.
 - Start PRs as drafts and complete `.github/pull_request_template.md` with the full exact head SHA.
 - Use `$review-verify-merge-pr` for independent review, readiness, and guarded merge.

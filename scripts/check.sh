@@ -90,12 +90,14 @@ run_hygiene() {
 
 run_quick() {
   run_hygiene --quick
+  "$ROOT/scripts/check-semantic-prompt-contract.sh"
   "$ROOT/scripts/local-ci.sh" --quick
   echo "LLM Gateway quick checks passed."
 }
 
 run_full() {
   run_hygiene --full
+  "$ROOT/scripts/check-semantic-prompt-contract.sh"
   "$ROOT/scripts/local-ci.sh" --quick
   "$ROOT/scripts/local-ci.sh" --docker
   echo "LLM Gateway full checks passed."

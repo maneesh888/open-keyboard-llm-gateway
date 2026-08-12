@@ -1,5 +1,11 @@
 # LLM Gateway
 
+Semantic diagnostics in the admin playground come from the pinned
+`Vendor/semantic-prompt-contract` version `1.0.0` package. The gateway owns transport,
+authentication, rate limits, logging, and provider routing; it preserves client messages and does
+not inject application prompt instructions. Clone with submodules initialized and use
+`./scripts/check-semantic-prompt-contract.sh` when updating the pinned contract.
+
 A self-hosted API gateway for routing AI requests through user-controlled infrastructure. It authenticates API keys, applies per-key limits, proxies OpenAI-compatible chat requests to local/private model backends, and provides an admin UI for managing keys and testing live requests.
 
 > Companion backend for [Open Keyboard](../open-keyboard): the iOS keyboard uses this gateway for API-key auth, model discovery, rate limiting, and OpenAI-compatible chat completions while keeping infrastructure under user control.
