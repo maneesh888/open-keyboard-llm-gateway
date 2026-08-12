@@ -953,527 +953,59 @@ describe('OllamaProxy', () => {
 
 
 
-  it('adds operation schema instructions and bounded input text for OpenKeyboard operation requests', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: '{"operation":"fix_grammar","results":[]}' } }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
+  it('forwards client-owned messages and structured-output fields unchanged', async () => {
+    const assistantContent = '{"operation":"fix_grammar","results":[';
+    const upstreamBody = chatCompletion(assistantContent, { vendor_response: { retained: true } });
+    fetchSpy.mockResolvedValueOnce(new Response(upstreamBody, {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
 
+    const payload = {
+      model: 'gemma4',
+      operation: 'fix_grammar',
+      input_text: 'i has a apple',
+      messages: [
+        { role: 'system', content: 'Client-owned system instruction.' },
+        { role: 'developer', content: 'Keep this message in this position.' },
+        { role: 'user', content: 'Client-owned operation prompt.' },
+      ],
+      response_format: { type: 'json_object' },
+      stream: false,
+    };
+    const requestBody = JSON.stringify(payload);
     const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy, {
-      modelConfig: { model: 'gemma4', maxTokens: 100, temperature: 0.7, effort: 'low' },
-    });
+    const app = buildApp(proxy);
     const res = await app.request('/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: 'gemma4',
-        operation: 'fix_grammar',
-        input_text: 'i has a apple',
-        messages: [{ role: 'user', content: 'Fix grammar' }],
-        stream: false,
-      }),
+      body: requestBody,
     });
 
     expect(res.status).toBe(200);
     const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(opts.body).toBe(requestBody);
     const forwarded = JSON.parse(String(opts.body));
-    expect(forwarded.operation).toBe('fix_grammar');
-    expect(forwarded.reasoning_effort).toBe('low');
-    expect(forwarded.input_text).toBe('i has a apple');
-    expect(forwarded.messages[0].role).toBe('system');
-    expect(forwarded.messages[0].content).toContain('results');
-    expect(forwarded.messages[0].content).toContain('category');
-    expect(forwarded.messages.at(-1).content).toContain('<<<i has a apple>>>');
+    expect(forwarded.messages).toEqual(payload.messages);
+    expect(forwarded.response_format).toEqual({ type: 'json_object' });
+    expect(await res.text()).toBe(upstreamBody);
   });
-
-  it('normalizes structured OpenKeyboard operation responses inside OpenAI chat wrapper', async () => {
-    const structured = {
-      operation: 'fix_grammar',
-      results: [
-        { id: 'grammar-1', type: 'correction', title: 'Article', text: 'Use an before apple', original: 'a apple', replacement: 'an apple', range: { start: 6, end: 13 }, confidence: 0.94, extra: 'ignored' },
-        { id: 'spelling-1', type: 'correction', title: 'Spelling', text: 'Fix typo', original: 'ths', replacement: 'this' },
-      ],
-      summary: 'Found two issues.',
-      corrected_text: 'i has an apple, this is nt sound god',
-    };
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(structured) } }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4', operation: 'fix_grammar', input_text: 'i has a apple,ths is nt sound god', messages: [], stream: false }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    const content = JSON.parse(body.choices[0].message.content);
-    expect(content.operation).toBe('fix_grammar');
-    expect(content.results).toHaveLength(2);
-    expect(content.results[0]).toMatchObject({ type: 'correction', replacement: 'an apple', range: { start: 6, end: 13 } });
-    expect(content.results).toEqual(expect.arrayContaining([
-      expect.objectContaining({ title: 'Article', original: 'a apple', replacement: 'an apple' }),
-      expect.objectContaining({ title: 'Spelling', original: 'ths', replacement: 'this' }),
-    ]));
-    expect(content.corrected_text).toBe('i has an apple, this is nt sound god');
-    expect(content).not.toHaveProperty('error');
-    expect(content).not.toHaveProperty('code');
-    expect(content).not.toHaveProperty('degraded');
-    expect(content).not.toHaveProperty('degraded_reason');
-  });
-
-  it('normalizes complex OpenKeyboard spell-fix responses matching the keyboard mock contract', async () => {
-    const inputText = 'i definately recieve teh adress tomorow, and seperate files wont upload because its recieve limit is to low.';
-    const correctedText = "I definitely receive the address tomorrow, and separate files won't upload because their receive limit is too low.";
-    const structured = {
-      operation: 'fix_grammar',
-      results: [
-        { id: 'cap-i', type: 'correction', title: 'Capitalization', text: 'Capitalize the pronoun.', original: 'i', replacement: 'I', range: { start: 0, end: 1 }, confidence: 0.99, category: 'capitalization', explanation: 'Capitalize the standalone pronoun I.' },
-        { id: 'spell-definitely', type: 'correction', title: 'Spelling', text: 'Correct definitely.', original: 'definately', replacement: 'definitely', range: { start: 2, end: 12 }, confidence: 0.99, category: 'spelling', explanation: 'Correct the misspelling.' },
-        { id: 'spell-receive-1', type: 'correction', title: 'Spelling', text: 'Correct receive.', original: 'recieve', replacement: 'receive', range: { start: 13, end: 20 }, confidence: 0.98, category: 'spelling', explanation: 'Use receive after c.' },
-        { id: 'spell-the', type: 'correction', title: 'Spelling', text: 'Correct the.', original: 'teh', replacement: 'the', range: { start: 21, end: 24 }, confidence: 0.97, category: 'spelling' },
-        { id: 'spell-address', type: 'correction', title: 'Spelling', text: 'Correct address.', original: 'adress', replacement: 'address', range: { start: 25, end: 31 }, confidence: 0.98, category: 'spelling' },
-        { id: 'spell-tomorrow', type: 'correction', title: 'Spelling', text: 'Correct tomorrow.', original: 'tomorow', replacement: 'tomorrow', range: { start: 32, end: 39 }, confidence: 0.97, category: 'spelling' },
-        { id: 'spell-separate', type: 'correction', title: 'Spelling', text: 'Correct separate.', original: 'seperate', replacement: 'separate', range: { start: 45, end: 53 }, confidence: 0.95, category: 'spelling' },
-        { id: 'contract-wont', type: 'correction', title: 'Contraction', text: 'Add apostrophe.', original: 'wont', replacement: "won't", range: { start: 60, end: 64 }, confidence: 0.93, category: 'grammar' },
-        { id: 'pronoun-its', type: 'correction', title: 'Pronoun agreement', text: 'Use a plural possessive pronoun.', original: 'its', replacement: 'their', range: { start: 80, end: 83 }, confidence: 0.88, category: 'grammar', explanation: 'Files is plural.' },
-        { id: 'spell-receive-2', type: 'correction', title: 'Spelling', text: 'Correct the second receive.', original: 'recieve', replacement: 'receive', range: { start: 84, end: 91 }, confidence: 0.98, category: 'spelling' },
-        { id: 'too-low', type: 'correction', title: 'Word choice', text: 'Use too for degree.', original: 'to low', replacement: 'too low', range: { start: 101, end: 107 }, confidence: 0.94, category: 'grammar' },
-        { id: 'warning-domain', type: 'warning', title: 'Ambiguity', text: 'The phrase receive limit may be domain-specific.' },
-      ],
-      summary: 'Eleven corrections found.',
-      corrected_text: correctedText,
-    };
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(structured) } }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4', operation: 'fix_grammar', input_text: inputText, messages: [], stream: false }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    const content = JSON.parse(body.choices[0].message.content);
-    expect(content.operation).toBe('fix_grammar');
-    expect(content.results).toHaveLength(12);
-    expect(content.results.filter((item: { type: string }) => item.type === 'correction').map((item: { replacement: string }) => item.replacement)).toEqual([
-      'I',
-      'definitely',
-      'receive',
-      'the',
-      'address',
-      'tomorrow',
-      'separate',
-      "won't",
-      'their',
-      'receive',
-      'too low',
-    ]);
-    expect(content.results[0]).toMatchObject({ id: 'cap-i', category: 'capitalization', range: { start: 0, end: 1 } });
-    expect(content.results[9]).toMatchObject({ id: 'spell-receive-2', replacement: 'receive', range: { start: 84, end: 91 }, category: 'spelling' });
-    expect(content.results[11]).toMatchObject({ id: 'warning-domain', type: 'warning', title: 'Ambiguity' });
-    expect(content.summary).toBe('Eleven corrections found.');
-    expect(content.corrected_text).toBe(correctedText);
-
-    const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    const forwarded = JSON.parse(String(opts.body));
-    expect(forwarded.messages[0].content).toContain('one correction item per distinct issue');
-    expect(forwarded.messages.at(-1).content).toContain(inputText);
-  });
-
-  it('normalizes real oss-120g complex spell-fix playground responses', async () => {
-    const inputText = 'i definately recieve teh adress tomorow, and seperate files wont upload because its recieve limit is to low.';
-    const correctedText = "I definitely receive the address tomorrow, and separate files won't upload because its receive limit is too low.";
-    const structured = {
-      operation: 'fix_grammar',
-      results: [
-        { id: '1', type: 'correction', title: 'Capitalization', text: "Capitalize the pronoun 'i' to 'I'.", original: 'i', replacement: 'I', range: { start: 0, end: 1 }, confidence: 0.99, explanation: 'The first-person singular pronoun should always be capitalized.', category: 'Capitalization' },
-        { id: '2', type: 'correction', title: 'Spelling', text: "Correct the misspelled word 'definately' to 'definitely'.", original: 'definately', replacement: 'definitely', range: { start: 2, end: 12 }, confidence: 0.99, explanation: "The correct spelling is 'definitely'.", category: 'Spelling' },
-        { id: '3', type: 'correction', title: 'Spelling', text: "Replace 'recieve' with the correct spelling 'receive'.", original: 'recieve', replacement: 'receive', range: { start: 13, end: 20 }, confidence: 0.99, explanation: "'Receive' is the proper spelling.", category: 'Spelling' },
-        { id: '4', type: 'correction', title: 'Spelling', text: "Correct the transposition error 'teh' to 'the'.", original: 'teh', replacement: 'the', range: { start: 21, end: 24 }, confidence: 0.99, explanation: "The definite article is spelled 'the'.", category: 'Spelling' },
-        { id: '5', type: 'correction', title: 'Spelling', text: "Change 'adress' to 'address'.", original: 'adress', replacement: 'address', range: { start: 25, end: 31 }, confidence: 0.99, explanation: "'Address' requires a double 'd'.", category: 'Spelling' },
-        { id: '6', type: 'correction', title: 'Spelling', text: "Replace 'tomorow' with 'tomorrow'.", original: 'tomorow', replacement: 'tomorrow', range: { start: 32, end: 39 }, confidence: 0.99, explanation: "'Tomorrow' is the correct spelling.", category: 'Spelling' },
-        { id: '7', type: 'correction', title: 'Spelling', text: "Correct 'seperate' to 'separate'.", original: 'seperate', replacement: 'separate', range: { start: 45, end: 53 }, confidence: 0.99, explanation: "'Separate' is the proper spelling.", category: 'Spelling' },
-        { id: '8', type: 'correction', title: 'Punctuation', text: 'Add an apostrophe to form the contraction "won\'t".', original: 'wont', replacement: "won't", range: { start: 60, end: 64 }, confidence: 0.99, explanation: 'The contracted form of "will not" requires an apostrophe.', category: 'Punctuation' },
-        { id: '9', type: 'correction', title: 'Spelling', text: "Replace the second occurrence of 'recieve' with 'receive'.", original: 'recieve', replacement: 'receive', range: { start: 84, end: 91 }, confidence: 0.99, explanation: "'Receive' is the correct spelling.", category: 'Spelling' },
-        { id: '10', type: 'correction', title: 'Word choice', text: "Change 'to' to 'too' to express the correct degree.", original: 'to', replacement: 'too', range: { start: 101, end: 103 }, confidence: 0.99, explanation: "'Too' (with double o) means 'excessively' whereas 'to' is a preposition.", category: 'Grammar' },
-      ],
-      summary: 'All spelling, capitalization, punctuation, and word-choice errors were identified and corrected.',
-      corrected_text: correctedText,
-    };
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(structured) } }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'oss-120g', operation: 'fix_grammar', input_text: inputText, messages: [], stream: false }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    const content = JSON.parse(body.choices[0].message.content);
-    expect(content.operation).toBe('fix_grammar');
-    expect(content.results).toHaveLength(10);
-    expect(content.results.map((item: { replacement: string }) => item.replacement)).toEqual([
-      'I',
-      'definitely',
-      'receive',
-      'the',
-      'address',
-      'tomorrow',
-      'separate',
-      "won't",
-      'receive',
-      'too',
-    ]);
-    expect(content.results[0]).toMatchObject({ id: '1', category: 'Capitalization', range: { start: 0, end: 1 } });
-    expect(content.results[8]).toMatchObject({ id: '9', original: 'recieve', replacement: 'receive', range: { start: 84, end: 91 }, category: 'Spelling' });
-    expect(content.results[9]).toMatchObject({ id: '10', original: 'to', replacement: 'too', range: { start: 101, end: 103 }, category: 'Grammar' });
-    expect(content.results).not.toEqual(expect.arrayContaining([
-      expect.objectContaining({ original: 'its', replacement: 'their' }),
-    ]));
-    expect(content.summary).toContain('spelling');
-    expect(content.corrected_text).toBe(correctedText);
-
-    const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    const forwarded = JSON.parse(String(opts.body));
-    expect(forwarded.messages[0].content).toContain('one correction item per distinct issue');
-    expect(forwarded.messages.at(-1).content).toContain(inputText);
-  });
-
-
-  it('rejects streaming structured operation requests before upstream calls', async () => {
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4', operation: 'fix_grammar', input_text: 'hello', messages: [], stream: true }),
-    });
-
-    expect(res.status).toBe(400);
-    expect(fetchSpy).not.toHaveBeenCalled();
-    expect(await res.json()).toEqual(gatewayError(
-      'stream must be false when operation is provided',
-      'invalid_request_error',
-      'stream_not_supported_for_operation',
-    ));
-  });
-
-  it('does not validate or mutate operation-shaped payloads on non-chat proxy endpoints', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const original = { model: 'gemma4', operation: 'delete_everything', input_text: '', messages: [] };
-    const res = await app.request('/v1/embeddings', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(original),
-    });
-
-    expect(res.status).toBe(200);
-    expect(fetchSpy).toHaveBeenCalledOnce();
-    const init = fetchSpy.mock.calls[0][1] as RequestInit;
-    expect(JSON.parse(init.body as string)).toEqual(original);
-  });
-
-  it('keeps clean grammar input as no-issue when upstream returns an explicit empty structured result', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ operation: 'fix_grammar', results: [], corrected_text: 'The app works well today.' }) } }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4', operation: 'fix_grammar', input_text: 'The app works well today.', messages: [], stream: false }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    const content = JSON.parse(body.choices[0].message.content);
-    expect(content).toEqual({ operation: 'fix_grammar', results: [], corrected_text: 'The app works well today.' });
-  });
-
-
-  it('wraps legacy plain model text for OpenKeyboard migration compatibility', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: 'I have an apple.' } }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4', operation: 'fix_grammar', input_text: 'i has a apple', messages: [], stream: false }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    const content = JSON.parse(body.choices[0].message.content);
-    expect(content).toMatchObject({ operation: 'fix_grammar', corrected_text: 'I have an apple.' });
-    expect(content.results[0]).toMatchObject({
-      type: 'correction',
-      original: 'i has a apple',
-      replacement: 'I have an apple.',
-    });
-  });
-
-  it('rejects unsupported OpenKeyboard operations before upstream calls', async () => {
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4', operation: 'delete_everything', input_text: 'hello', messages: [] }),
-    });
-
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual(gatewayError(
-      "Unsupported operation 'delete_everything'",
-      'invalid_request_error',
-      'unsupported_operation',
-    ));
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-
 
   it.each([
-    {
-      name: 'items alias',
-      operation: 'fix_grammar',
-      inputText: 'teh quik borwn fox',
-      upstreamContent: JSON.stringify({ operation: 'fix_grammar', items: [{ id: 'spelling-1', type: 'correction', title: 'Spelling', text: 'Fix teh', original: 'teh', replacement: 'the' }], corrected_text: 'the quick brown fox' }),
-      expected: { type: 'correction', replacement: 'the', display: 'the quick brown fox' },
-    },
-    {
-      name: 'markdown fenced JSON',
-      operation: 'fix_grammar',
-      inputText: 'teh quik borwn fox',
-      upstreamContent: '```json\n{"operation":"fix_grammar","results":[{"id":"spelling-1","type":"correction","title":"Spelling","text":"Fix typo","original":"teh","replacement":"the"}],"corrected_text":"the quick brown fox"}\n```',
-      expected: { type: 'correction', replacement: 'the', display: 'the quick brown fox' },
-    },
-    {
-      name: 'summary operation',
-      operation: 'summarize',
-      inputText: 'The keyboard supports private AI. It can fix grammar and summarize text.',
-      upstreamContent: JSON.stringify({ operation: 'summarize', results: [{ id: 'summary-1', type: 'summary', title: 'Summary', text: 'The keyboard offers private AI writing help.' }], summary: 'The keyboard offers private AI writing help.' }),
-      expected: { type: 'summary', text: 'The keyboard offers private AI writing help.', summary: 'The keyboard offers private AI writing help.' },
-    },
-    {
-      name: 'rewrite operation',
-      operation: 'rewrite',
-      inputText: 'this sounds bad and confusing',
-      upstreamContent: JSON.stringify({ operation: 'rewrite', results: [{ id: 'rewrite-1', type: 'suggestion', title: 'Clearer rewrite', text: 'This could be clearer and easier to read.', replacement: 'This could be clearer and easier to read.' }] }),
-      expected: { type: 'suggestion', replacement: 'This could be clearer and easier to read.' },
-    },
-  ])('normalizes structured operation scenario: $name', async ({ operation, inputText, upstreamContent, expected }) => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: upstreamContent } }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-
+    ['model', { operation: 'fix_grammar', input_text: 'text', messages: [] }],
+    ['messages', { model: 'gemma4', operation: 'fix_grammar', input_text: 'text' }],
+  ])('requires the standard %s field even when operation metadata is present', async (_field, payload) => {
     const proxy = new OllamaProxy('http://localhost:11434');
     const app = buildApp(proxy);
     const res = await app.request('/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4', operation, input_text: inputText, messages: [], stream: false }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    const content = JSON.parse(body.choices[0].message.content);
-    expect(content.operation).toBe(operation);
-    const { display, summary, ...expectedItem } = expected as Record<string, unknown>;
-    expect(content.results[0]).toMatchObject(expectedItem);
-    if (display) expect(content.corrected_text).toBe(display);
-    if (summary) expect(content.summary).toBe(summary);
-  });
-
-  it('preserves explicitly empty structured responses instead of wrapping them as legacy text', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: '{"operation":"fix_grammar","results":[]}' } }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4', operation: 'fix_grammar', input_text: 'i has a apple', messages: [] }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    const content = JSON.parse(body.choices[0].message.content);
-    expect(content).toEqual({ operation: 'fix_grammar', results: [] });
-    expect(body).not.toHaveProperty('error');
-    expect(body).not.toHaveProperty('code');
-    expect(content).not.toHaveProperty('degraded');
-    expect(content).not.toHaveProperty('degraded_reason');
-  });
-
-  it('turns malformed JSON-like operation output into a safe warning result', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: '{"operation":"fix_grammar","results":[' } }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4', operation: 'fix_grammar', input_text: 'i has a apple', messages: [] }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    const content = JSON.parse(body.choices[0].message.content);
-    expect(content).toEqual({
-      operation: 'fix_grammar',
-      results: [expect.objectContaining({ id: 'invalid-structured-response', type: 'warning' })],
-    });
-    expect(content.results[0].text).not.toContain('{"operation":"fix_grammar","results":[');
-  });
-
-  it('turns valid JSON with the wrong operation schema into a safe warning result', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: '{"message":"Done"}' } }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4', operation: 'summarize', input_text: 'Summarize this.', messages: [] }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    const content = JSON.parse(body.choices[0].message.content);
-    expect(content).toMatchObject({
-      operation: 'summarize',
-      results: [expect.objectContaining({ id: 'invalid-structured-response', type: 'warning' })],
-    });
-  });
-
-  it('rejects an invalid outer OpenAI-compatible response envelope', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response('{"choices":[]}', {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4', operation: 'summarize', input_text: 'Summarize this.', messages: [] }),
-    });
-
-    expect(res.status).toBe(502);
-    await expect(res.json()).resolves.toEqual(gatewayError(
-      'Upstream model request failed.',
-      'server_error',
-      'upstream_error',
-    ));
-  });
-
-  it('rejects blank input_text when operation is provided before upstream calls', async () => {
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4', operation: 'fix_grammar', input_text: '   ', messages: [] }),
+      body: JSON.stringify(payload),
     });
 
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual(gatewayError(
-      'input_text is required when operation is provided',
-      'invalid_request_error',
-      'input_text_required',
-    ));
+    expect((await res.json()).error.code).toBe('invalid_request');
     expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it('bounds long input_text before upstream prompt shaping', async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ choices: [{ message: { content: '{"operation":"summarize","results":[]}' } }] }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
-
-    const longInput = 'a'.repeat(2100);
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4', operation: 'summarize', input_text: longInput, messages: [] }),
-    });
-
-    expect(res.status).toBe(200);
-    const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
-    const forwarded = JSON.parse(String(opts.body));
-    expect(forwarded.input_text).toHaveLength(2000);
-    expect(forwarded.messages.at(-1).content).toContain('<<<' + 'a'.repeat(2000) + '>>>');
-    expect(forwarded.messages.at(-1).content).not.toContain('a'.repeat(2001));
   });
 
   it('health check returns true when Ollama responds 200', async () => {

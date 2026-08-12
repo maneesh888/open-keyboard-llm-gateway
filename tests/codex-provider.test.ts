@@ -260,7 +260,7 @@ describe('Codex request routing and compatibility', () => {
     expect(prompt).toContain('"content":"New question."');
   });
 
-  it('preserves structured OpenKeyboard operation normalization', async () => {
+  it('uses only client-provided messages for requests carrying operation metadata', async () => {
     const runner = new FakeRunner(async () => JSON.stringify({
       operation: 'rewrite',
       results: [{ id: 'rewrite-1', type: 'suggestion', title: 'Rewrite', text: 'Clear text.', replacement: 'Clear text.' }],
@@ -278,8 +278,71 @@ describe('Codex request routing and compatibility', () => {
       operation: 'rewrite',
       results: [{ id: 'rewrite-1', type: 'suggestion', title: 'Rewrite', text: 'Clear text.', replacement: 'Clear text.' }],
     });
-    expect(runner.calls[0].prompt).toContain('Requested operation: rewrite.');
-    expect(runner.calls[0].prompt).toContain('operation=rewrite');
+    expect(runner.calls[0].prompt).toContain(JSON.stringify([
+      { role: 'user', content: 'Rewrite clearly.' },
+    ]));
+    expect(runner.calls[0].prompt).not.toContain('Requested operation: rewrite.');
+    expect(runner.calls[0].prompt).not.toContain('operation=rewrite');
+  });
+
+  it('supports json_object response validation without changing client messages', async () => {
+    const runner = new FakeRunner(async () => '{"result":"valid"}');
+    const clientMessages = [
+      { role: 'system', content: 'Return one JSON object.' },
+      { role: 'user', content: 'Use the exact client contract.' },
+    ];
+    const response = await chat(appWith(runner), 'gateway-explicit', {
+      model: 'codex',
+      messages: clientMessages,
+      response_format: { type: 'json_object' },
+      stream: false,
+    });
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).choices[0].message.content).toBe('{"result":"valid"}');
+    expect(runner.calls[0].prompt).toContain(JSON.stringify(clientMessages));
+    expect(runner.calls[0].prompt).not.toContain('response_format');
+  });
+
+  it('accepts the production OpenKeyboard structured request shape', async () => {
+    const runner = new FakeRunner(async () => '{"operation":"fix_grammar","results":[],"corrected_text":"I have an apple."}');
+    const clientMessages = [
+      { role: 'system', content: 'Return exactly one JSON object.' },
+      { role: 'user', content: 'Fix every error in <input_text>i has a apple.</input_text>' },
+    ];
+    const response = await chat(appWith(runner), 'gateway-explicit', {
+      model: 'codex',
+      operation: 'fix_grammar',
+      input_text: 'i has a apple.',
+      messages: clientMessages,
+      response_format: { type: 'json_object' },
+      max_tokens: 1600,
+      temperature: 0.1,
+      stream: false,
+    });
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).choices[0].message.content)
+      .toBe('{"operation":"fix_grammar","results":[],"corrected_text":"I have an apple."}');
+    expect(runner.calls).toHaveLength(1);
+    expect(runner.calls[0].prompt).toContain(JSON.stringify(clientMessages));
+    expect(runner.calls[0].prompt).not.toContain('max_tokens');
+    expect(runner.calls[0].prompt).not.toContain('temperature');
+  });
+
+  it.each([
+    { output: 'not json', format: { type: 'json_object' }, status: 502, code: 'invalid_upstream_response' },
+    { output: '["not an object"]', format: { type: 'json_object' }, status: 502, code: 'invalid_upstream_response' },
+    { output: '{"valid":true}', format: { type: 'json_schema' }, status: 400, code: 'unsupported_parameter' },
+  ])('validates Codex response formats generically', async ({ output, format, status, code }) => {
+    const runner = new FakeRunner(async () => output);
+    const response = await chat(appWith(runner), 'gateway-explicit', {
+      model: 'codex', messages: [{ role: 'user', content: 'hello' }], response_format: format,
+    });
+
+    expect(response.status).toBe(status);
+    expect((await response.json()).error.code).toBe(code);
+    expect(runner.calls).toHaveLength(status === 502 ? 1 : 0);
   });
 
   it('rejects streaming and unsupported generation fields before execution', async () => {
@@ -292,7 +355,7 @@ describe('Codex request routing and compatibility', () => {
     expect((await stream.json()).error.code).toBe('stream_not_supported_for_provider');
 
     const parameter = await chat(app, 'gateway-explicit', {
-      model: 'codex', messages: [{ role: 'user', content: 'hello' }], temperature: 0.2,
+      model: 'codex', messages: [{ role: 'user', content: 'hello' }], top_p: 0.2,
     });
     expect(parameter.status).toBe(400);
     expect((await parameter.json()).error.code).toBe('unsupported_parameter');
