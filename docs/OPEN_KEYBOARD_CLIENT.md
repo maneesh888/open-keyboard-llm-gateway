@@ -3,7 +3,7 @@
 ## Shared semantic package
 
 Semantic test cases are supplied by the pinned `Vendor/semantic-prompt-contract` Git submodule at
-contract version `1.0.0`. The gateway serves its generated browser adapter to the admin playground;
+contract version `2.0.0`. The gateway serves its generated browser adapter to the admin playground;
 it does not construct, prepend, alter, or own the production client's messages. The connectivity
 smoke remains gateway-owned because it tests transport rather than semantic behavior.
 

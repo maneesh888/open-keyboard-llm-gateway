@@ -25,6 +25,8 @@ rg --quiet '^permissions:$' "$CI_WORKFLOW" || fail "CI must declare permissions.
 rg --quiet '^  contents: read$' "$CI_WORKFLOW" || fail "CI must use read-only contents permission."
 rg --quiet 'name: Required checks' "$CI_WORKFLOW" || fail "the stable Required checks aggregate is missing."
 rg --quiet 'name: Semantic prompt contract' "$CI_WORKFLOW" || fail "semantic contract CI is missing."
+rg --fixed-strings --quiet 'name: Semantic prompt contract (Node ${{ matrix.node }})' "$CI_WORKFLOW" ||
+  fail "semantic contract CI must cover every supported Node lane."
 rg --quiet 'submodules:[[:space:]]*recursive' "$CI_WORKFLOW" || fail "CI must initialize pinned submodules."
 rg --quiet 'check-semantic-prompt-contract\.sh' "$CI_WORKFLOW" || fail "CI must validate the pinned contract."
 rg --quiet '^## Shared Semantic Prompt Contract$' "$ROOT/AGENTS.md" || fail "gateway contract ownership workflow is missing."
@@ -49,6 +51,8 @@ rg --fixed-strings --quiet '<title>LLM Gateway · Admin</title>' "$ROOT/public/a
   fail "the admin UI title contract drifted."
 rg --fixed-strings --quiet '<title>LLM Gateway · Admin</title>' "$ROOT/scripts/docker-smoke.sh" ||
   fail "the Docker smoke no longer checks the admin UI title contract."
+rg --fixed-strings --quiet '/ui/semantic-prompt-contract.js' "$ROOT/scripts/docker-smoke.sh" ||
+  fail "the Docker smoke no longer checks the pinned semantic adapter route."
 
 for required_path in \
   .agents/skills/develop-llm-gateway/SKILL.md \
