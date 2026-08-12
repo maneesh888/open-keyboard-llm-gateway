@@ -11,6 +11,7 @@ export interface ClientFeatures {
 }
 
 export type EffortMode = 'low' | 'medium' | 'high';
+export type CompatibilityProfile = 'universal-ai-connector';
 
 export interface ModelConfig {
   model: string;
@@ -34,6 +35,7 @@ export interface ApiKey {
   allowedModels?: string[];
   features?: ClientFeatures;
   modelConfig?: ModelConfig;
+  compatibilityProfile?: CompatibilityProfile;
   owner?: string;
   description?: string;
   createdAt: string;

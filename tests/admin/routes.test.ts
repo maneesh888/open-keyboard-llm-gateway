@@ -126,6 +126,21 @@ describe('Admin key routes', () => {
     expect(body.modelConfig).toEqual({ model: 'local-model', maxTokens: 250, temperature: 0.2, effort: 'low' });
   });
 
+  it('creates a key with the Universal AI Connector compatibility profile', async () => {
+    const res = await app.request('/admin/keys', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Connector Key',
+        compatibilityProfile: 'universal-ai-connector',
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.compatibilityProfile).toBe('universal-ai-connector');
+  });
+
   it('rejects create without name', async () => {
     const res = await app.request('/admin/keys', {
       method: 'POST',
@@ -168,6 +183,22 @@ describe('Admin key routes', () => {
     expect(body.error.message).toMatch(/modelConfig\.effort/);
   });
 
+  it('rejects unknown compatibility profiles', async () => {
+    const res = await app.request('/admin/keys', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Unknown Client',
+        compatibilityProfile: 'strip-everything',
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.message).toMatch(/compatibilityProfile/);
+    expect(body.error.code).toBe('validation_error');
+  });
+
   it('updates mutable fields with validated settings', async () => {
     const res = await app.request('/admin/keys/key_existing', {
       method: 'PATCH',
@@ -178,6 +209,7 @@ describe('Admin key routes', () => {
         rateLimitConfig: { requestsPerMinute: 90, burstAllowance: 12 },
         modelConfig: { model: 'local-model', maxTokens: 250, temperature: 0.2, effort: 'medium' },
         allowedModels: ['local-model'],
+        compatibilityProfile: 'universal-ai-connector',
       }),
     });
 
@@ -190,6 +222,7 @@ describe('Admin key routes', () => {
     expect(body.rateLimitConfig).toEqual({ requestsPerMinute: 90, burstAllowance: 12 });
     expect(body.modelConfig).toEqual({ model: 'local-model', maxTokens: 250, temperature: 0.2, effort: 'medium' });
     expect(body.allowedModels).toEqual(['local-model']);
+    expect(body.compatibilityProfile).toBe('universal-ai-connector');
   });
 
   it('rejects attempts to update unknown or immutable fields', async () => {

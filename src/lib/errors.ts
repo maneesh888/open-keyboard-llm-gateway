@@ -18,6 +18,7 @@ export type GatewayErrorCode =
   | 'provider_unavailable'
   | 'request_too_large'
   | 'model_not_allowed'
+  | 'unsupported_response_format'
   | 'invalid_request'
   | 'invalid_upstream_response'
   | 'invalid_stream'

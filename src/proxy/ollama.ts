@@ -4,8 +4,10 @@ import type { ApiKey } from '../types/index.js';
 import { errorResponse, type GatewayErrorCode } from '../lib/errors.js';
 import { ProviderError, ProviderRegistry } from '../providers/types.js';
 import {
+  applyChatCompletionCompatibilityProfile,
   parseChatCompletionRequest,
   prepareChatCompletionStream,
+  requestsJsonSchemaResponse,
   validateChatCompletionResponse,
   type ChatCompletionRequest,
 } from './openaiCompatibility.js';
@@ -529,6 +531,18 @@ export class OllamaProxy {
       }
     }
 
+    if (isChatCompletions
+      && apiKey?.compatibilityProfile === 'universal-ai-connector'
+      && chatRequest
+      && requestsJsonSchemaResponse(chatRequest)) {
+      return errorResponse(
+        c,
+        400,
+        'unsupported_response_format',
+        'JSON Schema structured output is not supported by this compatibility profile.',
+      );
+    }
+
     if (provider) {
       try {
         const providerChatRequest = outboundBody
@@ -551,6 +565,13 @@ export class OllamaProxy {
           if (!compatibility.ok) {
             return errorResponse(c, 502, 'invalid_upstream_response', compatibility.message);
           }
+        }
+        if (isChatCompletions) {
+          const profiled = applyChatCompletionCompatibilityProfile(responseBody, apiKey?.compatibilityProfile);
+          if (!profiled.ok) {
+            return errorResponse(c, 502, 'invalid_upstream_response', profiled.message);
+          }
+          responseBody = profiled.value;
         }
         return new Response(responseBody, {
           status: 200,
@@ -622,7 +643,11 @@ export class OllamaProxy {
           await res.body?.cancel().catch(() => undefined);
           return errorResponse(c, 502, 'invalid_stream', 'The upstream did not return an OpenAI-compatible SSE stream.');
         }
-        const prepared = await prepareChatCompletionStream(res.body, upstreamController);
+        const prepared = await prepareChatCompletionStream(
+          res.body,
+          upstreamController,
+          apiKey?.compatibilityProfile,
+        );
         if (!prepared.ok) {
           return errorResponse(c, 502, 'invalid_stream', 'The upstream emitted an invalid Chat Completions stream.');
         }
@@ -660,6 +685,13 @@ export class OllamaProxy {
         if (!compatibility.ok) {
           return errorResponse(c, 502, 'invalid_upstream_response', compatibility.message);
         }
+      }
+      if (isChatCompletions) {
+        const profiled = applyChatCompletionCompatibilityProfile(responseBody, apiKey?.compatibilityProfile);
+        if (!profiled.ok) {
+          return errorResponse(c, 502, 'invalid_upstream_response', profiled.message);
+        }
+        responseBody = profiled.value;
       }
       if (model) this.rememberModel(model);
       return new Response(responseBody, {

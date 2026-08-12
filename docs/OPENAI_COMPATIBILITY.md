@@ -22,6 +22,7 @@ This is an independently selectable OpenAI-compatible backend. It is not a Unive
 | Common generation fields | Provider-dependent | Ollama/Apfel pass through the documented fields after type validation. Codex rejects them because the fixed provider contract cannot faithfully honor those Chat Completions controls. |
 | Tools, multimodal message parts, `response_format`, `stream_options`, and other additive request fields | Partial/backend-dependent | Ollama/Apfel pass requests through subject to the response contract. Codex accepts text-only `system`, `developer`, `user`, and `assistant` messages and rejects unsupported fields. |
 | Per-key reasoning effort | Ollama/Apfel custom default | Ollama/Apfel add configured effort only when the caller supplies none. Codex neither accepts caller effort nor applies the per-key default; its underlying model is deployment configuration. |
+| Universal AI Connector profile | Explicit per-key fallback | Strips reasoning-only response fields while preserving visible text, usage, finish events, and one terminal `[DONE]`. JSON Schema requests are rejected before upstream execution. |
 | OpenKeyboard `operation` + `input_text` | Custom extension | Optional structured-operation mode across Ollama, Apfel, and Codex. `input_text` is required when `operation` is present, and `stream: true` is rejected. |
 | `/v1/responses` | Experimental pass-through | Authenticated, rate-limited proxy behavior only. It is outside the guaranteed OpenAI Responses API contract and may depend entirely on the upstream backend. |
 | Other `/v1/*` routes | Unsupported contract | They may be proxied for backward compatibility, but no OpenAI compatibility claim is made. |
@@ -40,6 +41,34 @@ For non-streaming standard requests, the upstream response must be JSON with `id
 
 For streaming requests, every data event must contain an OpenAI-style object with `object: "chat.completion.chunk"`, `id`, `created`, `model`, and `choices`. A usage-only chunk with empty `choices` is allowed when it contains `usage`. Individual SSE events are limited to 1,048,576 decoded characters. After validating one initial event, upstream reads advance only when the downstream client requests another event. The stream must end with `data: [DONE]`. An invalid first event is returned as HTTP 502. If a later event, transport failure, or termination is invalid after streaming has begun, the gateway emits a safe nested SSE error followed by `[DONE]` and aborts the upstream stream.
 
+## Universal AI Connector profile
+
+Set `compatibilityProfile: "universal-ai-connector"` on an individual API key only when its routed
+backend produces additive reasoning fields that the connector's conservative text contract does
+not accept. The profile is opt-in; keys without it preserve upstream additive fields unchanged.
+
+For non-streaming completions, the profile removes `reasoning`, `reasoning_content`, and
+`reasoning_details` only from each `choices[].message`. For streaming completions, it removes the
+same fields from `choices[].delta`, omits events that contain no visible or control delta after
+that removal, and preserves visible content, role events, usage-only events, finish reasons, and
+exactly one terminal `[DONE]`. It does not copy reasoning into `content`, alter usage, change the
+configured reasoning effort, or suppress reasoning for other keys.
+
+The profile rejects `response_format.type: "json_schema"` with HTTP 400 and code
+`unsupported_response_format` before an upstream request. Stripping reasoning cannot make a
+backend enforce a schema, and increasing the output-token budget is not proof of schema support.
+Route connector keys to a non-reasoning model/provider with real JSON Schema enforcement whenever
+structured output is required; use this profile only as the explicitly bounded fallback.
+
+Enable it through the admin API, for example:
+
+```bash
+curl -X PATCH "$ADMIN_BASE_URL/admin/keys/$KEY_ID" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"compatibilityProfile":"universal-ai-connector"}'
+```
+
 ## Errors
 
 Every gateway-generated JSON error uses the OpenAI nested error shape without content negotiation or a gateway-specific request header:
@@ -56,7 +85,7 @@ Every gateway-generated JSON error uses the OpenAI nested error shape without co
 
 Streaming protocol failures also use a nested error event because an HTTP error can no longer be substituted after response streaming has started. Error messages never contain raw upstream bodies, credentials, or configured upstream URLs.
 
-Codex-specific safe codes are `stream_not_supported_for_provider`, `unsupported_parameter`, `provider_overloaded`, `provider_unavailable`, and `request_too_large`; common `upstream_timeout`, `request_cancelled`, `upstream_error`, and `invalid_upstream_response` codes are reused where appropriate.
+Codex-specific safe codes are `stream_not_supported_for_provider`, `unsupported_parameter`, `provider_overloaded`, `provider_unavailable`, and `request_too_large`; `unsupported_response_format` identifies a compatibility-profile request that cannot be fulfilled faithfully. Common `upstream_timeout`, `request_cancelled`, `upstream_error`, and `invalid_upstream_response` codes are reused where appropriate.
 
 ## Copy-paste examples
 

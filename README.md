@@ -344,6 +344,18 @@ Each API key can have custom configuration:
 - `effort`: Optional reasoning-effort hint (`low`, `medium`, or `high`) for compatible backends
 - `temperature`: Response creativity (0.0-1.0)
 
+**Compatibility Profile:**
+- `compatibilityProfile`: Optional per-key response profile. The only supported value is
+  `universal-ai-connector`; leave it unset for normal additive OpenAI-compatible pass-through.
+
+The Universal AI Connector profile is a fallback for reasoning models whose otherwise valid Chat
+Completions responses include reasoning-only fields. It removes `reasoning`, `reasoning_content`,
+and `reasoning_details` from assistant messages and streaming deltas without merging them into
+visible content. It also rejects `response_format.type: "json_schema"` before contacting the
+backend because the profile does not claim JSON Schema enforcement. Prefer assigning connector
+keys to a non-reasoning model/provider with real JSON Schema support. See
+[the compatibility contract](docs/OPENAI_COMPATIBILITY.md#universal-ai-connector-profile).
+
 ## Open Keyboard integration
 
 LLM Gateway is designed to pair with Open Keyboard as its self-hosted backend:
@@ -421,6 +433,7 @@ Every gateway-generated non-2xx JSON response uses the OpenAI-style nested error
 | `provider_unavailable` | Codex is enabled but its protected credential or runtime is unavailable. |
 | `request_too_large` | The request exceeded the pre-parse transport limit active when Codex is enabled. |
 | `model_not_allowed` | The requested model is outside the API key's allowlist. |
+| `unsupported_response_format` | The selected compatibility profile cannot faithfully provide the requested response format. |
 | `invalid_request` | The Chat Completions request does not satisfy the documented JSON contract. |
 | `invalid_upstream_response` | A successful upstream response did not satisfy the guaranteed non-streaming contract. |
 | `invalid_stream` | The upstream stream had an unsupported content type, event, chunk, order, or termination. |
