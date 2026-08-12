@@ -141,6 +141,9 @@ describe('OllamaProxy', () => {
     const upstreamBody = JSON.parse(chatCompletion('Preserved'));
     upstreamBody.system_fingerprint = 'fp_test';
     upstreamBody.gateway_unknown = { retained: true };
+    upstreamBody.choices[0].message.reasoning = 'sanitized fixture reasoning';
+    upstreamBody.choices[0].message.reasoning_content = { retained: true };
+    upstreamBody.choices[0].message.reasoning_details = ['retained'];
     fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify(upstreamBody), {
       status: 200,
       headers: { 'content-type': 'application/json' },
@@ -175,6 +178,92 @@ describe('OllamaProxy', () => {
     const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(JSON.parse(String(opts.body))).toEqual(payload);
     expect(await res.json()).toEqual(upstreamBody);
+  });
+
+  it('strips reasoning fields from non-streaming messages only for opted-in connector keys', async () => {
+    const upstreamBody = JSON.parse(chatCompletion('ready', {
+      usage: { prompt_tokens: 4, completion_tokens: 5, total_tokens: 9 },
+      system_fingerprint: 'fp_test',
+    }));
+    upstreamBody.choices[0].message.reasoning = 'sanitized fixture reasoning';
+    upstreamBody.choices[0].message.reasoning_content = { private: 'fixture' };
+    upstreamBody.choices[0].message.reasoning_details = ['fixture'];
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify(upstreamBody), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy, { compatibilityProfile: 'universal-ai-connector' });
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma4', messages: [{ role: 'user', content: 'hi' }] }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.choices[0].message).toEqual({ role: 'assistant', content: 'ready' });
+    expect(body.choices[0].finish_reason).toBe('stop');
+    expect(body.usage).toEqual({ prompt_tokens: 4, completion_tokens: 5, total_tokens: 9 });
+    expect(body.system_fingerprint).toBe('fp_test');
+    expect(JSON.stringify(body)).not.toContain('reasoning');
+  });
+
+  it('rejects JSON Schema requests for connector-profile keys before calling upstream', async () => {
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy, { compatibilityProfile: 'universal-ai-connector' });
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-oss:120b-cloud',
+        messages: [{ role: 'user', content: 'Return JSON.' }],
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: 'answer',
+            strict: true,
+            schema: { type: 'object' },
+          },
+        },
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual(gatewayError(
+      'JSON Schema structured output is not supported by this compatibility profile.',
+      'invalid_request_error',
+      'unsupported_response_format',
+    ));
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps JSON Schema pass-through unchanged for default keys', async () => {
+    const upstreamBody = chatCompletion('{"answer":"ready"}');
+    fetchSpy.mockResolvedValueOnce(new Response(upstreamBody, {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+    const payload = {
+      model: 'schema-capable-model',
+      messages: [{ role: 'user', content: 'Return JSON.' }],
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: 'answer', strict: true, schema: { type: 'object' } },
+      },
+    };
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    expect(res.status).toBe(200);
+    expect(JSON.parse(String(fetchSpy.mock.calls[0][1].body))).toEqual(payload);
   });
 
   it.each([
@@ -382,8 +471,8 @@ describe('OllamaProxy', () => {
 
   it('streams SSE responses through without buffering', async () => {
     const sseBody = [
-      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}',
-      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[{"index":0,"delta":{"content":"hello"},"finish_reason":"stop"}]}',
+      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[{"index":0,"delta":{"role":"assistant","content":"","reasoning":"fixture"},"finish_reason":null}]}',
+      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[{"index":0,"delta":{"content":"hello","reasoning_content":"fixture","reasoning_details":["fixture"]},"finish_reason":"stop"}]}',
       'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}',
       'data: [DONE]',
       '',
@@ -406,6 +495,50 @@ describe('OllamaProxy', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/event-stream');
     expect(await res.text()).toBe(sseBody);
+  });
+
+  it('omits reasoning-only events and sanitizes visible connector-profile SSE events', async () => {
+    const sseBody = [
+      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gpt-oss","choices":[{"index":0,"delta":{"role":"assistant","content":"","reasoning":"fixture"},"finish_reason":null}]}',
+      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gpt-oss","choices":[{"index":0,"delta":{"content":"","reasoning":"fixture","reasoning_content":"fixture","reasoning_details":["fixture"]},"finish_reason":null}]}',
+      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gpt-oss","choices":[{"index":0,"delta":{"content":"ready","reasoning":"fixture"},"finish_reason":null}]}',
+      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gpt-oss","choices":[{"index":0,"delta":{"content":"","reasoning":"fixture"},"finish_reason":"stop"}]}',
+      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gpt-oss","choices":[],"usage":{"prompt_tokens":4,"completion_tokens":5,"total_tokens":9}}',
+      'data: [DONE]',
+      '',
+    ].join('\n\n');
+    fetchSpy.mockResolvedValueOnce(new Response(sseBody, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy, { compatibilityProfile: 'universal-ai-connector' });
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'gpt-oss', messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const streamed = await res.text();
+    expect(streamed).not.toContain('reasoning');
+    expect(streamed.match(/data: \[DONE\]/g)).toHaveLength(1);
+    const events = streamed.trim().split('\n\n');
+    expect(events).toHaveLength(5);
+    const chunks = events
+      .filter((event) => event !== 'data: [DONE]')
+      .map((event) => JSON.parse(event.slice('data: '.length)));
+    expect(chunks[0].choices[0].delta).toEqual({ role: 'assistant', content: '' });
+    expect(chunks[1].choices[0].delta).toEqual({ content: 'ready' });
+    expect(chunks[2].choices[0]).toMatchObject({
+      delta: { content: '' },
+      finish_reason: 'stop',
+    });
+    expect(chunks[3]).toMatchObject({
+      choices: [],
+      usage: { prompt_tokens: 4, completion_tokens: 5, total_tokens: 9 },
+    });
   });
 
   it('reads upstream SSE only when the downstream consumer requests another event', async () => {

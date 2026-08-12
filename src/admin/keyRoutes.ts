@@ -1,19 +1,20 @@
 import { Hono } from 'hono';
 import { randomBytes } from 'crypto';
 import type { Context } from 'hono';
-import type { ApiKey, AuthToken, ClientFeatures, CustomAction, EffortMode, ModelConfig, RateLimitConfig } from '../types/index.js';
+import type { ApiKey, AuthToken, ClientFeatures, CompatibilityProfile, CustomAction, EffortMode, ModelConfig, RateLimitConfig } from '../types/index.js';
 import { OllamaProxy, UpstreamResponseError } from '../proxy/ollama.js';
 import { KeyManager } from '../keys/manager.js';
 import { AdminAuth } from './auth.js';
 import { errorResponse } from '../lib/errors.js';
 
 type AdminVariables = { admin: AuthToken };
-type KeyCreateInput = Pick<ApiKey, 'name'> & Partial<Pick<ApiKey, 'owner' | 'description' | 'enabled' | 'rateLimitConfig' | 'features' | 'modelConfig' | 'allowedModels'>>;
-type KeyUpdateInput = Partial<Pick<ApiKey, 'name' | 'owner' | 'description' | 'enabled' | 'rateLimitConfig' | 'features' | 'modelConfig' | 'allowedModels'>>;
+type KeyCreateInput = Pick<ApiKey, 'name'> & Partial<Pick<ApiKey, 'owner' | 'description' | 'enabled' | 'rateLimitConfig' | 'features' | 'modelConfig' | 'allowedModels' | 'compatibilityProfile'>>;
+type KeyUpdateInput = Partial<Pick<ApiKey, 'name' | 'owner' | 'description' | 'enabled' | 'rateLimitConfig' | 'features' | 'modelConfig' | 'allowedModels' | 'compatibilityProfile'>>;
 
-const CREATE_FIELDS = new Set(['name', 'owner', 'description', 'enabled', 'rateLimitConfig', 'features', 'modelConfig', 'allowedModels']);
+const CREATE_FIELDS = new Set(['name', 'owner', 'description', 'enabled', 'rateLimitConfig', 'features', 'modelConfig', 'allowedModels', 'compatibilityProfile']);
 const UPDATE_FIELDS = CREATE_FIELDS;
 const EFFORT_MODES = new Set<EffortMode>(['low', 'medium', 'high']);
+const COMPATIBILITY_PROFILES = new Set<CompatibilityProfile>(['universal-ai-connector']);
 
 class ValidationError extends Error {
   constructor(message: string) {
@@ -73,6 +74,15 @@ function optionalEffortMode(value: unknown, field: string): EffortMode | undefin
     throw new ValidationError(`${field} must be one of: low, medium, high`);
   }
   return trimmed as EffortMode;
+}
+
+function optionalCompatibilityProfile(value: unknown): CompatibilityProfile | undefined {
+  const trimmed = optionalTrimmedString(value, 'compatibilityProfile');
+  if (!trimmed) return undefined;
+  if (!COMPATIBILITY_PROFILES.has(trimmed as CompatibilityProfile)) {
+    throw new ValidationError('compatibilityProfile must be universal-ai-connector');
+  }
+  return trimmed as CompatibilityProfile;
 }
 
 function parseRateLimitConfig(value: unknown): RateLimitConfig | undefined {
@@ -144,6 +154,7 @@ function parseCreateInput(body: unknown): KeyCreateInput {
     features: parseFeatures(body.features),
     modelConfig: parseModelConfig(body.modelConfig),
     allowedModels: parseAllowedModels(body.allowedModels),
+    compatibilityProfile: optionalCompatibilityProfile(body.compatibilityProfile),
   };
 }
 
@@ -160,6 +171,7 @@ function parseUpdateInput(body: unknown): KeyUpdateInput {
   if ('features' in body) updates.features = parseFeatures(body.features);
   if ('modelConfig' in body) updates.modelConfig = parseModelConfig(body.modelConfig);
   if ('allowedModels' in body) updates.allowedModels = parseAllowedModels(body.allowedModels);
+  if ('compatibilityProfile' in body) updates.compatibilityProfile = optionalCompatibilityProfile(body.compatibilityProfile);
 
   return updates;
 }
@@ -227,6 +239,7 @@ export function createAdminRoutes(keyManager: KeyManager, adminAuth: AdminAuth, 
         features: input.features || { suggestions: true, customActions: [] },
         modelConfig: input.modelConfig || { model: 'gemma4:latest', maxTokens: 100, temperature: 0.7 },
         allowedModels: input.allowedModels || ['*'],
+        compatibilityProfile: input.compatibilityProfile,
         owner: input.owner,
         description: input.description,
         createdAt: new Date().toISOString(),

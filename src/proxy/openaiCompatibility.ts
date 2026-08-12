@@ -1,3 +1,5 @@
+import type { CompatibilityProfile } from '../types/index.js';
+
 type RecordValue = Record<string, unknown>;
 
 export type CompatibilityFailure = {
@@ -37,6 +39,7 @@ const numericGenerationFields = [
 
 const encoder = new TextEncoder();
 const MAX_SSE_EVENT_LENGTH = 1024 * 1024;
+const REASONING_RESPONSE_FIELDS = ['reasoning', 'reasoning_content', 'reasoning_details'] as const;
 
 function isRecord(value: unknown): value is RecordValue {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -110,6 +113,10 @@ export function parseChatCompletionRequest(body: string | undefined): Compatibil
   return { ok: true, value: request };
 }
 
+export function requestsJsonSchemaResponse(request: ChatCompletionRequest): boolean {
+  return isRecord(request.response_format) && request.response_format.type === 'json_schema';
+}
+
 export function validateChatCompletionResponse(body: string): CompatibilityResult<RecordValue> {
   let parsed: unknown;
   try {
@@ -144,6 +151,26 @@ export function validateChatCompletionResponse(body: string): CompatibilityResul
   return { ok: true, value: parsed };
 }
 
+function stripReasoningFields(value: RecordValue): void {
+  for (const field of REASONING_RESPONSE_FIELDS) delete value[field];
+}
+
+export function applyChatCompletionCompatibilityProfile(
+  body: string,
+  profile?: CompatibilityProfile,
+): CompatibilityResult<string> {
+  if (profile !== 'universal-ai-connector') return { ok: true, value: body };
+
+  const validated = validateChatCompletionResponse(body);
+  if (!validated.ok) return validated;
+
+  const response = validated.value;
+  for (const choice of response.choices as RecordValue[]) {
+    stripReasoningFields(choice.message as RecordValue);
+  }
+  return { ok: true, value: JSON.stringify(response) };
+}
+
 type StreamEventResult = CompatibilityResult<{
   output?: Uint8Array;
   chunk: boolean;
@@ -153,6 +180,8 @@ type StreamEventResult = CompatibilityResult<{
 class ChatCompletionStreamValidator {
   private sawChunk = false;
   private sawDone = false;
+
+  constructor(private readonly profile?: CompatibilityProfile) {}
 
   event(rawEvent: string): StreamEventResult {
     const lines = rawEvent.replace(/\r\n/g, '\n').split('\n');
@@ -206,9 +235,34 @@ class ChatCompletionStreamValidator {
     }
 
     this.sawChunk = true;
+    if (this.profile === 'universal-ai-connector') {
+      const sanitizedChoices: RecordValue[] = [];
+      for (const rawChoice of chunk.choices) {
+        const choice = rawChoice as RecordValue;
+        const delta = { ...(choice.delta as RecordValue) };
+        stripReasoningFields(delta);
+        const hasFinishReason = choice.finish_reason !== null && choice.finish_reason !== undefined;
+        const hasVisibleDelta = Object.entries(delta).some(([field, value]) => (
+          field === 'content'
+            ? typeof value === 'string' && value.length > 0
+            : value !== null && value !== undefined
+        ));
+        if (hasFinishReason || hasVisibleDelta) sanitizedChoices.push({ ...choice, delta });
+      }
+
+      const hasUsage = isRecord(chunk.usage);
+      if (sanitizedChoices.length === 0 && !hasUsage) {
+        return { ok: true, value: { chunk: true, terminal: false } };
+      }
+      chunk = { ...chunk, choices: sanitizedChoices };
+    }
     return {
       ok: true,
-      value: { output: encoder.encode(`data: ${data}\n\n`), chunk: true, terminal: false },
+      value: {
+        output: encoder.encode(`data: ${this.profile === 'universal-ai-connector' ? JSON.stringify(chunk) : data}\n\n`),
+        chunk: true,
+        terminal: false,
+      },
     };
   }
 
@@ -241,12 +295,13 @@ function streamFailureEvent(): Uint8Array {
 export async function prepareChatCompletionStream(
   body: ReadableStream<Uint8Array> | null,
   upstreamController: AbortController,
+  profile?: CompatibilityProfile,
 ): Promise<CompatibilityResult<PreparedChatCompletionStream>> {
   if (!body) return failure('The upstream returned an empty Chat Completions stream.');
 
   const reader = body.getReader();
   const decoder = new TextDecoder();
-  const validator = new ChatCompletionStreamValidator();
+  const validator = new ChatCompletionStreamValidator(profile);
   const prefetched: Uint8Array[] = [];
   let buffer = '';
   let firstChunkSeen = false;
