@@ -54,9 +54,9 @@ for required_path in \
 done
 
 [[ -f "$ROOT/docs/CODEX_PROVIDER_PLAN.md" ]] || fail "docs/CODEX_PROVIDER_PLAN.md is missing."
-rg --fixed-strings --quiet 'docs/CODEX_PROVIDER_PLAN.md' "$ROOT/.agents/skills/develop-llm-gateway/SKILL.md" ||
+rg --fixed-strings --line-regexp --quiet '2. Read the relevant README sections and only the focused requirement sources for the changed surface: `ADMIN_FUNCTION_TEST_PLAN.md`, `ADMIN_UI_REQUIREMENTS.md`, `docs/OPEN_KEYBOARD_CLIENT.md`, `docs/APFEL_PORTAL_POC.md`, or `docs/CODEX_PROVIDER_PLAN.md`. Read `docs/CODEX_PROVIDER_PLAN.md` for any Codex-provider implementation, hardening, verification, or deployment task.' "$ROOT/.agents/skills/develop-llm-gateway/SKILL.md" ||
   fail "the implementation workflow no longer routes Codex-provider work through its plan."
-rg --fixed-strings --quiet 'docs/CODEX_PROVIDER_PLAN.md' "$ROOT/.agents/skills/plan-llm-gateway-work-package/SKILL.md" ||
+rg --fixed-strings --line-regexp --quiet '3. Select only directly relevant focused sources: `ADMIN_FUNCTION_TEST_PLAN.md`, `ADMIN_UI_REQUIREMENTS.md`, `docs/OPEN_KEYBOARD_CLIENT.md`, `docs/APFEL_PORTAL_POC.md`, or `docs/CODEX_PROVIDER_PLAN.md`. Use `docs/CODEX_PROVIDER_PLAN.md` for Codex-provider implementation, hardening, verification, rollout, or deployment planning.' "$ROOT/.agents/skills/plan-llm-gateway-work-package/SKILL.md" ||
   fail "the planning workflow no longer treats the Codex-provider plan as a focused source."
 
 if rg --quiet 'TODO|\[TODO' "$ROOT/.agents" "$ROOT/.codex"; then
