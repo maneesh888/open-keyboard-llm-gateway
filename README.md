@@ -1,7 +1,7 @@
 # LLM Gateway
 
 Semantic diagnostics in the admin playground come from the pinned
-`Vendor/semantic-prompt-contract` version `2.0.0` package. This path is a checkout of a separate
+`Vendor/semantic-prompt-contract` version `2.0.1` package. This path is a checkout of a separate
 repository, and the gateway repository's immutable gitlink pins it to one exact commit/version. The
 gateway owns transport, authentication, rate limits, logging, and provider routing; it preserves
 client messages and does not inject application prompt instructions.
