@@ -301,13 +301,16 @@ export class ModelRuntimeManager {
       };
     }
 
+    const canLoad = isLoopbackTarget(this.ollamaTarget);
     return {
       ...statusBase(model, 'ollama'),
       state: 'available',
       service: 'reachable',
       runtime: 'idle',
-      message: 'Ollama advertises the model, but it is not loaded. Loading uses an empty request and no inference tokens.',
-      start: { supported: true, action: 'load_model', label: 'Load model' },
+      message: canLoad
+        ? 'Ollama advertises the local model, but it is not loaded. Loading uses an empty request and no inference tokens.'
+        : 'The remote Ollama service advertises the model, but it is not loaded. It will load on the first live request.',
+      start: canLoad ? { supported: true, action: 'load_model', label: 'Load model' } : { supported: false },
     };
   }
 
@@ -325,13 +328,15 @@ export class ModelRuntimeManager {
 
     try {
       const health = await this.getJSON<Record<string, unknown>>(new URL('/health', this.apfelTarget), 3000);
-      if (health.model_available === false) {
+      if (health.model_available !== true) {
         return {
           ...statusBase(model, 'apfel'),
           state: 'unavailable',
           service: 'reachable',
           runtime: 'on_demand',
-          message: 'Apfel is reachable, but Apple reports that the on-device model is unavailable.',
+          message: health.model_available === false
+            ? 'Apfel is reachable, but Apple reports that the on-device model is unavailable.'
+            : 'Apfel is reachable, but health did not explicitly confirm that the on-device model is available.',
           start: { supported: false },
         };
       }

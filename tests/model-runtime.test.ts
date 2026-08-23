@@ -6,7 +6,7 @@ const noProviders = new ProviderRegistry();
 
 function manager(overrides: Partial<ConstructorParameters<typeof ModelRuntimeManager>[0]> = {}) {
   return new ModelRuntimeManager({
-    ollamaHost: 'http://ollama.test',
+    ollamaHost: 'http://127.0.0.1:11434',
     apfelHost: 'http://apfel.test',
     providers: noProviders,
     ...overrides,
@@ -41,8 +41,8 @@ describe('bounded model runtime checks', () => {
       start: { supported: false },
     });
     expect(fetchSpy.mock.calls.map(([input]) => String(input))).toEqual([
-      'http://ollama.test/api/tags',
-      'http://ollama.test/api/ps',
+      'http://127.0.0.1:11434/api/tags',
+      'http://127.0.0.1:11434/api/ps',
     ]);
   });
 
@@ -111,6 +111,20 @@ describe('bounded model runtime checks', () => {
     });
   });
 
+  it('fails closed when Apfel health omits explicit model availability', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ status: 'ok' })));
+
+    const status = await manager().checkModel('apple-foundationmodel');
+
+    expect(status).toMatchObject({
+      provider: 'apfel',
+      state: 'unavailable',
+      service: 'reachable',
+      start: { supported: false },
+    });
+    expect(status.message).toMatch(/did not explicitly confirm/);
+  });
+
   it('offers service start only for explicitly enabled loopback targets', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
 
@@ -125,6 +139,46 @@ describe('bounded model runtime checks', () => {
 
     expect(local.start).toEqual({ supported: true, action: 'start_service', label: 'Start Ollama' });
     expect(remote.start).toEqual({ supported: false });
+  });
+
+  it('never offers or executes model loading against a remote Ollama host', async () => {
+    const fetchSpy = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/api/tags')) return Response.json({ models: [{ name: 'remote-model' }] });
+      if (url.endsWith('/api/ps')) return Response.json({ models: [] });
+      throw new Error('unexpected request');
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const runtime = manager({ ollamaHost: 'http://model-host.example:11434' });
+
+    const status = await runtime.checkModel('remote-model');
+
+    expect(status).toMatchObject({ state: 'available', runtime: 'idle', start: { supported: false } });
+    await expect(runtime.startModel('remote-model')).rejects.toMatchObject({ code: 'start_not_supported' });
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).endsWith('/api/generate'))).toBe(false);
+  });
+
+  it('coalesces concurrent duplicate starts for the same model', async () => {
+    let loaded = false;
+    const fetchSpy = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/api/tags')) return Response.json({ models: [{ name: 'local-model' }] });
+      if (url.endsWith('/api/ps')) return Response.json({ models: loaded ? [{ name: 'local-model' }] : [] });
+      if (url.endsWith('/api/generate')) {
+        loaded = true;
+        return Response.json({ done: true });
+      }
+      throw new Error('unexpected request');
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const runtime = manager();
+
+    const first = runtime.startModel('local-model');
+    const duplicate = runtime.startModel('local-model');
+
+    expect(duplicate).toBe(first);
+    await Promise.all([first, duplicate]);
+    expect(fetchSpy.mock.calls.filter(([input]) => String(input).endsWith('/api/generate'))).toHaveLength(1);
   });
 
   it('uses fixed no-shell launch specs without passing gateway credentials', () => {
