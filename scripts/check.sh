@@ -83,6 +83,8 @@ run_hygiene() {
   npm run secret-scan
   "$ROOT/scripts/tests/secret-scan-test.sh"
   "$ROOT/scripts/tests/push-ref-policy-test.sh"
+  node "$ROOT/scripts/tests/pr-evidence-policy-test.mjs"
+  node "$ROOT/scripts/tests/review-evidence-snapshot-test.mjs"
   "$ROOT/scripts/tests/workflow-policy-test.sh"
   validate_whitespace
   echo "LLM Gateway hygiene checks passed."

@@ -1,0 +1,99 @@
+name: Pull request review evidence
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
+      - ready_for_review
+      - converted_to_draft
+  pull_request_review:
+    types:
+      - submitted
+      - edited
+      - dismissed
+
+permissions:
+  checks: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  required-review-evidence:
+    name: Required review evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact candidate and trusted base history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Set up Node 24 for metadata validation
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Prepare trusted evidence validators
+        id: validators
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          validator_root="$RUNNER_TEMP/pr-evidence-validators"
+          mkdir -p "$validator_root"
+          validator_files=(
+            pr-evidence-lib.mjs
+            validate-pr-requirements.mjs
+            validate-pr-review-record.mjs
+            validate-pr-review-evidence-event.mjs
+          )
+
+          if git cat-file -e "$PR_BASE_SHA:.github/review-evidence-enforced" 2>/dev/null; then
+            for validator_name in "${validator_files[@]}"; do
+              if ! git cat-file -e "$PR_BASE_SHA:scripts/$validator_name" 2>/dev/null; then
+                echo "Trusted base validator scripts/$validator_name is missing; enforcement fails closed." >&2
+                exit 1
+              fi
+              git show "$PR_BASE_SHA:scripts/$validator_name" > "$validator_root/$validator_name"
+            done
+            echo "source=trusted-base" >> "$GITHUB_OUTPUT"
+          else
+            echo "Bootstrap only: the base predates review-evidence enforcement; candidate validators are not remote authorization."
+            for validator_name in "${validator_files[@]}"; do
+              cp "scripts/$validator_name" "$validator_root/$validator_name"
+            done
+            echo "source=bootstrap-candidate" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "root=$validator_root" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch current read-only GitHub evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          cp "$GITHUB_EVENT_PATH" "$RUNNER_TEMP/event.json"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > "$RUNNER_TEMP/current-pr.json"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" \
+            | jq --slurp 'add' > "$RUNNER_TEMP/reviews.json"
+          gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?per_page=100" \
+            > "$RUNNER_TEMP/check-runs.json"
+
+      - name: Validate immutable event and current exact-head evidence
+        env:
+          CHECK_RUNS_JSON_FILE: ${{ runner.temp }}/check-runs.json
+          CURRENT_PR_JSON_FILE: ${{ runner.temp }}/current-pr.json
+          EVENT_JSON_FILE: ${{ runner.temp }}/event.json
+          EVENT_NAME: ${{ github.event_name }}
+          REVIEWS_JSON_FILE: ${{ runner.temp }}/reviews.json
+          VALIDATOR_ROOT: ${{ steps.validators.outputs.root }}
+        run: node "$VALIDATOR_ROOT/validate-pr-review-evidence-event.mjs"
+
+      - name: Report validator trust source
+        env:
+          VALIDATOR_SOURCE: ${{ steps.validators.outputs.source }}
+        run: echo "Review-evidence validator source is $VALIDATOR_SOURCE."

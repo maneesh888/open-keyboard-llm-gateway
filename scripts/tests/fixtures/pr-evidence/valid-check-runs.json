@@ -1,0 +1,13 @@
+{
+  "total_count": 1,
+  "check_runs": [
+    {
+      "id": 9001,
+      "name": "Required checks",
+      "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "completed",
+      "conclusion": "success",
+      "completed_at": "2026-08-23T11:55:00Z"
+    }
+  ]
+}

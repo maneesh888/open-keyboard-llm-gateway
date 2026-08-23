@@ -30,6 +30,7 @@ Prefer the committed routes over ad hoc command sequences:
 - Independent PR review: `pr-reviewer` via `$review-verify-merge-pr`
 
 GitHub Actions runs repository hygiene, Node 24/22 tests, the Node 24 build, and the Docker runtime smoke, then reports the stable `Required checks` status.
+Pull-request metadata validation runs separately and reports the fixed `Required review evidence` status without rerunning technical jobs.
 
 ## Change Rules
 
@@ -56,6 +57,17 @@ GitHub Actions runs repository hygiene, Node 24/22 tests, the Node 24 build, and
 
 Always run `git diff --check` before claiming completion. A passing container health smoke proves the gateway image starts with safe fixture configuration and reports the backend disconnected; it does not prove a live Ollama/Apfel request.
 
+## Fail-Closed Pull-Request Evidence
+
+- Keep one stable sequential `R1` through `RN` ledger row for every in-scope requirement. Each row must retain its durable source, observable acceptance criterion, exact required proof type, inspected evidence, and `VERIFIED` or `UNVERIFIED` status.
+- Missing, ambiguous, stale, skipped, substituted, fallback, wrong-target, uninspectable, contributor-attested-only when stronger proof is required, or weaker-than-required evidence remains `UNVERIFIED`. Never narrow a criterion or substitute a proof type to make a row pass.
+- The independent project reviewer assesses every row and returns a six-column exact-copy report. The root retains it as a durable GitHub `COMMENTED` review and links the newest same-head report from the PR. Project-reviewer reports are never GitHub approvals or requested-changes submissions.
+- The textual project-reviewer marker is durable audit/process evidence, not cryptographic proof of actor identity. Any newer same-head project-reviewer report supersedes an older report, including when the newer report blocks.
+- Automatic authorization requires every row `VERIFIED`, no blocker or material uncertainty, complete mandatory exact-head gates, reviewer confidence exactly `100%`, and recommendation `automatic`.
+- Below 100%, keep the PR draft. Merge requires explicit repository-owner authorization naming the current full SHA. Retain every `UNVERIFIED` row and accepted proof gap.
+- Human authorization never overrides security, authentication, authorization, credential exposure, data loss, the OpenAI-compatible API/proxy contract, failed or missing mandatory tests/checks, conflicts, requested changes, unresolved threads, secret controls, or branch protection.
+- A new commit invalidates local proof, CI conclusions, independent review, reviewer confidence, and human authorization.
+
 ## Pull Request Lifecycle
 
 A bounded implementation request authorizes the normal lifecycle through branch preparation, edits, verification, commit, push, draft PR, in-scope review fixes, readiness, and guarded merge unless the user opts out with `local only`, `do not commit`, `do not push`, `do not create a PR`, `keep draft`, or `do not merge`.
@@ -74,6 +86,7 @@ Before guarded merge require:
 - exact-head `./scripts/check.sh --full` success;
 - independent review of the same head with no blocking findings;
 - successful `Required checks` for the same head;
+- successful `Required review evidence` for both relevant event families and a successful `gh pr checks <number> --required` rollup;
 - no requested changes or unresolved review threads;
 - a mergeable in-scope diff; and
 - effective protection of `main` requiring PRs and the aggregate check.
