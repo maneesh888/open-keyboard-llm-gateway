@@ -5,6 +5,7 @@ export type ConfigEnv = {
   PORT?: string;
   OLLAMA_HOST?: string;
   APFEL_HOST?: string;
+  ALLOW_LOCAL_SERVICE_START?: string;
 };
 
 export const DEFAULT_CODEX_CONFIG: CodexConfig = {
@@ -22,6 +23,7 @@ export function defaultConfig(env: ConfigEnv = process.env): AppConfig {
     port: parseInt(env.PORT || '8080'),
     ollamaHost: env.OLLAMA_HOST || 'http://host.docker.internal:11434',
     apfelHost: env.APFEL_HOST || undefined,
+    allowLocalServiceStart: env.ALLOW_LOCAL_SERVICE_START === 'true',
     codex: { ...DEFAULT_CODEX_CONFIG },
     logLevel: 'info',
     corsOrigins: ['*'],
@@ -121,11 +123,15 @@ export function validateConfig(raw: unknown): AppConfig {
   if (config.trustedProxies !== undefined && (!Array.isArray(config.trustedProxies) || config.trustedProxies.some((cidr) => typeof cidr !== 'string' || cidr.trim().length === 0))) {
     throw new Error('trustedProxies must be a string array when provided');
   }
+  if (config.allowLocalServiceStart !== undefined && typeof config.allowLocalServiceStart !== 'boolean') {
+    throw new Error('allowLocalServiceStart must be a boolean when provided');
+  }
 
   return {
     port,
     ollamaHost: validateURL(config.ollamaHost, 'ollamaHost'),
     apfelHost: config.apfelHost === undefined ? undefined : validateURL(config.apfelHost, 'apfelHost'),
+    allowLocalServiceStart: config.allowLocalServiceStart ?? false,
     codex: validateCodexConfig(config.codex),
     logLevel: config.logLevel.trim(),
     corsOrigins: config.corsOrigins.map((origin) => origin.trim()),

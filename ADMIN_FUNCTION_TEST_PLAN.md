@@ -36,6 +36,20 @@ All require `Authorization: Bearer <admin JWT>`.
   - Deletes a key.
   - Missing ID returns `404`.
 
+## Admin Model Runtime
+
+All require `Authorization: Bearer <admin JWT>`.
+
+- `POST /admin/models/status`
+  - Accepts one to 100 model identifiers and deduplicates them.
+  - Uses only bounded provider metadata/health checks and returns `inferencePerformed: false`.
+  - Separates model availability from API-key enablement and never claims live inference proof.
+- `POST /admin/models/start`
+  - Accepts only a model identifier; client-supplied commands or process options are rejected.
+  - Loads an installed idle local Ollama model with an empty bounded request.
+  - May start a fixed Ollama/Apfel CLI only when explicitly enabled and configured for loopback.
+  - Refuses start for remote, cloud, disabled, unconfigured, and on-demand providers.
+
 ## LLM Proxy
 
 Requires `Authorization: Bearer <client API key>`.
@@ -52,9 +66,11 @@ Requires `Authorization: Bearer <client API key>`.
 ## Automated Coverage Added
 
 - `tests/admin/routes.test.ts`
-  - Admin auth guard, list sanitize, get, create, update, delete, missing-key paths.
+  - Admin auth guard, list sanitize, get, create, update, delete, missing-key paths, model-status, and model-start routes.
 - `tests/admin/ui-static.test.ts`
-  - Admin UI responsive/static wiring contract.
+  - Admin UI responsive/static wiring contract, separate key/model statuses, token warning, and status/start controls.
+- `tests/model-runtime.test.ts`
+  - Ollama loaded/idle/cloud behavior, empty preload request, Apfel health, Codex on-demand status, loopback controls, validation, and deduplication.
 
 ## Test Harness
 

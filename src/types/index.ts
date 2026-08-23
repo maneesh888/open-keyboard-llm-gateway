@@ -50,6 +50,7 @@ export interface AppConfig {
   port: number;
   ollamaHost: string;
   apfelHost?: string;
+  allowLocalServiceStart?: boolean;
   codex?: CodexConfig;
   logLevel: string;
   corsOrigins: string[];

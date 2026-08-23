@@ -16,10 +16,12 @@ import { CodexProvider } from './providers/codex.js';
 import type { CodexRunner } from './providers/codexCliRunner.js';
 import { ProviderRegistry } from './providers/types.js';
 import { errorResponse } from './lib/errors.js';
+import { ModelRuntimeManager, type LocalServiceLauncher } from './models/runtime.js';
 
 export type AppDependencies = {
   codexApiKey?: string;
   codexRunner?: CodexRunner;
+  localServiceLauncher?: LocalServiceLauncher;
 };
 
 export function createApp(
@@ -42,6 +44,13 @@ export function createApp(
     './config/known-models.json',
     providers,
   );
+  const modelRuntime = new ModelRuntimeManager({
+    ollamaHost: config.ollamaHost,
+    apfelHost: config.apfelHost,
+    providers,
+    allowLocalServiceStart: config.allowLocalServiceStart,
+    launcher: dependencies.localServiceLauncher,
+  });
 
   keyManager.watchForChanges();
 
@@ -64,7 +73,7 @@ export function createApp(
 
   // Admin routes (if config provided)
   if (adminConfig) {
-    const adminApp = createAdminApp(adminConfig, keyManager, proxy, config);
+    const adminApp = createAdminApp(adminConfig, keyManager, proxy, config, modelRuntime);
     app.route('/admin', adminApp);
     console.log('[gateway] Admin API enabled at /admin');
   }

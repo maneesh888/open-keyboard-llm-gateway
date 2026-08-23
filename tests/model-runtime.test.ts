@@ -1,0 +1,188 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { localServiceLaunchSpec, ModelControlError, ModelRuntimeManager } from '../src/models/runtime.js';
+import { ProviderRegistry, type GatewayProvider } from '../src/providers/types.js';
+
+const noProviders = new ProviderRegistry();
+
+function manager(overrides: Partial<ConstructorParameters<typeof ModelRuntimeManager>[0]> = {}) {
+  return new ModelRuntimeManager({
+    ollamaHost: 'http://ollama.test',
+    apfelHost: 'http://apfel.test',
+    providers: noProviders,
+    ...overrides,
+  });
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+});
+
+describe('bounded model runtime checks', () => {
+  it('reports a loaded Ollama model without running inference', async () => {
+    const fetchSpy = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/api/tags')) return Response.json({ models: [{ name: 'local-model' }] });
+      if (url.endsWith('/api/ps')) return Response.json({ models: [{ model: 'local-model' }] });
+      throw new Error('unexpected request');
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const status = await manager().checkModel('local-model');
+
+    expect(status).toMatchObject({
+      provider: 'ollama',
+      state: 'running',
+      service: 'reachable',
+      runtime: 'loaded',
+      checkScope: 'non_inference',
+      inferenceVerified: false,
+      start: { supported: false },
+    });
+    expect(fetchSpy.mock.calls.map(([input]) => String(input))).toEqual([
+      'http://ollama.test/api/tags',
+      'http://ollama.test/api/ps',
+    ]);
+  });
+
+  it('loads an idle local Ollama model with an empty bounded request', async () => {
+    let loaded = false;
+    const fetchSpy = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/api/tags')) return Response.json({ models: [{ name: 'local-model' }] });
+      if (url.endsWith('/api/ps')) return Response.json({ models: loaded ? [{ model: 'local-model' }] : [] });
+      if (url.endsWith('/api/generate')) {
+        expect(init?.method).toBe('POST');
+        expect(JSON.parse(String(init?.body))).toEqual({
+          model: 'local-model',
+          stream: false,
+          keep_alive: '5m',
+        });
+        expect(JSON.parse(String(init?.body))).not.toHaveProperty('prompt');
+        loaded = true;
+        return Response.json({ done: true });
+      }
+      throw new Error('unexpected request');
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const before = await manager().checkModel('local-model');
+    expect(before).toMatchObject({ state: 'available', runtime: 'idle', start: { action: 'load_model' } });
+
+    const after = await manager().startModel('local-model');
+    expect(after).toMatchObject({ state: 'running', runtime: 'loaded', inferenceVerified: false });
+  });
+
+  it('treats Ollama cloud models as on-demand and never offers preload', async () => {
+    const fetchSpy = vi.fn(async () => Response.json({ models: [{ name: 'gpt-oss:120b-cloud' }] }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const status = await manager().checkModel('gpt-oss:120b-cloud');
+
+    expect(status).toMatchObject({
+      state: 'available',
+      runtime: 'on_demand',
+      start: { supported: false },
+      inferenceVerified: false,
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    await expect(manager().startModel('gpt-oss:120b-cloud')).rejects.toMatchObject({
+      code: 'start_not_supported',
+    });
+  });
+
+  it('uses Apfel health model availability without a chat request', async () => {
+    const fetchSpy = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('http://apfel.test/health');
+      return Response.json({ status: 'ok', model_available: false });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const status = await manager().checkModel('apple-foundationmodel');
+
+    expect(status).toMatchObject({
+      provider: 'apfel',
+      state: 'unavailable',
+      service: 'reachable',
+      runtime: 'on_demand',
+      start: { supported: false },
+      inferenceVerified: false,
+    });
+  });
+
+  it('offers service start only for explicitly enabled loopback targets', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+
+    const local = await manager({
+      ollamaHost: 'http://127.0.0.1:11434',
+      allowLocalServiceStart: true,
+    }).checkModel('local-model');
+    const remote = await manager({
+      ollamaHost: 'http://model-host.example:11434',
+      allowLocalServiceStart: true,
+    }).checkModel('local-model');
+
+    expect(local.start).toEqual({ supported: true, action: 'start_service', label: 'Start Ollama' });
+    expect(remote.start).toEqual({ supported: false });
+  });
+
+  it('uses fixed no-shell launch specs without passing gateway credentials', () => {
+    vi.stubEnv('CODEX_API_KEY', 'must-not-be-inherited');
+    vi.stubEnv('APFEL_TOKEN', 'must-not-be-inherited');
+
+    const ollama = localServiceLaunchSpec('ollama', new URL('http://127.0.0.1:11435'));
+    const apfel = localServiceLaunchSpec('apfel', new URL('http://localhost:11436'));
+
+    expect(ollama).toMatchObject({
+      command: 'ollama',
+      args: ['serve'],
+      env: { OLLAMA_HOST: '127.0.0.1:11435' },
+    });
+    expect(apfel).toMatchObject({
+      command: 'apfel',
+      args: ['--serve', '--host', 'localhost', '--port', '11436'],
+    });
+    expect(JSON.stringify(ollama.env)).not.toContain('must-not-be-inherited');
+    expect(JSON.stringify(apfel.env)).not.toContain('must-not-be-inherited');
+  });
+
+  it('reports registered on-demand providers without inference or a daemon action', async () => {
+    const provider = {
+      id: 'codex',
+      publicModel: 'codex',
+      ownedBy: 'codex',
+      requiresExplicitGrant: true,
+      status: () => 'configured/ready' as const,
+      handlesModel: (model: string) => model === 'codex',
+      execute: vi.fn(),
+    } satisfies GatewayProvider;
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const status = await manager({ providers: new ProviderRegistry([provider]) }).checkModel('codex');
+
+    expect(status).toMatchObject({
+      provider: 'codex',
+      state: 'available',
+      service: 'not_applicable',
+      runtime: 'on_demand',
+      start: { supported: false },
+      inferenceVerified: false,
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    await expect(manager({ providers: new ProviderRegistry([provider]) }).startModel('codex'))
+      .rejects.toBeInstanceOf(ModelControlError);
+  });
+
+  it('validates and deduplicates model identifiers before checking', async () => {
+    const fetchSpy = vi.fn(async () => Response.json({
+      models: [{ name: 'local-model' }, { name: 'second-model' }],
+    }));
+    vi.stubGlobal('fetch', fetchSpy);
+    const statuses = await manager().checkModels(['local-model', 'local-model', 'second-model']);
+    expect(statuses).toHaveLength(2);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    await expect(manager().checkModel('../bad model')).rejects.toMatchObject({ code: 'invalid_model' });
+  });
+});

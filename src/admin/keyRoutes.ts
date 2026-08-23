@@ -6,6 +6,7 @@ import { OllamaProxy, UpstreamResponseError } from '../proxy/ollama.js';
 import { KeyManager } from '../keys/manager.js';
 import { AdminAuth } from './auth.js';
 import { errorResponse } from '../lib/errors.js';
+import { ModelControlError, type ModelRuntimeManager } from '../models/runtime.js';
 
 type AdminVariables = { admin: AuthToken };
 type KeyCreateInput = Pick<ApiKey, 'name'> & Partial<Pick<ApiKey, 'owner' | 'description' | 'enabled' | 'rateLimitConfig' | 'features' | 'modelConfig' | 'allowedModels' | 'compatibilityProfile'>>;
@@ -183,7 +184,12 @@ function validationResponse(c: Context, error: unknown): Response | null {
   return null;
 }
 
-export function createAdminRoutes(keyManager: KeyManager, adminAuth: AdminAuth, proxy?: OllamaProxy) {
+export function createAdminRoutes(
+  keyManager: KeyManager,
+  adminAuth: AdminAuth,
+  proxy?: OllamaProxy,
+  modelRuntime?: ModelRuntimeManager,
+) {
   const app = new Hono<{ Variables: AdminVariables }>();
 
   // Middleware: Verify admin token
@@ -222,6 +228,49 @@ export function createAdminRoutes(keyManager: KeyManager, adminAuth: AdminAuth, 
       return errorResponse(c, 502, 'upstream_unreachable', 'Failed to load models', {
         models: [],
       });
+    }
+  });
+
+  // POST /admin/models/status - Bounded, non-inference availability checks.
+  app.post('/models/status', async (c) => {
+    try {
+      if (!modelRuntime) return errorResponse(c, 503, 'model_status_unavailable', 'Model status checks are unavailable');
+      const body = await c.req.json() as unknown;
+      if (!isObject(body) || !Array.isArray(body.models) || body.models.length === 0 || body.models.length > 100) {
+        throw new ValidationError('models must be a non-empty array containing at most 100 model identifiers');
+      }
+      const statuses = await modelRuntime.checkModels(body.models);
+      return c.json({ statuses, inferencePerformed: false });
+    } catch (error) {
+      if (error instanceof ModelControlError || error instanceof ValidationError) {
+        return errorResponse(c, 400, 'validation_error', error.message);
+      }
+      return errorResponse(c, 502, 'model_status_failed', 'Model status check failed');
+    }
+  });
+
+  // POST /admin/models/start - Safe provider-owned activation only; never accepts commands.
+  app.post('/models/start', async (c) => {
+    try {
+      if (!modelRuntime) return errorResponse(c, 503, 'model_control_unavailable', 'Model start controls are unavailable');
+      const body = await c.req.json() as unknown;
+      if (!isObject(body) || Object.keys(body).some((field) => field !== 'model')) {
+        throw new ValidationError('Request body must contain only model');
+      }
+      const status = await modelRuntime.startModel(body.model);
+      return c.json({ status, inferencePerformed: false });
+    } catch (error) {
+      if (error instanceof ValidationError || (error instanceof ModelControlError && error.code === 'invalid_model')) {
+        return errorResponse(c, 400, 'validation_error', error.message);
+      }
+      if (error instanceof ModelControlError && error.code === 'start_not_supported') {
+        return errorResponse(c, 409, error.code, error.message);
+      }
+      if (error instanceof ModelControlError) {
+        const code = error.code === 'model_not_available' ? 'model_not_available' : 'start_failed';
+        return errorResponse(c, 503, code, error.message);
+      }
+      return errorResponse(c, 503, 'start_failed', 'The bounded model start action failed');
     }
   });
 

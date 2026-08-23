@@ -38,5 +38,8 @@ if (config.apfelHost) {
 if (config.codex?.enabled) {
   console.log('[gateway] Codex provider enabled for explicitly granted keys');
 }
+if (config.allowLocalServiceStart) {
+  console.log('[gateway] Local model service start controls enabled for loopback targets only');
+}
 
 serve({ fetch: app.fetch, port: config.port });
