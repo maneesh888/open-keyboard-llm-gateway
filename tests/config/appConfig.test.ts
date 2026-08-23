@@ -16,12 +16,14 @@ describe('app config loading', () => {
       PORT: '9090',
       OLLAMA_HOST: 'http://localhost:11434/',
       APFEL_HOST: 'http://localhost:11435/',
+      ALLOW_LOCAL_SERVICE_START: 'true',
     });
 
     expect(config).toEqual({
       port: 9090,
       ollamaHost: 'http://localhost:11434',
       apfelHost: 'http://localhost:11435',
+      allowLocalServiceStart: true,
       codex: {
         enabled: false,
         publicModel: 'codex',
@@ -52,6 +54,7 @@ describe('app config loading', () => {
       port: 8080,
       ollamaHost: 'http://localhost:11434',
       apfelHost: 'https://apfel.example',
+      allowLocalServiceStart: false,
       codex: {
         enabled: false,
         publicModel: 'codex',
@@ -95,6 +98,14 @@ describe('app config loading', () => {
       logLevel: 'info',
       corsOrigins: ['*'],
     })).toThrow(/ollamaHost/);
+
+    expect(() => validateConfig({
+      port: 8080,
+      ollamaHost: 'http://localhost:11434',
+      allowLocalServiceStart: 'yes',
+      logLevel: 'info',
+      corsOrigins: ['*'],
+    })).toThrow(/allowLocalServiceStart/);
   });
 
   it('keeps default config valid', () => {

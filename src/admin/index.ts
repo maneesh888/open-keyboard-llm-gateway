@@ -5,8 +5,15 @@ import type { AdminConfig, AppConfig } from '../types/index.js';
 import { OllamaProxy } from '../proxy/ollama.js';
 import type { KeyManager } from '../keys/manager.js';
 import { errorResponse } from '../lib/errors.js';
+import type { ModelRuntimeManager } from '../models/runtime.js';
 
-export function createAdminApp(adminConfig: AdminConfig, keyManager: KeyManager, proxy?: OllamaProxy, appConfig?: AppConfig) {
+export function createAdminApp(
+  adminConfig: AdminConfig,
+  keyManager: KeyManager,
+  proxy?: OllamaProxy,
+  appConfig?: AppConfig,
+  modelRuntime?: ModelRuntimeManager,
+) {
   const app = new Hono();
   const adminAuth = new AdminAuth(adminConfig);
   const loginAttempts = new Map<string, { count: number; resetAt: number }>();
@@ -82,7 +89,7 @@ export function createAdminApp(adminConfig: AdminConfig, keyManager: KeyManager,
   });
 
   // Mount key management routes
-  app.route('/', createAdminRoutes(keyManager, adminAuth, proxy));
+  app.route('/', createAdminRoutes(keyManager, adminAuth, proxy, modelRuntime));
 
   return app;
 }

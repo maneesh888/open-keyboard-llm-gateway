@@ -225,6 +225,21 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('Custom / manual…');
   });
 
+  it('separates key enablement from bounded model runtime status and start controls', () => {
+    expect(html).toContain('<th>Model status</th>');
+    expect(html).toContain('<th>Key status</th>');
+    expect(html).toContain('Client credential only');
+    expect(html).toContain("api('/admin/models/status'");
+    expect(html).toContain("api('/admin/models/start'");
+    expect(html).toContain('function checkConfiguredModels(onlyModel)');
+    expect(html).toContain('function startConfiguredModel(model)');
+    expect(html).toContain('renderTesterKeys();await checkConfiguredModels()');
+    expect(html).toContain('onclick="event.stopPropagation();checkConfiguredModel(this.dataset.model)"');
+    expect(html).toContain('no model tokens used');
+    expect(html).toContain('Only Live test proves inference and may consume tokens.');
+    expect(html).toContain('data-label="Model status"');
+  });
+
   it('places effort below model and keeps temperature last in model settings', () => {
     const modelIndex = html.indexOf('id="keyModel"');
     const effortIndex = html.indexOf('id="keyEffort"');

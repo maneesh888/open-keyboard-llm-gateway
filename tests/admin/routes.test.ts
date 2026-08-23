@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -7,8 +7,9 @@ import { KeyManager } from '../../src/keys/manager.js';
 import { AdminAuth } from '../../src/admin/auth.js';
 import { createAdminRoutes } from '../../src/admin/keyRoutes.js';
 import type { AdminConfig } from '../../src/types/index.js';
+import type { ModelRuntimeManager, ModelRuntimeStatus } from '../../src/models/runtime.js';
 
-function buildAdminApp() {
+function buildAdminApp(modelRuntime?: ModelRuntimeManager) {
   const dir = join(tmpdir(), 'llm-gateway-admin-routes-' + Date.now() + '-' + Math.random().toString(16).slice(2));
   mkdirSync(dir, { recursive: true });
   const keysPath = join(dir, 'keys.json');
@@ -44,7 +45,7 @@ function buildAdminApp() {
   const keyManager = new KeyManager(keysPath);
   const adminAuth = new AdminAuth(adminConfig);
   const app = new Hono();
-  app.route('/admin', createAdminRoutes(keyManager, adminAuth));
+  app.route('/admin', createAdminRoutes(keyManager, adminAuth, undefined, modelRuntime));
   const token = adminAuth.generateToken('admin');
 
   return { app, token };
@@ -289,5 +290,96 @@ describe('Admin key routes', () => {
       headers: authHeaders(),
     });
     expect(del.status).toBe(404);
+  });
+
+  it('checks model status without inference through the authenticated admin route', async () => {
+    const status = {
+      model: 'local-model',
+      provider: 'ollama',
+      state: 'available',
+      service: 'reachable',
+      runtime: 'idle',
+      checkedAt: '2026-08-24T00:00:00.000Z',
+      checkScope: 'non_inference',
+      inferenceVerified: false,
+      message: 'Available but idle.',
+      start: { supported: true, action: 'load_model', label: 'Load model' },
+    } satisfies ModelRuntimeStatus;
+    const runtime = {
+      checkModels: vi.fn().mockResolvedValue([status]),
+      startModel: vi.fn(),
+    } as unknown as ModelRuntimeManager;
+    ({ app, token } = buildAdminApp(runtime));
+
+    const res = await app.request('/admin/models/status', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({ models: ['local-model'] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ statuses: [status], inferencePerformed: false });
+    expect(runtime.checkModels).toHaveBeenCalledWith(['local-model']);
+    expect(runtime.startModel).not.toHaveBeenCalled();
+  });
+
+  it('runs only the bounded provider start action selected by model', async () => {
+    const status = {
+      model: 'local-model',
+      provider: 'ollama',
+      state: 'running',
+      service: 'reachable',
+      runtime: 'loaded',
+      checkedAt: '2026-08-24T00:00:00.000Z',
+      checkScope: 'non_inference',
+      inferenceVerified: false,
+      message: 'Loaded.',
+      start: { supported: false },
+    } satisfies ModelRuntimeStatus;
+    const runtime = {
+      checkModels: vi.fn(),
+      startModel: vi.fn().mockResolvedValue(status),
+    } as unknown as ModelRuntimeManager;
+    ({ app, token } = buildAdminApp(runtime));
+
+    const res = await app.request('/admin/models/start', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'local-model' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status, inferencePerformed: false });
+    expect(runtime.startModel).toHaveBeenCalledWith('local-model');
+  });
+
+  it('rejects malformed, unauthenticated, and command-shaped model control requests', async () => {
+    const runtime = {
+      checkModels: vi.fn(),
+      startModel: vi.fn(),
+    } as unknown as ModelRuntimeManager;
+    ({ app, token } = buildAdminApp(runtime));
+
+    const unauthenticated = await app.request('/admin/models/status', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ models: ['local-model'] }),
+    });
+    expect(unauthenticated.status).toBe(401);
+
+    const malformed = await app.request('/admin/models/status', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({ models: [] }),
+    });
+    expect(malformed.status).toBe(400);
+
+    const commandShaped = await app.request('/admin/models/start', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'local-model', command: 'anything' }),
+    });
+    expect(commandShaped.status).toBe(400);
+    expect(runtime.startModel).not.toHaveBeenCalled();
   });
 });

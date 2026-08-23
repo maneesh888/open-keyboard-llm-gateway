@@ -254,10 +254,29 @@ The UI supports:
 - client credential management with reveal/copy controls
 - per-key model, token, effort, temperature, and rate-limit settings
 - enable/disable and delete actions
+- separate key enablement and model runtime status; an enabled key does not claim that its model works
+- automatic and manual bounded model checks that do not run inference or consume model tokens
+- capability-based start controls for idle local Ollama models and explicitly enabled loopback Ollama/Apfel services
 - responsive mobile navigation for API Keys and Playground
 - live playground tests using the selected key and model
 - a generic connection-smoke preset with editable system and user messages
 - diagnostics for status, latency, selected key, request shape, and failure classification
+
+Model checks use provider metadata only: Ollama catalog/loaded-model APIs, Apfel `/health`, or the configured Codex runtime state. An `available` or `running` badge therefore does not prove credentials, entitlement, billing, network egress, response quality, or live inference. Use **Live test** when that stronger proof is needed; the live test can consume provider tokens or incur cost.
+
+`POST /admin/models/status` accepts `{ "models": ["model-id"] }` and returns status records with `inferencePerformed: false`. `POST /admin/models/start` accepts only `{ "model": "model-id" }`. It never accepts a command, executable, arguments, environment, or host from the request.
+
+Local Ollama model loading uses the documented empty `/api/generate` preload request with a 30-second timeout and five-minute keep-alive; no prompt is sent. Ollama cloud model names ending in `:cloud` or `-cloud`, Codex, and other on-demand providers are never preloaded. Starting a stopped service is disabled by default. To enable it for a gateway process running directly on the same host, configure:
+
+```json
+{
+  "ollamaHost": "http://127.0.0.1:11434",
+  "apfelHost": "http://127.0.0.1:11435",
+  "allowLocalServiceStart": true
+}
+```
+
+The gateway still refuses to start HTTPS, remote, or path-based targets. It launches only the fixed `ollama serve` or `apfel --serve` command without a shell, does not pass gateway secrets to the child process, coalesces duplicate starts for the same model, and stops waiting after a bounded startup window. Docker deployments normally point at `host.docker.internal`; start those host services outside the container.
 
 ### 3. Admin API Endpoints
 
