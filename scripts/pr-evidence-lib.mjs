@@ -135,7 +135,10 @@ export function validateRequiredTechnicalCheck(checkRuns, headSha) {
     const rightTime = Date.parse(right.completed_at ?? right.started_at ?? right.created_at ?? 0) || 0;
     return rightTime - leftTime || Number(right.id ?? 0) - Number(left.id ?? 0);
   })[0];
-  if (newest.head_sha && newest.head_sha !== headSha) {
+  if (!SHA_PATTERN.test(newest.head_sha ?? "")) {
+    fail(`The '${REQUIRED_TECHNICAL_CONTEXT}' check run lacks an inspectable exact-head binding.`);
+  }
+  if (newest.head_sha !== headSha) {
     fail(`The '${REQUIRED_TECHNICAL_CONTEXT}' check run targets a different head.`);
   }
   if (newest.status !== "completed" || newest.conclusion !== "success") {
@@ -303,6 +306,13 @@ export function validateReviewRecord({ prEvidence, headSha, prUrl, reviews, even
   assertExactHead(headSha);
   if (!Array.isArray(reviews)) fail("Fetched GitHub reviews must be a JSON array.");
   const effectiveReviews = overlayEventReview(reviews, eventReview);
+  const currentHeadRequestedChanges = effectiveReviews.filter(
+    (review) =>
+      review?.commit_id === headSha && String(review.state ?? "").toUpperCase() === "CHANGES_REQUESTED",
+  );
+  if (currentHeadRequestedChanges.length !== 0) {
+    fail("A current-head CHANGES_REQUESTED review is a non-overridable blocker.");
+  }
   const reports = effectiveReviews.filter(isProjectReviewerReport);
   for (const report of reports) {
     const claimsCurrentHead =

@@ -115,7 +115,27 @@ rejects(
 for (const state of ["APPROVED", "CHANGES_REQUESTED"]) {
   const reviews = clone(reviewsFixture);
   reviews[0].state = state;
-  rejects(`${state} project-reviewer reports fail closed`, () => validate(bodyFixture, reviews), /must be COMMENTED/u);
+  rejects(
+    `${state} project-reviewer reports fail closed`,
+    () => validate(bodyFixture, reviews),
+    state === "APPROVED" ? /must be COMMENTED/u : /non-overridable blocker/u,
+  );
+}
+{
+  const reviews = clone(reviewsFixture);
+  reviews.push({
+    id: 1002,
+    commit_id: headSha,
+    state: "CHANGES_REQUESTED",
+    submitted_at: "2026-08-23T12:05:00Z",
+    html_url: `${prUrl}#pullrequestreview-1002`,
+    body: "Blocking review from another reviewer.",
+  });
+  rejects(
+    "an unrelated current-head requested-changes review blocks every authorization route",
+    () => validate(bodyFixture, reviews),
+    /non-overridable blocker/u,
+  );
 }
 {
   const reviews = clone(reviewsFixture);
@@ -183,6 +203,15 @@ rejects(
   const failedChecks = clone(checkRuns);
   failedChecks.check_runs[0].conclusion = "failure";
   rejects("failed mandatory technical checks fail both routes", () => parse(humanBody(), failedChecks), /not successful/u);
+}
+{
+  const headlessChecks = clone(checkRuns);
+  delete headlessChecks.check_runs[0].head_sha;
+  rejects(
+    "mandatory technical checks without an inspectable head binding fail closed",
+    () => parse(bodyFixture, headlessChecks),
+    /lacks an inspectable exact-head binding/u,
+  );
 }
 
 console.log("PR evidence adversarial policy tests passed.");
