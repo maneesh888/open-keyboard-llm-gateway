@@ -111,8 +111,8 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('Connection smoke');
     expect(html).toContain('SemanticPromptContractBrowser');
     expect(html).toContain("...(semanticContract?.gatewayPromptPresets||[])");
-    expect(semanticAdapter).toContain('Structured grammar · Multi-error');
-    expect(semanticAdapter).toContain('Structured grammar · Clean/no issue');
+    expect(semanticAdapter).toContain('Plain-text grammar · Multi-error');
+    expect(semanticAdapter).toContain('Plain-text grammar · Clean/no issue');
     expect(semanticAdapter).toContain('Structured operation · Summarize');
     expect(semanticAdapter).toContain('Structured operation · Rewrite');
     expect(html).not.toContain('OpenKeyboardCore · Fix Grammar');
@@ -185,7 +185,7 @@ describe('Admin UI static contract', () => {
     expect(html).not.toContain('testerRequestJson');
     expect(html).not.toContain('testerExpectedSchema');
     expect(semanticAdapter).toContain('Generated from contracts/*.json');
-    expect(semanticAdapter).toContain('"contractVersion":"2.0.1"');
+    expect(semanticAdapter).toContain('"contractVersion":"3.0.0"');
     expect(semanticAdapter).toContain('"operation":"fix_grammar"');
     expect(semanticAdapter).toContain('"input_text"');
     expect(semanticAdapter).toContain('"response_format":{"type":"json_object"}');
