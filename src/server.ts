@@ -102,6 +102,17 @@ export function createApp(
     }
   });
 
+  app.get('/ui/playground.js', (c) => {
+    try {
+      const source = readFileSync(join(process.cwd(), 'public', 'admin', 'playground.js'), 'utf-8');
+      c.header('Content-Type', 'text/javascript; charset=UTF-8');
+      c.header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+      return c.body(source);
+    } catch (error) {
+      return c.text('Admin Playground logic not found', 404);
+    }
+  });
+
   if (adminConfig) {
     console.log('[gateway] Admin UI available at http://localhost:' + config.port + '/ui');
   }

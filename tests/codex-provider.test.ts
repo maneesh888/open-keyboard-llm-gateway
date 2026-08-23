@@ -12,6 +12,7 @@ import {
   CodexRunnerError,
   codexArguments,
   codexEnvironment,
+  codexLoginArguments,
   type CodexRunInput,
   type CodexRunner,
 } from '../src/providers/codexCliRunner.js';
@@ -135,9 +136,9 @@ describe('Codex provider configuration and discovery', () => {
     expect(args).not.toContain('tools.view_image=false');
     expect(args.at(-1)).toBe('-');
 
-    const env = codexEnvironment('protected-value', '/isolated/codex-home');
+    expect(codexLoginArguments()).toEqual(['login', '--with-api-key']);
+    const env = codexEnvironment('/isolated/codex-home');
     expect(Object.keys(env).sort()).toEqual([
-      'CODEX_API_KEY',
       'CODEX_HOME',
       'CODEX_SQLITE_HOME',
       'HOME',
@@ -145,7 +146,8 @@ describe('Codex provider configuration and discovery', () => {
       'NO_COLOR',
       'PATH',
     ]);
-    expect(env.CODEX_API_KEY).toBe('protected-value');
+    expect(JSON.stringify(env)).not.toContain('protected-value');
+    expect(env).not.toHaveProperty('CODEX_API_KEY');
     expect(JSON.stringify(args)).not.toContain('protected-value');
   });
 
@@ -184,6 +186,8 @@ describe('Codex provider configuration and discovery', () => {
 
     const ready = appWith(runner);
     expect((await (await ready.request('/health')).json()).codex).toBe('configured/ready');
+    runner.available = false;
+    expect((await (await ready.request('/health')).json()).codex).toBe('unavailable');
     expect(runner.calls).toHaveLength(0);
   });
 

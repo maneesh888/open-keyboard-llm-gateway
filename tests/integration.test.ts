@@ -64,6 +64,13 @@ describe('Integration', () => {
     expect(await res.text()).toContain('SemanticPromptContractBrowser');
   });
 
+  it('serves the Admin Playground selection logic without auth', async () => {
+    const res = await app.request('/ui/playground.js');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/javascript');
+    expect(await res.text()).toContain('AdminPlaygroundLogic');
+  });
+
   it('rejects unauthenticated /v1/ requests with 401', async () => {
     const res = await app.request('/v1/models');
     expect(res.status).toBe(401);
