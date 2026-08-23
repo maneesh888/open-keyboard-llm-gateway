@@ -1,0 +1,4 @@
+Review-evidence validators must be loaded from the pull request's trusted base commit.
+
+The only exception is the bootstrap pull request whose base does not contain this marker.
+Candidate-branch validator execution on that pull request is test evidence, not remote merge authorization.

@@ -33,6 +33,7 @@ Use the highest mode required by the requested outcome or affected surface.
 5. Never print or commit keys, JWT secrets, password hashes, Authorization headers, local config, private prompts, or raw gateway responses.
 6. Update affected docs when public behavior or verification changes.
 7. Never copy canonical prompt wording into gateway code. The admin tester may consume package fixtures, while the production proxy must preserve client messages exactly.
+8. Maintain the PR requirement ledger with one stable sequential row per in-scope requirement. Missing, stale, substituted, fallback, wrong-target, uninspectable, or weaker evidence remains `UNVERIFIED`.
 
 ## Lifecycle autonomy
 
@@ -46,7 +47,11 @@ Planning/review-only requests remain read-only. Stop for unavailable credentials
 - Run `./scripts/check.sh --hygiene` for Fast, `--quick` for Standard, and `--full` for Release.
 - Run `./scripts/check-semantic-prompt-contract.sh` when the contract gitlink, semantic fixtures, generated browser adapter, or adapter-serving route changes.
 - Install and never bypass the committed hooks.
-- Start PRs as drafts and complete `.github/pull_request_template.md` with the full exact head SHA.
+- Start PRs as drafts and complete `.github/pull_request_template.md` with the full exact head SHA, exact-copy acceptance/proof rows, and current authorization fields.
 - Use `$review-verify-merge-pr` for independent review, readiness, and guarded merge.
+
+Keep the PR draft unless the independent same-head reviewer verifies every row, reports no blocker or material uncertainty, reports operational confidence exactly `100%`, and recommends `automatic`. Below 100%, only explicit repository-owner authorization naming the current full SHA can select the human route; preserve every `UNVERIFIED` row and proof gap. Never infer or manufacture that authorization. Human authorization cannot override security, authentication, authorization, credential exposure, data loss, API/proxy compatibility, mandatory gates, conflicts, requested changes, unresolved threads, secret controls, or branch protection.
+
+After the root posts the report as a durable GitHub `COMMENTED` review and links it, use the exact labeled non-approval COMMENTED revalidation trigger described by `$review-verify-merge-pr`. Require fixed context `Required review evidence` and `gh pr checks <number> --required` before readiness and again before merge. Any new commit invalidates local proof, CI conclusions, the independent report, reviewer confidence, and human authorization.
 
 Report changed surfaces, checks/results, branch/head, PR/merge state, and proof limits.

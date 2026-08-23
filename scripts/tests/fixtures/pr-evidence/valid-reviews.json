@@ -1,0 +1,10 @@
+[
+  {
+    "id": 1001,
+    "commit_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "state": "COMMENTED",
+    "submitted_at": "2026-08-23T12:00:00Z",
+    "html_url": "https://github.com/maneesh888/open-keyboard-llm-gateway/pull/123#pullrequestreview-1001",
+    "body": "## Independent exact-head review\n\n- Reviewer: project pr-reviewer (read-only, no inherited conversation)\n- Exact reviewed head: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n- Review requirement coverage: 2/2\n- Review unverified requirements: none\n- Blocking findings: none\n- Non-overridable blockers: none\n- Mandatory exact-head gates: complete\n- Reviewer confidence: 100%\n- Merge recommendation: automatic\n- Conclusion: requirements-complete\n\n| ID | Observable acceptance criterion | Required proof type | Evidence inspected | Status | Independent assessment |\n| --- | --- | --- | --- | --- | --- |\n| R1 | Invalid or stale evidence remains UNVERIFIED | Adversarial validator tests | Policy test output and validator source | VERIFIED | Named adversarial cases pass closed |\n| R2 | The full release gate and Required checks pass on the exact head | Exact-head local and GitHub gate results | Local full gate and GitHub Required checks | VERIFIED | Both mandatory gates passed on this SHA |"
+  }
+]
