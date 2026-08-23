@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createApp } from '../src/server.js';
@@ -10,8 +10,10 @@ import {
 } from '../src/providers/codex.js';
 import {
   CodexRunnerError,
+  CodexCliRunner,
   codexArguments,
   codexEnvironment,
+  codexLoginArguments,
   type CodexRunInput,
   type CodexRunner,
 } from '../src/providers/codexCliRunner.js';
@@ -79,6 +81,20 @@ function keysPath(): string {
   return path;
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
+}
+
+function fakeCodexExecutable(scriptBody: string): { directory: string; executable: string; trace: string } {
+  const directory = join(tmpdir(), `llm-gateway-codex-cli-test-${Date.now()}-${Math.random()}`);
+  mkdirSync(directory, { recursive: true });
+  const executable = join(directory, 'fake-codex');
+  const trace = join(directory, 'trace');
+  writeFileSync(executable, `#!/bin/sh\nset -eu\ntrace=${shellQuote(trace)}\n${scriptBody}\n`);
+  chmodSync(executable, 0o700);
+  return { directory, executable, trace };
+}
+
 function appWith(runner: CodexRunner, config = codexConfig(), apiKey: string | undefined = 'protected-test-value') {
   return createApp(
     {
@@ -135,9 +151,9 @@ describe('Codex provider configuration and discovery', () => {
     expect(args).not.toContain('tools.view_image=false');
     expect(args.at(-1)).toBe('-');
 
-    const env = codexEnvironment('protected-value', '/isolated/codex-home');
+    expect(codexLoginArguments()).toEqual(['login', '--with-api-key']);
+    const env = codexEnvironment('/isolated/codex-home');
     expect(Object.keys(env).sort()).toEqual([
-      'CODEX_API_KEY',
       'CODEX_HOME',
       'CODEX_SQLITE_HOME',
       'HOME',
@@ -145,7 +161,8 @@ describe('Codex provider configuration and discovery', () => {
       'NO_COLOR',
       'PATH',
     ]);
-    expect(env.CODEX_API_KEY).toBe('protected-value');
+    expect(JSON.stringify(env)).not.toContain('protected-value');
+    expect(env).not.toHaveProperty('CODEX_API_KEY');
     expect(JSON.stringify(args)).not.toContain('protected-value');
   });
 
@@ -176,6 +193,21 @@ describe('Codex provider configuration and discovery', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('refuses enabled Codex execution without a protected credential or backend fallback', async () => {
+    const runner = new FakeRunner();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const response = await chat(
+      appWith(runner, codexConfig(), ''),
+      'gateway-explicit',
+      { model: 'codex', messages: [{ role: 'user', content: 'hello' }], stream: false },
+    );
+    expect(response.status).toBe(503);
+    expect((await response.json()).error.code).toBe('provider_unavailable');
+    expect(runner.calls).toHaveLength(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('distinguishes unavailable from configured/ready without a paid call', async () => {
     const runner = new FakeRunner();
     const unavailable = appWith(runner, codexConfig(), '');
@@ -184,6 +216,8 @@ describe('Codex provider configuration and discovery', () => {
 
     const ready = appWith(runner);
     expect((await (await ready.request('/health')).json()).codex).toBe('configured/ready');
+    runner.available = false;
+    expect((await (await ready.request('/health')).json()).codex).toBe('unavailable');
     expect(runner.calls).toHaveLength(0);
   });
 
@@ -209,6 +243,88 @@ describe('Codex provider configuration and discovery', () => {
       expect.objectContaining({ id: 'codex', owned_by: 'codex' }),
       expect.objectContaining({ id: 'local-model', owned_by: 'ollama' }),
     ]));
+  });
+});
+
+describe('Codex CLI runner isolation boundary', () => {
+  it.skipIf(process.platform === 'win32')('authenticates by stdin, reuses only the temporary home, and removes it', async () => {
+    const fixture = fakeCodexExecutable(`
+case "$1" in
+  login)
+    credential="$(cat)"
+    [ "$credential" = "protected-test-value" ]
+    [ "$CODEX_HOME" = "$HOME" ]
+    [ -z "\${CODEX_API_KEY+x}" ]
+    printf 'temporary-auth' > "$CODEX_HOME/auth.json"
+    printf 'login:%s\\n' "$CODEX_HOME" >> "$trace"
+    ;;
+  exec)
+    prompt="$(cat)"
+    [ "$prompt" = "client prompt" ]
+    [ -f "$CODEX_HOME/auth.json" ]
+    [ -z "\${CODEX_API_KEY+x}" ]
+    printf 'exec:%s\\n' "$CODEX_HOME" >> "$trace"
+    printf '%s\\n' '{"type":"item.completed","item":{"type":"agent_message","text":"codex result"}}'
+    printf '%s\\n' '{"type":"turn.completed"}'
+    ;;
+esac`);
+
+    try {
+      const runner = new CodexCliRunner({ executable: fixture.executable });
+      await expect(runner.run({
+        prompt: 'client prompt',
+        model: 'configured-model',
+        apiKey: 'protected-test-value',
+        maxOutputChars: 500,
+        signal: new AbortController().signal,
+      })).resolves.toBe('codex result');
+
+      const trace = readFileSync(fixture.trace, 'utf8').trim().split('\n');
+      expect(trace).toHaveLength(2);
+      expect(trace[0]).toMatch(/^login:/);
+      expect(trace[1]).toMatch(/^exec:/);
+      const homes = trace.map((line) => line.slice(line.indexOf(':') + 1));
+      expect(homes[0]).toBe(homes[1]);
+      expect(existsSync(homes[0])).toBe(false);
+      expect(trace.join('\n')).not.toContain('protected-test-value');
+    } finally {
+      rmSync(fixture.directory, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === 'win32')('bounds discarded CLI stderr and still removes temporary auth state', async () => {
+    const fixture = fakeCodexExecutable(`
+case "$1" in
+  login)
+    cat >/dev/null
+    printf 'temporary-auth' > "$CODEX_HOME/auth.json"
+    ;;
+  exec)
+    cat >/dev/null
+    printf 'exec:%s\\n' "$CODEX_HOME" >> "$trace"
+    i=0
+    while [ "$i" -lt 4000 ]; do
+      printf 'xxxxxxxxxx' >&2
+      i=$((i + 1))
+    done
+    ;;
+esac`);
+
+    try {
+      const runner = new CodexCliRunner({ executable: fixture.executable });
+      await expect(runner.run({
+        prompt: 'client prompt',
+        model: 'configured-model',
+        apiKey: 'protected-test-value',
+        maxOutputChars: 500,
+        signal: new AbortController().signal,
+      })).rejects.toMatchObject({ kind: 'execution_failed' });
+
+      const codexHome = readFileSync(fixture.trace, 'utf8').trim().replace(/^exec:/, '');
+      expect(existsSync(codexHome)).toBe(false);
+    } finally {
+      rmSync(fixture.directory, { recursive: true, force: true });
+    }
   });
 });
 

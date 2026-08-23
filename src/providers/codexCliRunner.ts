@@ -84,7 +84,11 @@ function terminateProcessTree(child: ChildProcessWithoutNullStreams): NodeJS.Tim
 }
 
 export class CodexCliRunner implements CodexRunner {
-  private readonly executable = resolveCodexExecutable();
+  private readonly executable?: string;
+
+  constructor(options: { executable?: string } = {}) {
+    this.executable = options.executable || resolveCodexExecutable();
+  }
 
   isAvailable(): boolean {
     return Boolean(this.executable);
@@ -102,10 +106,64 @@ export class CodexCliRunner implements CodexRunner {
       await mkdir(codexHome, { mode: 0o700 });
       await mkdir(workingDirectory, { mode: 0o700 });
       if (input.signal.aborted) throw new CodexRunnerError('cancelled');
+      await this.authenticate(input, codexHome, workingDirectory);
+      if (input.signal.aborted) throw new CodexRunnerError('cancelled');
       return await this.runIsolated(input, codexHome, workingDirectory);
     } finally {
       await rm(invocationRoot, { recursive: true, force: true }).catch(() => undefined);
     }
+  }
+
+  private authenticate(input: CodexRunInput, codexHome: string, workingDirectory: string): Promise<void> {
+    const child = spawn(this.executable!, codexLoginArguments(), {
+      cwd: workingDirectory,
+      detached: process.platform !== 'win32',
+      env: codexEnvironment(codexHome),
+      shell: false,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    return new Promise<void>((resolve, reject) => {
+      const outputLimit = 32768;
+      let outputBytes = 0;
+      let failure: CodexRunnerError | undefined;
+      let killTimer: NodeJS.Timeout | undefined;
+
+      const fail = (kind: CodexRunnerErrorKind) => {
+        if (failure) return;
+        failure = new CodexRunnerError(kind);
+        killTimer = terminateProcessTree(child);
+      };
+      const countOutput = (chunk: Buffer) => {
+        outputBytes += chunk.length;
+        if (outputBytes > outputLimit) fail('execution_failed');
+      };
+
+      child.stdout.on('data', countOutput);
+      child.stderr.on('data', countOutput);
+      child.once('error', () => fail('unavailable'));
+      child.stdin.once('error', () => fail('execution_failed'));
+
+      const onAbort = () => fail('cancelled');
+      input.signal.addEventListener('abort', onAbort, { once: true });
+      if (input.signal.aborted) onAbort();
+
+      child.once('close', (code, signal) => {
+        input.signal.removeEventListener('abort', onAbort);
+        if (killTimer) clearTimeout(killTimer);
+        if (failure) {
+          reject(failure);
+          return;
+        }
+        if (code !== 0 || signal) {
+          reject(new CodexRunnerError('unavailable'));
+          return;
+        }
+        resolve();
+      });
+
+      child.stdin.end(input.apiKey, 'utf8');
+    });
   }
 
   private runIsolated(input: CodexRunInput, codexHome: string, workingDirectory: string): Promise<string> {
@@ -113,7 +171,7 @@ export class CodexCliRunner implements CodexRunner {
 
     const child = spawn(this.executable!, args, {
       detached: process.platform !== 'win32',
-      env: codexEnvironment(input.apiKey, codexHome),
+      env: codexEnvironment(codexHome),
       shell: false,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
@@ -206,6 +264,10 @@ export class CodexCliRunner implements CodexRunner {
   }
 }
 
+export function codexLoginArguments(): string[] {
+  return ['login', '--with-api-key'];
+}
+
 export function codexArguments(model: string, workingDirectory: string): string[] {
   return [
     'exec',
@@ -267,9 +329,8 @@ export function codexArguments(model: string, workingDirectory: string): string[
   ];
 }
 
-export function codexEnvironment(apiKey: string, codexHome: string): Record<string, string> {
+export function codexEnvironment(codexHome: string): Record<string, string> {
   return {
-    CODEX_API_KEY: apiKey,
     CODEX_HOME: codexHome,
     CODEX_SQLITE_HOME: codexHome,
     HOME: codexHome,

@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 const html = readFileSync(join(process.cwd(), 'public/admin/index.html'), 'utf-8');
+const playgroundLogic = readFileSync(join(process.cwd(), 'public/admin/playground.js'), 'utf-8');
 const semanticAdapter = readFileSync(
   join(process.cwd(), 'Vendor/semantic-prompt-contract/adapters/browser/semanticPromptContract.generated.js'),
   'utf-8',
@@ -53,7 +54,7 @@ describe('Admin UI static contract', () => {
     expect(html).toContain("typeof error==='object'&&typeof error.message==='string'");
     expect(html).toContain('new Error(apiErrorMessage(data,`Request failed (${r.status})`))');
     expect(html).toContain("new Error(apiErrorMessage(data,'Invalid credentials'))");
-    expect(html).toContain('new Error(apiErrorMessage(data,data.detail||raw||`HTTP ${r.status}`))');
+    expect(html).toContain('new Error(apiErrorMessage(data,`HTTP ${r.status}`))');
   });
 
   it('persists admin login until token expiry', () => {
@@ -76,8 +77,14 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('id="testerReadiness"');
     expect(html).toContain('id="testerModel"');
     expect(html).toContain('id="testerModelManual"');
-    expect(html).toContain('Defaults to the selected key model, but can be overridden for one-off diagnostics.');
-    expect(html).toContain('class="tester-summary"');
+    expect(html).toContain('Uses the key default unless overridden.');
+    expect(html).toContain('class="tester-key-state"');
+    expect(html).toContain('<details class="tester-details">');
+    expect(html).toContain('Key &amp; request details');
+    expect(html).not.toContain('<input id="testerKeyStatus"');
+    expect(html).not.toContain('<input id="testerKeyFetchStatus"');
+    expect(html).not.toContain('<input id="testerModelSummary"');
+    expect(html).not.toContain('<input id="testerModelCatalog"');
     expect(html).toContain('function testerSelectedModel()');
     expect(html).toContain('function updateTesterReadiness()');
     expect(html).toContain('function setTesterModel(value)');
@@ -86,12 +93,12 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('Selected model: ${model}');
     expect(html).toContain('Fetch on test');
     expect(html).toContain('fetchPolicy:\'on-test-only\'');
-    expect(html).toContain('Keys are loaded from the admin API; full key material is fetched only for the selected live test.');
-    expect(html).toContain("const preferredModelOrder=['apple-foundationmodel'");
+    expect(html).toContain('Full credential material is fetched only when a test runs.');
+    expect(html).toContain('<script src="/ui/playground.js"></script>');
     expect(html).toContain('function updateModelCatalogStatus()');
-    expect(html).toContain('models available · default');
-    expect(html).toContain('manual fallback available');
-    expect(html).toContain('admin keys loaded. Select one to fetch the full key and run a real chat completion.');
+    expect(html).toContain('models available');
+    expect(html).toContain('0 models available');
+    expect(html).toContain('admin keys loaded. The credential is fetched only when a test runs.');
     expect(html).toContain('id="testerPromptPreset"');
     expect(html).toContain('Test preset');
     expect(html).toContain('id="testerSystemPrompt"');
@@ -140,12 +147,14 @@ describe('Admin UI static contract', () => {
     expect(html).toContain("fetch('/v1/chat/completions'");
     expect(html).toContain("endpoint:'/v1/chat/completions'");
     expect(html).toContain('Selected key is disabled. Enable it before running a live chat test.');
-    expect(html).toContain('function classify(status,data,err)');
-    expect(html).toContain('Request validation failed: check model and messages fields.');
-    expect(html).toContain('Endpoint or model not found: verify /v1/chat/completions and the selected model name.');
-    expect(html).toContain('Upstream unavailable: Ollama/Apfel backend is not reachable.');
-    expect(html).toContain('Network/browser error: check gateway reachability and TLS/CORS from this admin session.');
-    expect(html.indexOf("if(/Failed to fetch|NetworkError|Load failed/i.test(text))")).toBeLessThan(html.indexOf("if(status>=500||/Ollama|reachable/i.test(text))"));
+    expect(html).toContain('selectedModel=testerSelectedModel()');
+    expect(html).not.toContain('testerSelectedModel()||k?.modelConfig?.model');
+    expect(html).not.toContain('data={raw}');
+    expect(html).not.toContain('data.detail||raw');
+    expect(html).toContain('function classify(status,data,err,model)');
+    expect(html).toContain('classifyPlaygroundError(status,data,err,model)');
+    expect(playgroundLogic).toContain("code === 'provider_unavailable'");
+    expect(playgroundLogic.indexOf("code === 'provider_unavailable'")).toBeLessThan(playgroundLogic.indexOf('status === 503'));
     expect(html).toContain('history.replaceState(null');
     expect(html).toContain("history.pushState(null,'',next);applyRoute()");
     expect(html).toContain("window.addEventListener('popstate',applyRoute)");
@@ -209,9 +218,10 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('id="keyModel"');
     expect(html).toContain("onchange=\"syncManualModel('key')\"");
     expect(html).toContain('function syncManualModel(prefix)');
-    expect(html).toContain('function preferredModel()');
+    expect(html).toContain('modelSelectionForKey(availableModels,value)');
     expect(html).toContain('populateModelSelect(keyModel);keyModelManual.classList.add');
     expect(html).not.toContain('populateModelSelect(keyModel,availableModels[0])');
+    expect(html).not.toContain("onclick=\"toggleManualModel('tester')");
     expect(html).toContain('Custom / manual…');
   });
 
@@ -244,6 +254,6 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('const effort=keyEffort.value,modelConfig={model,maxTokens:+keyMaxTokens.value,temperature:+keyTemperature.value}');
     expect(html).toContain('if(effort)modelConfig.effort=effort');
     expect(html).toContain('Effort: ${escapeHtml(effort)}');
-    expect(html).toContain('testerModelSummary.value=k?.modelConfig?.model?`${k.modelConfig.model} · effort ${effort}`');
+    expect(html).toContain('testerModelSummary.textContent=k?.modelConfig?.model?`${k.modelConfig.model} · effort ${effort}`');
   });
 });
