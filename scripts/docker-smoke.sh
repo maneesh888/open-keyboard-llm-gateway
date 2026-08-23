@@ -100,7 +100,7 @@ SEMANTIC_ADAPTER_BODY="$(curl --fail --silent --show-error --max-time 3 "http://
   echo "Gateway semantic prompt adapter route did not return the generated browser contract." >&2
   exit 1
 }
-[[ "$SEMANTIC_ADAPTER_BODY" == *'"contractVersion":"2.0.1"'* ]] || {
+[[ "$SEMANTIC_ADAPTER_BODY" == *'"contractVersion":"3.0.0"'* ]] || {
   echo "Gateway semantic prompt adapter route did not return the pinned contract version." >&2
   exit 1
 }
