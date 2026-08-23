@@ -147,6 +147,8 @@ describe('Admin UI static contract', () => {
     expect(html).toContain("fetch('/v1/chat/completions'");
     expect(html).toContain("endpoint:'/v1/chat/completions'");
     expect(html).toContain('Selected key is disabled. Enable it before running a live chat test.');
+    expect(html).toContain('selectedModel=testerSelectedModel()');
+    expect(html).not.toContain('testerSelectedModel()||k?.modelConfig?.model');
     expect(html).not.toContain('data={raw}');
     expect(html).not.toContain('data.detail||raw');
     expect(html).toContain('function classify(status,data,err,model)');

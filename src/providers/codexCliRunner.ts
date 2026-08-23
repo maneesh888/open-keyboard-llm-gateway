@@ -84,7 +84,11 @@ function terminateProcessTree(child: ChildProcessWithoutNullStreams): NodeJS.Tim
 }
 
 export class CodexCliRunner implements CodexRunner {
-  private readonly executable = resolveCodexExecutable();
+  private readonly executable?: string;
+
+  constructor(options: { executable?: string } = {}) {
+    this.executable = options.executable || resolveCodexExecutable();
+  }
 
   isAvailable(): boolean {
     return Boolean(this.executable);

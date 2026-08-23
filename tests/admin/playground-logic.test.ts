@@ -42,6 +42,7 @@ describe('Admin Playground model selection', () => {
   it('preserves explicit Custom/manual entry without provider substitution', () => {
     expect(logic.resolveSelectedModel(logic.CUSTOM_MODEL_VALUE, ' private-provider:model '))
       .toBe('private-provider:model');
+    expect(logic.resolveSelectedModel(logic.CUSTOM_MODEL_VALUE, '   ')).toBe('');
     expect(logic.resolveSelectedModel('local-a', 'ignored-manual-value')).toBe('local-a');
   });
 
