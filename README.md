@@ -255,8 +255,8 @@ The UI supports:
 - per-key model, token, effort, temperature, and rate-limit settings
 - enable/disable and delete actions
 - separate key enablement and model runtime status; an enabled key does not claim that its model works
-- automatic and manual bounded model checks that do not run inference or consume model tokens
-- capability-based start controls for idle local Ollama models and explicitly enabled loopback Ollama/Apfel services
+- automatic and manual bounded model checks that do not send inference requests
+- capability-based start/stop controls for local Ollama models, including Docker's `host.docker.internal` target, plus explicitly enabled loopback Ollama/Apfel service start
 - responsive mobile navigation for API Keys and Playground
 - live playground tests using the selected key and model
 - a generic connection-smoke preset with editable system and user messages
@@ -264,9 +264,9 @@ The UI supports:
 
 Model checks use provider metadata only: Ollama catalog/loaded-model APIs, Apfel `/health`, or the configured Codex runtime state. An `available` or `running` badge therefore does not prove credentials, entitlement, billing, network egress, response quality, or live inference. Use **Live test** when that stronger proof is needed; the live test can consume provider tokens or incur cost.
 
-`POST /admin/models/status` accepts `{ "models": ["model-id"] }` and returns status records with `inferencePerformed: false`. `POST /admin/models/start` accepts only `{ "model": "model-id" }`. It never accepts a command, executable, arguments, environment, or host from the request.
+`POST /admin/models/status` accepts `{ "models": ["model-id"] }` and returns status records with `inferencePerformed: false`. `POST /admin/models/start` and `POST /admin/models/stop` accept only `{ "model": "model-id" }`. They never accept a command, executable, arguments, environment, or host from the request.
 
-Local Ollama model loading uses the documented empty `/api/generate` preload request with a 30-second timeout and five-minute keep-alive; no prompt is sent. Ollama cloud model names ending in `:cloud` or `-cloud`, Codex, and other on-demand providers are never preloaded. Starting a stopped service is disabled by default. To enable it for a gateway process running directly on the same host, configure:
+Local Ollama model start uses the documented empty `/api/generate` preload request with a 30-second timeout and five-minute keep-alive; Stop model uses the documented empty request with `keep_alive: 0` to unload it. These controls are available for plain HTTP loopback and Docker's `host.docker.internal` target; no prompt is sent. Ollama cloud model names ending in `:cloud` or `-cloud`, Codex, and other on-demand providers are never loaded or unloaded. Starting a stopped service is disabled by default. To enable it for a gateway process running directly on the same host, configure:
 
 ```json
 {
@@ -276,7 +276,7 @@ Local Ollama model loading uses the documented empty `/api/generate` preload req
 }
 ```
 
-The gateway still refuses to start HTTPS, remote, or path-based targets. It launches only the fixed `ollama serve` or `apfel --serve` command without a shell, does not pass gateway secrets to the child process, coalesces duplicate starts for the same model, and stops waiting after a bounded startup window. Docker deployments normally point at `host.docker.internal`; start those host services outside the container.
+The gateway still refuses model mutation for arbitrary HTTPS, remote, or path-based targets. It launches only the fixed `ollama serve` or `apfel --serve` command without a shell, does not pass gateway secrets to the child process, coalesces duplicate model controls, and stops waiting after bounded requests. Docker deployments normally point at `host.docker.internal`; they can load or unload advertised local Ollama models, but host services must still be started outside the container.
 
 ### 3. Admin API Endpoints
 

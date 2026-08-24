@@ -5,6 +5,7 @@ export type ModelRuntimeState = 'running' | 'available' | 'unavailable' | 'not_c
 export type ModelServiceState = 'reachable' | 'unreachable' | 'not_applicable';
 export type ModelRuntimeMode = 'loaded' | 'idle' | 'on_demand' | 'unknown' | 'not_applicable';
 export type ModelStartAction = 'start_service' | 'load_model';
+export type ModelStopAction = 'unload_model';
 
 export type ModelRuntimeStatus = {
   model: string;
@@ -21,11 +22,16 @@ export type ModelRuntimeStatus = {
     action?: ModelStartAction;
     label?: string;
   };
+  stop?: {
+    supported: boolean;
+    action?: ModelStopAction;
+    label?: string;
+  };
 };
 
 export class ModelControlError extends Error {
   constructor(
-    readonly code: 'invalid_model' | 'start_not_supported' | 'start_failed' | 'model_not_available',
+    readonly code: 'invalid_model' | 'start_not_supported' | 'start_failed' | 'stop_not_supported' | 'stop_failed' | 'model_not_available',
     message: string,
   ) {
     super(message);
@@ -134,6 +140,20 @@ function isLoopbackTarget(target: URL): boolean {
     && ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname);
 }
 
+function isDockerHostTarget(target: URL): boolean {
+  return target.protocol === 'http:'
+    && ['', '/'].includes(target.pathname)
+    && !target.username
+    && !target.password
+    && !target.search
+    && !target.hash
+    && target.hostname === 'host.docker.internal';
+}
+
+function canControlOllamaModel(target: URL | undefined): boolean {
+  return Boolean(target && (isLoopbackTarget(target) || isDockerHostTarget(target)));
+}
+
 function optionalURL(value: string | undefined): URL | undefined {
   if (!value) return undefined;
   try {
@@ -157,6 +177,7 @@ export class ModelRuntimeManager {
   private readonly allowLocalServiceStart: boolean;
   private readonly launcher: LocalServiceLauncher;
   private readonly startInFlight = new Map<string, Promise<ModelRuntimeStatus>>();
+  private readonly stopInFlight = new Map<string, Promise<ModelRuntimeStatus>>();
   private readonly serviceLaunchInFlight = new Map<string, Promise<void>>();
   private ollamaTagsInFlight?: Promise<Set<string>>;
   private ollamaRunningInFlight?: Promise<Set<string> | undefined>;
@@ -189,6 +210,16 @@ export class ModelRuntimeManager {
 
     const operation = this.startModelBounded(model).finally(() => this.startInFlight.delete(model));
     this.startInFlight.set(model, operation);
+    return operation;
+  }
+
+  stopModel(value: unknown): Promise<ModelRuntimeStatus> {
+    const model = safeModelName(value);
+    const current = this.stopInFlight.get(model);
+    if (current) return current;
+
+    const operation = this.stopModelBounded(model).finally(() => this.stopInFlight.delete(model));
+    this.stopInFlight.set(model, operation);
     return operation;
   }
 
@@ -281,6 +312,7 @@ export class ModelRuntimeManager {
       const running = await this.ollamaRunning();
       if (!running) throw new Error('Loaded model state unavailable');
       if (running.has(model)) {
+        const canUnload = canControlOllamaModel(this.ollamaTarget);
         return {
           ...statusBase(model, 'ollama'),
           state: 'running',
@@ -288,6 +320,7 @@ export class ModelRuntimeManager {
           runtime: 'loaded',
           message: 'Ollama is reachable and the model is loaded. Live inference has not been tested.',
           start: { supported: false },
+          stop: canUnload ? { supported: true, action: 'unload_model', label: 'Stop model' } : { supported: false },
         };
       }
     } catch {
@@ -301,16 +334,16 @@ export class ModelRuntimeManager {
       };
     }
 
-    const canLoad = isLoopbackTarget(this.ollamaTarget);
+    const canLoad = canControlOllamaModel(this.ollamaTarget);
     return {
       ...statusBase(model, 'ollama'),
       state: 'available',
       service: 'reachable',
       runtime: 'idle',
       message: canLoad
-        ? 'Ollama advertises the local model, but it is not loaded. Loading uses an empty request and no inference tokens.'
+        ? 'Ollama advertises the local model, but it is not loaded. Starting it uses an empty request with no prompt.'
         : 'The remote Ollama service advertises the model, but it is not loaded. It will load on the first live request.',
-      start: canLoad ? { supported: true, action: 'load_model', label: 'Load model' } : { supported: false },
+      start: canLoad ? { supported: true, action: 'load_model', label: 'Start model' } : { supported: false },
     };
   }
 
@@ -408,6 +441,33 @@ export class ModelRuntimeManager {
       throw new ModelControlError('model_not_available', status.message);
     }
     return status;
+  }
+
+  private async stopModelBounded(model: string): Promise<ModelRuntimeStatus> {
+    const status = await this.checkModel(model);
+    if (!status.stop?.supported || status.stop.action !== 'unload_model') {
+      throw new ModelControlError('stop_not_supported', 'This provider does not expose a safe stop action.');
+    }
+    if (status.provider !== 'ollama' || status.runtime !== 'loaded' || !canControlOllamaModel(this.ollamaTarget)) {
+      throw new ModelControlError('stop_not_supported', 'Only local loaded Ollama models can be stopped.');
+    }
+
+    const response = await fetch(new URL('/api/generate', this.ollamaTarget!), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, stream: false, keep_alive: 0 }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new ModelControlError('stop_failed', 'Ollama could not unload the model within the bounded stop request.');
+    }
+    await response.body?.cancel().catch(() => undefined);
+    const stopped = await this.checkModel(model);
+    if (stopped.runtime === 'loaded') {
+      throw new ModelControlError('stop_failed', 'Ollama still reports the model as loaded after the bounded stop request.');
+    }
+    return stopped;
   }
 
   private async getJSON<T>(url: URL, timeoutMs: number): Promise<T> {

@@ -39,6 +39,7 @@ describe('bounded model runtime checks', () => {
       checkScope: 'non_inference',
       inferenceVerified: false,
       start: { supported: false },
+      stop: { supported: true, action: 'unload_model', label: 'Stop model' },
     });
     expect(fetchSpy.mock.calls.map(([input]) => String(input))).toEqual([
       'http://127.0.0.1:11434/api/tags',
@@ -74,6 +75,39 @@ describe('bounded model runtime checks', () => {
     expect(after).toMatchObject({ state: 'running', runtime: 'loaded', inferenceVerified: false });
   });
 
+  it('starts and stops Ollama models through the trusted Docker host target', async () => {
+    let loaded = false;
+    const controlBodies: Array<Record<string, unknown>> = [];
+    const fetchSpy = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/api/tags')) return Response.json({ models: [{ name: 'local-model' }] });
+      if (url.endsWith('/api/ps')) return Response.json({ models: loaded ? [{ model: 'local-model' }] : [] });
+      if (url.endsWith('/api/generate')) {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        controlBodies.push(body);
+        expect(body).not.toHaveProperty('prompt');
+        loaded = body.keep_alive !== 0;
+        return Response.json({ done: true });
+      }
+      throw new Error('unexpected request');
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const runtime = manager({ ollamaHost: 'http://host.docker.internal:11434' });
+
+    const idle = await runtime.checkModel('local-model');
+    expect(idle).toMatchObject({ runtime: 'idle', start: { label: 'Start model' } });
+
+    const started = await runtime.startModel('local-model');
+    expect(started).toMatchObject({ runtime: 'loaded', stop: { label: 'Stop model' } });
+
+    const stopped = await runtime.stopModel('local-model');
+    expect(stopped).toMatchObject({ runtime: 'idle', start: { label: 'Start model' } });
+    expect(controlBodies).toEqual([
+      { model: 'local-model', stream: false, keep_alive: '5m' },
+      { model: 'local-model', stream: false, keep_alive: 0 },
+    ]);
+  });
+
   it('treats Ollama cloud models as on-demand and never offers preload', async () => {
     const fetchSpy = vi.fn(async () => Response.json({ models: [{ name: 'gpt-oss:120b-cloud' }] }));
     vi.stubGlobal('fetch', fetchSpy);
@@ -89,6 +123,9 @@ describe('bounded model runtime checks', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     await expect(manager().startModel('gpt-oss:120b-cloud')).rejects.toMatchObject({
       code: 'start_not_supported',
+    });
+    await expect(manager().stopModel('gpt-oss:120b-cloud')).rejects.toMatchObject({
+      code: 'stop_not_supported',
     });
   });
 
@@ -156,6 +193,59 @@ describe('bounded model runtime checks', () => {
     expect(status).toMatchObject({ state: 'available', runtime: 'idle', start: { supported: false } });
     await expect(runtime.startModel('remote-model')).rejects.toMatchObject({ code: 'start_not_supported' });
     expect(fetchSpy.mock.calls.some(([input]) => String(input).endsWith('/api/generate'))).toBe(false);
+  });
+
+  it('never offers model stopping against an arbitrary remote Ollama host', async () => {
+    const fetchSpy = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/api/tags')) return Response.json({ models: [{ name: 'remote-model' }] });
+      if (url.endsWith('/api/ps')) return Response.json({ models: [{ name: 'remote-model' }] });
+      throw new Error('unexpected request');
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const runtime = manager({ ollamaHost: 'http://model-host.example:11434' });
+
+    const status = await runtime.checkModel('remote-model');
+
+    expect(status).toMatchObject({ runtime: 'loaded', stop: { supported: false } });
+    await expect(runtime.stopModel('remote-model')).rejects.toMatchObject({ code: 'stop_not_supported' });
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).endsWith('/api/generate'))).toBe(false);
+  });
+
+  it.each([
+    'https://host.docker.internal:11434',
+    'http://host.docker.internal:11434/nested-path',
+  ])('never mutates Ollama models through non-local-safe target %s', async (ollamaHost) => {
+    let loaded = false;
+    const fetchSpy = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/api/tags')) return Response.json({ models: [{ name: 'guarded-model' }] });
+      if (url.endsWith('/api/ps')) return Response.json({ models: loaded ? [{ name: 'guarded-model' }] : [] });
+      throw new Error('unexpected request');
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const runtime = manager({ ollamaHost });
+
+    const idle = await runtime.checkModel('guarded-model');
+    expect(idle).toMatchObject({ runtime: 'idle', start: { supported: false } });
+    await expect(runtime.startModel('guarded-model')).rejects.toMatchObject({ code: 'start_not_supported' });
+
+    loaded = true;
+    const running = await runtime.checkModel('guarded-model');
+    expect(running).toMatchObject({ runtime: 'loaded', stop: { supported: false } });
+    await expect(runtime.stopModel('guarded-model')).rejects.toMatchObject({ code: 'stop_not_supported' });
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).endsWith('/api/generate'))).toBe(false);
+  });
+
+  it('keeps available Apfel models start/stop read-only', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ status: 'ok', model_available: true })));
+    const runtime = manager();
+
+    const status = await runtime.checkModel('apple-foundationmodel');
+
+    expect(status).toMatchObject({ provider: 'apfel', state: 'available', start: { supported: false } });
+    await expect(runtime.startModel('apple-foundationmodel')).rejects.toMatchObject({ code: 'start_not_supported' });
+    await expect(runtime.stopModel('apple-foundationmodel')).rejects.toMatchObject({ code: 'stop_not_supported' });
   });
 
   it('coalesces concurrent duplicate starts for the same model', async () => {
@@ -227,6 +317,8 @@ describe('bounded model runtime checks', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     await expect(manager({ providers: new ProviderRegistry([provider]) }).startModel('codex'))
       .rejects.toBeInstanceOf(ModelControlError);
+    await expect(manager({ providers: new ProviderRegistry([provider]) }).stopModel('codex'))
+      .rejects.toMatchObject({ code: 'stop_not_supported' });
   });
 
   it('validates and deduplicates model identifiers before checking', async () => {

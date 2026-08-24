@@ -353,10 +353,44 @@ describe('Admin key routes', () => {
     expect(runtime.startModel).toHaveBeenCalledWith('local-model');
   });
 
+  it('runs only the bounded provider stop action selected by model', async () => {
+    const status = {
+      model: 'local-model',
+      provider: 'ollama',
+      state: 'available',
+      service: 'reachable',
+      runtime: 'idle',
+      checkedAt: '2026-08-24T00:00:00.000Z',
+      checkScope: 'non_inference',
+      inferenceVerified: false,
+      message: 'Stopped.',
+      start: { supported: true, action: 'load_model', label: 'Start model' },
+      stop: { supported: false },
+    } satisfies ModelRuntimeStatus;
+    const runtime = {
+      checkModels: vi.fn(),
+      startModel: vi.fn(),
+      stopModel: vi.fn().mockResolvedValue(status),
+    } as unknown as ModelRuntimeManager;
+    ({ app, token } = buildAdminApp(runtime));
+
+    const res = await app.request('/admin/models/stop', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'local-model' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status, inferencePerformed: false });
+    expect(runtime.stopModel).toHaveBeenCalledWith('local-model');
+    expect(runtime.startModel).not.toHaveBeenCalled();
+  });
+
   it('rejects malformed, unauthenticated, and command-shaped model control requests', async () => {
     const runtime = {
       checkModels: vi.fn(),
       startModel: vi.fn(),
+      stopModel: vi.fn(),
     } as unknown as ModelRuntimeManager;
     ({ app, token } = buildAdminApp(runtime));
 
@@ -381,5 +415,13 @@ describe('Admin key routes', () => {
     });
     expect(commandShaped.status).toBe(400);
     expect(runtime.startModel).not.toHaveBeenCalled();
+
+    const stopCommandShaped = await app.request('/admin/models/stop', {
+      method: 'POST',
+      headers: { ...authHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'local-model', command: 'anything' }),
+    });
+    expect(stopCommandShaped.status).toBe(400);
+    expect(runtime.stopModel).not.toHaveBeenCalled();
   });
 });
