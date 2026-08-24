@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SHORT_SHA="$(git -C "$ROOT" rev-parse --short=12 HEAD 2>/dev/null || echo local)"
+CONTRACT_VERSION="$(node -e 'process.stdout.write(require(process.argv[1]).version)' "$ROOT/Vendor/semantic-prompt-contract/package.json")"
 IMAGE_TAG="llm-gateway-ci:$SHORT_SHA"
 CONTAINER_NAME="llm-gateway-ci-$SHORT_SHA-$$"
 RESULTS_DIRECTORY="$ROOT/.ci-results"
@@ -100,7 +101,7 @@ SEMANTIC_ADAPTER_BODY="$(curl --fail --silent --show-error --max-time 3 "http://
   echo "Gateway semantic prompt adapter route did not return the generated browser contract." >&2
   exit 1
 }
-[[ "$SEMANTIC_ADAPTER_BODY" == *'"contractVersion":"3.0.0"'* ]] || {
+[[ "$SEMANTIC_ADAPTER_BODY" == *"\"contractVersion\":\"$CONTRACT_VERSION\""* ]] || {
   echo "Gateway semantic prompt adapter route did not return the pinned contract version." >&2
   exit 1
 }
