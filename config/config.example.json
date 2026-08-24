@@ -2,6 +2,7 @@
   "port": 8080,
   "ollamaHost": "http://host.docker.internal:11434",
   "allowLocalServiceStart": false,
+  "modelServiceControllerUrl": "http://host.docker.internal:18777",
   "codex": {
     "enabled": false,
     "publicModel": "codex",

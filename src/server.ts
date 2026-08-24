@@ -17,11 +17,14 @@ import type { CodexRunner } from './providers/codexCliRunner.js';
 import { ProviderRegistry } from './providers/types.js';
 import { errorResponse } from './lib/errors.js';
 import { ModelRuntimeManager, type LocalServiceLauncher } from './models/runtime.js';
+import { HttpModelServiceController, type ModelServiceController } from './models/serviceController.js';
+import { protectedValue } from './lib/protectedValue.js';
 
 export type AppDependencies = {
   codexApiKey?: string;
   codexRunner?: CodexRunner;
   localServiceLauncher?: LocalServiceLauncher;
+  modelServiceController?: ModelServiceController;
 };
 
 export function createApp(
@@ -38,6 +41,11 @@ export function createApp(
     runner: dependencies.codexRunner,
   });
   const providers = new ProviderRegistry([codex]);
+  const serviceControllerToken = protectedValue('MODEL_SERVICE_CONTROL_TOKEN', 'MODEL_SERVICE_CONTROL_TOKEN_FILE');
+  const modelServiceController = dependencies.modelServiceController
+    || (config.modelServiceControllerUrl && serviceControllerToken
+      ? new HttpModelServiceController(new URL(config.modelServiceControllerUrl), serviceControllerToken)
+      : undefined);
   const proxy = new OllamaProxy(
     config.ollamaHost,
     config.apfelHost,
@@ -50,6 +58,7 @@ export function createApp(
     providers,
     allowLocalServiceStart: config.allowLocalServiceStart,
     launcher: dependencies.localServiceLauncher,
+    serviceController: modelServiceController,
   });
 
   keyManager.watchForChanges();

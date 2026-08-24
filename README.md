@@ -180,6 +180,7 @@ The implementation was checked against the current official [Codex SDK contract]
 
 - `disabled`: opt-in configuration is off.
 - `configured/ready`: configuration, protected credential presence, and the pinned runtime are present.
+- `stopped`: an administrator paused Codex until Start Codex or the next gateway restart.
 - `unavailable`: Codex was enabled but the credential or runtime is missing.
 
 `configured/ready` does not validate the credential, model entitlement, network path, billing, or live inference. Codex failure does not change the top-level health status or Ollama/Apfel routing.
@@ -256,7 +257,7 @@ The UI supports:
 - enable/disable and delete actions
 - separate key enablement and model runtime status; an enabled key does not claim that its model works
 - automatic and manual bounded model checks that do not send inference requests
-- capability-based start/stop controls for local Ollama models, including Docker's `host.docker.internal` target, plus explicitly enabled loopback Ollama/Apfel service start
+- capability-based start/stop controls for local Ollama models, an authenticated macOS Apfel service controller for Docker deployments, and Codex pause/resume
 - responsive mobile navigation for API Keys and Playground
 - live playground tests using the selected key and model
 - a generic connection-smoke preset with editable system and user messages
@@ -266,7 +267,11 @@ Model checks use provider metadata only: Ollama catalog/loaded-model APIs, Apfel
 
 `POST /admin/models/status` accepts `{ "models": ["model-id"] }` and returns status records with `inferencePerformed: false`. `POST /admin/models/start` and `POST /admin/models/stop` accept only `{ "model": "model-id" }`. They never accept a command, executable, arguments, environment, or host from the request.
 
-Local Ollama model start uses the documented empty `/api/generate` preload request with a 30-second timeout and five-minute keep-alive; Stop model uses the documented empty request with `keep_alive: 0` to unload it. These controls are available for plain HTTP loopback and Docker's `host.docker.internal` target; no prompt is sent. Ollama cloud model names ending in `:cloud` or `-cloud`, Codex, and other on-demand providers are never loaded or unloaded. Starting a stopped service is disabled by default. To enable it for a gateway process running directly on the same host, configure:
+Local Ollama model start uses the documented empty `/api/generate` preload request with a 30-second timeout and five-minute keep-alive; Stop model uses the documented empty request with `keep_alive: 0` to unload it and release memory. These controls are available for plain HTTP loopback and Docker's `host.docker.internal` target; no prompt is sent. Ollama cloud models are never loaded or unloaded.
+
+Codex is on demand rather than a resident model service. **Stop Codex** pauses provider admission, aborts active and queued Codex work, and removes the alias from discovery; **Start Codex** resumes it without making an inference call. The pause is process-local and configuration remains the startup source of truth, so a gateway restart restores the configured enabled state.
+
+Starting a stopped host service is disabled by default. To enable fixed loopback service start for a gateway process running directly on the same host, configure:
 
 ```json
 {
@@ -276,7 +281,25 @@ Local Ollama model start uses the documented empty `/api/generate` preload reque
 }
 ```
 
-The gateway still refuses model mutation for arbitrary HTTPS, remote, or path-based targets. It launches only the fixed `ollama serve` or `apfel --serve` command without a shell, does not pass gateway secrets to the child process, coalesces duplicate model controls, and stops waiting after bounded requests. Docker deployments normally point at `host.docker.internal`; they can load or unload advertised local Ollama models, but host services must still be started outside the container.
+The gateway still refuses model mutation for arbitrary HTTPS, remote, or path-based targets. It launches only the fixed `ollama serve` or `apfel --serve` command without a shell, does not pass gateway secrets to the child process, coalesces duplicate model controls, and stops waiting after bounded requests.
+
+For a Docker gateway to start and stop Apfel on its macOS host, run the repository's authenticated loopback controller on the Mac and configure its exact origin:
+
+```json
+{
+  "apfelHost": "http://host.docker.internal:11435",
+  "modelServiceControllerUrl": "http://host.docker.internal:18777"
+}
+```
+
+```bash
+MODEL_SERVICE_CONTROL_TOKEN_FILE=/protected/model-control-token \
+  npm run start:model-controller
+```
+
+Mount the same mode-`0600` token file read-only into the gateway and set `MODEL_SERVICE_CONTROL_TOKEN_FILE` to its container path. The controller binds only to `127.0.0.1`, requires the bearer token, and exposes only fixed Apfel Homebrew service start/stop routes. It never accepts a command, executable, arguments, environment, provider name, or host from the admin request. Configure Homebrew's Apfel service environment (for example `APFEL_PORT=11435`) before using Start Apfel when Ollama owns port 11434.
+
+Model status uses a common setup diagnostic with a stable code, concise message, and ordered recovery steps. The UI displays these under **Setup help**. Apfel distinguishes unsupported OS/architecture, missing Homebrew, missing Apfel, missing controller configuration, and an unreachable controller. Codex distinguishes disabled/stopped state, missing protected credential, unsupported runtime platform, and a missing pinned CLI runtime. For the gateway, `npm ci` installs its pinned Codex runtime before rebuilding; standalone Codex installation options are documented in the [official Codex CLI guide](https://developers.openai.com/codex/cli/). Setup commands are advisory and are never executed automatically by an admin status request.
 
 ### 3. Admin API Endpoints
 

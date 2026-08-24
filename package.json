@@ -14,6 +14,7 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
+    "start:model-controller": "node dist/modelServiceController.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "secret-scan": "node scripts/secret-scan.mjs",

@@ -164,3 +164,9 @@ Cons / risks:
 ## Decision
 
 Technically feasible. The gateway/portal PoC compiles, passes tests, and host validation confirms the admin model list can include `apple-foundationmodel` without a UI rewrite.
+
+## Admin service lifecycle controls
+
+Docker cannot execute the macOS Apfel binary directly. The gateway therefore supports an optional repository-owned controller running on the Mac loopback interface. The Docker gateway authenticates to it with a protected file-backed token, and the controller runs only the fixed `brew services start apfel` or bounded `brew services stop apfel` command. The admin API still accepts only the model identifier.
+
+When Ollama uses port 11434, configure the Homebrew Apfel service with `APFEL_PORT=11435`, point `apfelHost` at `http://host.docker.internal:11435`, and point `modelServiceControllerUrl` at the controller's exact `http://host.docker.internal` origin. Without a reachable authenticated controller, Apfel remains status-only.

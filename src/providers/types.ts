@@ -1,7 +1,13 @@
 import type { ApiKey } from '../types/index.js';
 import type { ChatCompletionRequest } from '../proxy/openaiCompatibility.js';
 
-export type ProviderHealthStatus = 'disabled' | 'configured/ready' | 'unavailable';
+export type ProviderHealthStatus = 'disabled' | 'configured/ready' | 'stopped' | 'unavailable';
+
+export type RuntimeDiagnostic = {
+  code: string;
+  message: string;
+  steps: string[];
+};
 
 export type ProviderErrorKind =
   | 'unsupported_request'
@@ -39,6 +45,9 @@ export interface GatewayProvider {
   readonly ownedBy: string;
   readonly requiresExplicitGrant: boolean;
   status(): ProviderHealthStatus;
+  diagnostic?(): RuntimeDiagnostic | undefined;
+  start?(): Promise<void>;
+  stop?(): Promise<void>;
   handlesModel(model: string): boolean;
   requestBodyLimitBytes?(path: string): number | undefined;
   execute(request: ProviderRequest): Promise<ProviderResponse>;

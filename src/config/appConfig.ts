@@ -6,6 +6,7 @@ export type ConfigEnv = {
   OLLAMA_HOST?: string;
   APFEL_HOST?: string;
   ALLOW_LOCAL_SERVICE_START?: string;
+  MODEL_SERVICE_CONTROLLER_URL?: string;
 };
 
 export const DEFAULT_CODEX_CONFIG: CodexConfig = {
@@ -24,6 +25,7 @@ export function defaultConfig(env: ConfigEnv = process.env): AppConfig {
     ollamaHost: env.OLLAMA_HOST || 'http://host.docker.internal:11434',
     apfelHost: env.APFEL_HOST || undefined,
     allowLocalServiceStart: env.ALLOW_LOCAL_SERVICE_START === 'true',
+    modelServiceControllerUrl: env.MODEL_SERVICE_CONTROLLER_URL || undefined,
     codex: { ...DEFAULT_CODEX_CONFIG },
     logLevel: 'info',
     corsOrigins: ['*'],
@@ -104,6 +106,22 @@ function validateURL(value: unknown, field: string): string {
   return trimmed.replace(/\/$/, '');
 }
 
+function validateModelServiceControllerURL(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  const normalized = validateURL(value, 'modelServiceControllerUrl');
+  const target = new URL(normalized);
+  if (target.protocol !== 'http:'
+    || !['', '/'].includes(target.pathname)
+    || target.username
+    || target.password
+    || target.search
+    || target.hash
+    || !['localhost', '127.0.0.1', '[::1]', 'host.docker.internal'].includes(target.hostname)) {
+    throw new Error('modelServiceControllerUrl must be an exact plain-HTTP loopback or host.docker.internal origin');
+  }
+  return normalized;
+}
+
 export function validateConfig(raw: unknown): AppConfig {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new Error('config must be an object');
@@ -132,6 +150,7 @@ export function validateConfig(raw: unknown): AppConfig {
     ollamaHost: validateURL(config.ollamaHost, 'ollamaHost'),
     apfelHost: config.apfelHost === undefined ? undefined : validateURL(config.apfelHost, 'apfelHost'),
     allowLocalServiceStart: config.allowLocalServiceStart ?? false,
+    modelServiceControllerUrl: validateModelServiceControllerURL(config.modelServiceControllerUrl),
     codex: validateCodexConfig(config.codex),
     logLevel: config.logLevel.trim(),
     corsOrigins: config.corsOrigins.map((origin) => origin.trim()),

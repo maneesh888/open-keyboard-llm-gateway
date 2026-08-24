@@ -1,11 +1,12 @@
 import { spawn } from 'node:child_process';
-import type { ProviderHealthStatus, ProviderRegistry } from '../providers/types.js';
+import type { GatewayProvider, ProviderRegistry, RuntimeDiagnostic } from '../providers/types.js';
+import type { ModelServiceController, ModelServiceDiagnostic } from './serviceController.js';
 
 export type ModelRuntimeState = 'running' | 'available' | 'unavailable' | 'not_configured';
 export type ModelServiceState = 'reachable' | 'unreachable' | 'not_applicable';
 export type ModelRuntimeMode = 'loaded' | 'idle' | 'on_demand' | 'unknown' | 'not_applicable';
-export type ModelStartAction = 'start_service' | 'load_model';
-export type ModelStopAction = 'unload_model';
+export type ModelStartAction = 'start_service' | 'load_model' | 'start_provider';
+export type ModelStopAction = 'unload_model' | 'stop_service' | 'stop_provider';
 
 export type ModelRuntimeStatus = {
   model: string;
@@ -17,6 +18,7 @@ export type ModelRuntimeStatus = {
   checkScope: 'non_inference';
   inferenceVerified: false;
   message: string;
+  guidance?: RuntimeDiagnostic;
   start: {
     supported: boolean;
     action?: ModelStartAction;
@@ -101,6 +103,7 @@ type ModelRuntimeOptions = {
   providers: ProviderRegistry;
   allowLocalServiceStart?: boolean;
   launcher?: LocalServiceLauncher;
+  serviceController?: ModelServiceController;
 };
 
 type ModelListPayload = { models?: Array<{ name?: string; model?: string }> };
@@ -154,6 +157,10 @@ function canControlOllamaModel(target: URL | undefined): boolean {
   return Boolean(target && (isLoopbackTarget(target) || isDockerHostTarget(target)));
 }
 
+function canControlApfelService(target: URL | undefined): boolean {
+  return Boolean(target && (isLoopbackTarget(target) || isDockerHostTarget(target)));
+}
+
 function optionalURL(value: string | undefined): URL | undefined {
   if (!value) return undefined;
   try {
@@ -176,6 +183,7 @@ export class ModelRuntimeManager {
   private readonly providers: ProviderRegistry;
   private readonly allowLocalServiceStart: boolean;
   private readonly launcher: LocalServiceLauncher;
+  private readonly serviceController?: ModelServiceController;
   private readonly startInFlight = new Map<string, Promise<ModelRuntimeStatus>>();
   private readonly stopInFlight = new Map<string, Promise<ModelRuntimeStatus>>();
   private readonly serviceLaunchInFlight = new Map<string, Promise<void>>();
@@ -188,6 +196,7 @@ export class ModelRuntimeManager {
     this.providers = options.providers;
     this.allowLocalServiceStart = options.allowLocalServiceStart === true;
     this.launcher = options.launcher || new ProcessLocalServiceLauncher();
+    this.serviceController = options.serviceController;
   }
 
   async checkModels(values: unknown[]): Promise<ModelRuntimeStatus[]> {
@@ -198,7 +207,7 @@ export class ModelRuntimeManager {
   async checkModel(value: unknown): Promise<ModelRuntimeStatus> {
     const model = safeModelName(value);
     const provider = this.providers.providerForModel(model);
-    if (provider) return this.providerStatus(model, provider.id, provider.status());
+    if (provider) return this.providerStatus(model, provider);
     if (model === 'apple-foundationmodel') return this.apfelStatus(model);
     return this.ollamaStatus(model);
   }
@@ -223,34 +232,53 @@ export class ModelRuntimeManager {
     return operation;
   }
 
-  private providerStatus(model: string, provider: string, status: ProviderHealthStatus): ModelRuntimeStatus {
+  private providerStatus(model: string, provider: GatewayProvider): ModelRuntimeStatus {
+    const status = provider.status();
     if (status === 'disabled') {
       return {
-        ...statusBase(model, provider),
+        ...statusBase(model, provider.id),
         state: 'not_configured',
         service: 'not_applicable',
         runtime: 'not_applicable',
-        message: `${provider} is disabled. Enable and configure the provider before using this model.`,
+        message: `${provider.id} is disabled. Enable and configure the provider before using this model.`,
+        guidance: provider.diagnostic?.(),
         start: { supported: false },
+      };
+    }
+    if (status === 'stopped') {
+      return {
+        ...statusBase(model, provider.id),
+        state: 'unavailable',
+        service: 'not_applicable',
+        runtime: 'on_demand',
+        message: `${provider.id} is stopped. Starting it resumes new on-demand requests without running inference.`,
+        guidance: provider.diagnostic?.(),
+        start: provider.start
+          ? { supported: true, action: 'start_provider', label: `Start ${provider.id === 'codex' ? 'Codex' : provider.id}` }
+          : { supported: false },
       };
     }
     if (status === 'unavailable') {
       return {
-        ...statusBase(model, provider),
+        ...statusBase(model, provider.id),
         state: 'unavailable',
         service: 'not_applicable',
         runtime: 'on_demand',
-        message: `${provider} configuration or runtime is unavailable. No inference call was made.`,
+        message: `${provider.id} configuration or runtime is unavailable. No inference call was made.`,
+        guidance: provider.diagnostic?.(),
         start: { supported: false },
       };
     }
     return {
-      ...statusBase(model, provider),
+      ...statusBase(model, provider.id),
       state: 'available',
       service: 'not_applicable',
       runtime: 'on_demand',
-      message: `${provider} configuration and runtime are present. Live inference has not been tested.`,
+      message: `${provider.id} configuration and runtime are present. Live inference has not been tested.`,
       start: { supported: false },
+      stop: provider.stop
+        ? { supported: true, action: 'stop_provider', label: `Stop ${provider.id === 'codex' ? 'Codex' : provider.id}` }
+        : { supported: false },
     };
   }
 
@@ -361,6 +389,8 @@ export class ModelRuntimeManager {
 
     try {
       const health = await this.getJSON<Record<string, unknown>>(new URL('/health', this.apfelTarget), 3000);
+      const serviceControl = await this.apfelServiceDiagnostic();
+      const canStop = serviceControl?.available === true;
       if (health.model_available !== true) {
         return {
           ...statusBase(model, 'apfel'),
@@ -371,6 +401,8 @@ export class ModelRuntimeManager {
             ? 'Apfel is reachable, but Apple reports that the on-device model is unavailable.'
             : 'Apfel is reachable, but health did not explicitly confirm that the on-device model is available.',
           start: { supported: false },
+          stop: canStop ? { supported: true, action: 'stop_service', label: 'Stop Apfel' } : { supported: false },
+          guidance: serviceControl?.available === false ? serviceControl : undefined,
         };
       }
       return {
@@ -380,18 +412,22 @@ export class ModelRuntimeManager {
         runtime: 'on_demand',
         message: 'Apfel is reachable and reports the on-device model available. Live inference has not been tested.',
         start: { supported: false },
+        stop: canStop ? { supported: true, action: 'stop_service', label: 'Stop Apfel' } : { supported: false },
+        guidance: serviceControl?.available === false ? serviceControl : undefined,
       };
     } catch {
-      const canStart = this.canStartService(this.apfelTarget);
+      const serviceControl = await this.apfelServiceDiagnostic();
+      const canStart = this.canStartService(this.apfelTarget) || serviceControl?.available === true;
       return {
         ...statusBase(model, 'apfel'),
         state: 'unavailable',
         service: 'unreachable',
         runtime: 'unknown',
         message: canStart
-          ? 'Apfel is not reachable. The gateway may start the configured loopback service.'
-          : 'Apfel is not reachable. Start it on the configured Mac; remote services cannot be started by the gateway.',
+          ? 'Apfel is not reachable. The gateway may start the configured host service.'
+          : serviceControl?.message || 'Apfel is not reachable. Start it on the configured Mac; remote services cannot be started by the gateway.',
         start: canStart ? { supported: true, action: 'start_service', label: 'Start Apfel' } : { supported: false },
+        guidance: serviceControl?.available === false ? serviceControl : undefined,
       };
     }
   }
@@ -402,13 +438,37 @@ export class ModelRuntimeManager {
       throw new ModelControlError('start_not_supported', 'This provider does not expose a safe start action.');
     }
 
+    if (status.start.action === 'start_provider') {
+      const provider = this.providers.providerForModel(model);
+      if (!provider?.start) {
+        throw new ModelControlError('start_not_supported', 'This provider does not expose a safe start action.');
+      }
+      try {
+        await provider.start();
+      } catch {
+        throw new ModelControlError('start_failed', 'The provider could not be started.');
+      }
+      return this.checkModel(model);
+    }
+
     if (status.start.action === 'start_service') {
       const provider = status.provider as 'ollama' | 'apfel';
       const target = provider === 'ollama' ? this.ollamaTarget : this.apfelTarget;
-      if (!target || !this.canStartService(target)) {
-        throw new ModelControlError('start_not_supported', 'Only explicitly enabled loopback services can be started.');
+      if (!target) {
+        throw new ModelControlError('start_not_supported', 'The provider target is not configured.');
       }
-      await this.launchService(provider, target);
+      if (provider === 'apfel' && (await this.apfelServiceDiagnostic())?.available === true) {
+        try {
+          await this.serviceController!.start('apfel');
+        } catch {
+          throw new ModelControlError('start_failed', 'The authenticated host controller could not start Apfel.');
+        }
+      } else {
+        if (!this.canStartService(target)) {
+          throw new ModelControlError('start_not_supported', 'Only explicitly enabled loopback services can be started.');
+        }
+        await this.launchService(provider, target);
+      }
       for (let attempt = 0; attempt < 8; attempt += 1) {
         await wait(500);
         status = await this.checkModel(model);
@@ -445,7 +505,44 @@ export class ModelRuntimeManager {
 
   private async stopModelBounded(model: string): Promise<ModelRuntimeStatus> {
     const status = await this.checkModel(model);
-    if (!status.stop?.supported || status.stop.action !== 'unload_model') {
+    if (!status.stop?.supported || !status.stop.action) {
+      throw new ModelControlError('stop_not_supported', 'This provider does not expose a safe stop action.');
+    }
+
+    if (status.stop.action === 'stop_provider') {
+      const provider = this.providers.providerForModel(model);
+      if (!provider?.stop) {
+        throw new ModelControlError('stop_not_supported', 'This provider does not expose a safe stop action.');
+      }
+      try {
+        await provider.stop();
+      } catch {
+        throw new ModelControlError('stop_failed', 'The provider could not be stopped.');
+      }
+      return this.checkModel(model);
+    }
+
+    if (status.stop.action === 'stop_service') {
+      if (status.provider !== 'apfel' || (await this.apfelServiceDiagnostic())?.available !== true) {
+        throw new ModelControlError('stop_not_supported', 'Apfel service stop requires the authenticated local host controller.');
+      }
+      try {
+        await this.serviceController!.stop('apfel');
+      } catch {
+        throw new ModelControlError('stop_failed', 'The authenticated host controller could not stop Apfel.');
+      }
+      let stopped = await this.checkModel(model);
+      for (let attempt = 0; attempt < 8 && stopped.service === 'reachable'; attempt += 1) {
+        await wait(500);
+        stopped = await this.checkModel(model);
+      }
+      if (stopped.service === 'reachable') {
+        throw new ModelControlError('stop_failed', 'Apfel remained reachable after the bounded stop window.');
+      }
+      return stopped;
+    }
+
+    if (status.stop.action !== 'unload_model') {
       throw new ModelControlError('stop_not_supported', 'This provider does not expose a safe stop action.');
     }
     if (status.provider !== 'ollama' || status.runtime !== 'loaded' || !canControlOllamaModel(this.ollamaTarget)) {
@@ -486,6 +583,31 @@ export class ModelRuntimeManager {
       .finally(() => this.serviceLaunchInFlight.delete(provider));
     this.serviceLaunchInFlight.set(provider, operation);
     return operation;
+  }
+
+  private async apfelServiceDiagnostic(): Promise<ModelServiceDiagnostic | undefined> {
+    if (!canControlApfelService(this.apfelTarget)) return undefined;
+    if (!this.serviceController) {
+      return {
+        available: false,
+        code: 'controller_not_configured',
+        message: 'Apfel host service control is not configured.',
+        steps: [
+          'Run the repository model-service controller on the Mac.',
+          'Configure modelServiceControllerUrl and the shared protected token file, then run Check again.',
+        ],
+      };
+    }
+    try {
+      return await this.serviceController.diagnostic('apfel');
+    } catch {
+      return {
+        available: false,
+        code: 'controller_unreachable',
+        message: 'The authenticated host model-service controller is unreachable.',
+        steps: ['Start the controller, verify its protected token file, and run Check again.'],
+      };
+    }
   }
 
   private ollamaTags(): Promise<Set<string>> {

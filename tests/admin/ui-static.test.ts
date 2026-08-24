@@ -238,6 +238,8 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('renderTesterKeys();await checkConfiguredModels()');
     expect(html).toContain('onclick="event.stopPropagation();checkConfiguredModel(this.dataset.model)"');
     expect(html).toContain('Live test is required to verify inference.');
+    expect(html).toContain('Setup help');
+    expect(html).toContain('status?.guidance');
     expect(html).not.toContain('no model tokens used');
     expect(html).toContain('data-label="Model status"');
   });

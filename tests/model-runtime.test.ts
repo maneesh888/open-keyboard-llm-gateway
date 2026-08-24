@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { localServiceLaunchSpec, ModelControlError, ModelRuntimeManager } from '../src/models/runtime.js';
 import { ProviderRegistry, type GatewayProvider } from '../src/providers/types.js';
+import type { ModelServiceController } from '../src/models/serviceController.js';
 
 const noProviders = new ProviderRegistry();
 
@@ -47,32 +48,38 @@ describe('bounded model runtime checks', () => {
     ]);
   });
 
-  it('loads an idle local Ollama model with an empty bounded request', async () => {
+  it('loads and unloads a loopback Ollama model with exact empty bounded requests', async () => {
     let loaded = false;
+    const controlBodies: Array<Record<string, unknown>> = [];
     const fetchSpy = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith('/api/tags')) return Response.json({ models: [{ name: 'local-model' }] });
       if (url.endsWith('/api/ps')) return Response.json({ models: loaded ? [{ model: 'local-model' }] : [] });
       if (url.endsWith('/api/generate')) {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
         expect(init?.method).toBe('POST');
-        expect(JSON.parse(String(init?.body))).toEqual({
-          model: 'local-model',
-          stream: false,
-          keep_alive: '5m',
-        });
-        expect(JSON.parse(String(init?.body))).not.toHaveProperty('prompt');
-        loaded = true;
+        expect(body).not.toHaveProperty('prompt');
+        controlBodies.push(body);
+        loaded = body.keep_alive !== 0;
         return Response.json({ done: true });
       }
       throw new Error('unexpected request');
     });
     vi.stubGlobal('fetch', fetchSpy);
 
-    const before = await manager().checkModel('local-model');
+    const runtime = manager();
+    const before = await runtime.checkModel('local-model');
     expect(before).toMatchObject({ state: 'available', runtime: 'idle', start: { action: 'load_model' } });
 
-    const after = await manager().startModel('local-model');
+    const after = await runtime.startModel('local-model');
     expect(after).toMatchObject({ state: 'running', runtime: 'loaded', inferenceVerified: false });
+
+    const stopped = await runtime.stopModel('local-model');
+    expect(stopped).toMatchObject({ state: 'available', runtime: 'idle' });
+    expect(controlBodies).toEqual([
+      { model: 'local-model', stream: false, keep_alive: '5m' },
+      { model: 'local-model', stream: false, keep_alive: 0 },
+    ]);
   });
 
   it('starts and stops Ollama models through the trusted Docker host target', async () => {
@@ -248,6 +255,101 @@ describe('bounded model runtime checks', () => {
     await expect(runtime.stopModel('apple-foundationmodel')).rejects.toMatchObject({ code: 'stop_not_supported' });
   });
 
+  it('starts and stops the Docker-host Apfel service through the authenticated host controller', async () => {
+    let reachable = false;
+    const fetchSpy = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('http://host.docker.internal:11435/health');
+      if (!reachable) throw new Error('offline');
+      return Response.json({ status: 'ok', model_available: true });
+    });
+    const serviceController = {
+      diagnostic: vi.fn(async () => ({ available: true, code: 'ready', message: 'ready', steps: [] })),
+      start: vi.fn(async () => { reachable = true; }),
+      stop: vi.fn(async () => { reachable = false; }),
+    } satisfies ModelServiceController;
+    vi.stubGlobal('fetch', fetchSpy);
+    const runtime = manager({
+      apfelHost: 'http://host.docker.internal:11435',
+      serviceController,
+    });
+
+    const stopped = await runtime.checkModel('apple-foundationmodel');
+    expect(stopped).toMatchObject({
+      service: 'unreachable',
+      start: { supported: true, action: 'start_service', label: 'Start Apfel' },
+    });
+
+    const started = await runtime.startModel('apple-foundationmodel');
+    expect(started).toMatchObject({
+      state: 'available',
+      service: 'reachable',
+      stop: { supported: true, action: 'stop_service', label: 'Stop Apfel' },
+    });
+
+    const stoppedAgain = await runtime.stopModel('apple-foundationmodel');
+    expect(stoppedAgain).toMatchObject({
+      service: 'unreachable',
+      start: { supported: true, label: 'Start Apfel' },
+    });
+    expect(serviceController.start).toHaveBeenCalledExactlyOnceWith('apfel');
+    expect(serviceController.stop).toHaveBeenCalledExactlyOnceWith('apfel');
+  });
+
+  it('classifies missing and unreachable Apfel host controllers with setup guidance', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+
+    const notConfigured = await manager({
+      apfelHost: 'http://host.docker.internal:11435',
+    }).checkModel('apple-foundationmodel');
+    expect(notConfigured).toMatchObject({
+      guidance: {
+        code: 'controller_not_configured',
+        steps: expect.arrayContaining([
+          'Run the repository model-service controller on the Mac.',
+        ]),
+      },
+      start: { supported: false },
+    });
+
+    const serviceController = {
+      diagnostic: vi.fn().mockRejectedValue(new Error('offline')),
+      start: vi.fn(),
+      stop: vi.fn(),
+    } satisfies ModelServiceController;
+    const unreachable = await manager({
+      apfelHost: 'http://host.docker.internal:11435',
+      serviceController,
+    }).checkModel('apple-foundationmodel');
+    expect(unreachable).toMatchObject({
+      guidance: {
+        code: 'controller_unreachable',
+        steps: expect.arrayContaining([
+          'Start the controller, verify its protected token file, and run Check again.',
+        ]),
+      },
+      start: { supported: false },
+    });
+  });
+
+  it('never exposes the host controller for arbitrary remote Apfel targets', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ status: 'ok', model_available: true })));
+    const serviceController = {
+      diagnostic: vi.fn(async () => ({ available: true, code: 'ready', message: 'ready', steps: [] })),
+      start: vi.fn(),
+      stop: vi.fn(),
+    } satisfies ModelServiceController;
+    const runtime = manager({
+      apfelHost: 'http://apfel.remote.example:11435',
+      serviceController,
+    });
+
+    const status = await runtime.checkModel('apple-foundationmodel');
+    expect(status).toMatchObject({ start: { supported: false }, stop: { supported: false } });
+    await expect(runtime.stopModel('apple-foundationmodel')).rejects.toMatchObject({ code: 'stop_not_supported' });
+    expect(serviceController.diagnostic).not.toHaveBeenCalled();
+    expect(serviceController.stop).not.toHaveBeenCalled();
+  });
+
   it('coalesces concurrent duplicate starts for the same model', async () => {
     let loaded = false;
     const fetchSpy = vi.fn(async (input: string | URL | Request) => {
@@ -319,6 +421,40 @@ describe('bounded model runtime checks', () => {
       .rejects.toBeInstanceOf(ModelControlError);
     await expect(manager({ providers: new ProviderRegistry([provider]) }).stopModel('codex'))
       .rejects.toMatchObject({ code: 'stop_not_supported' });
+  });
+
+  it('pauses and resumes a controllable on-demand Codex provider without inference', async () => {
+    let stopped = false;
+    const provider = {
+      id: 'codex',
+      publicModel: 'codex',
+      ownedBy: 'codex',
+      requiresExplicitGrant: true,
+      status: () => stopped ? 'stopped' as const : 'configured/ready' as const,
+      handlesModel: (model: string) => model === 'codex',
+      start: vi.fn(async () => { stopped = false; }),
+      stop: vi.fn(async () => { stopped = true; }),
+      execute: vi.fn(),
+    } satisfies GatewayProvider;
+    const runtime = manager({ providers: new ProviderRegistry([provider]) });
+
+    const ready = await runtime.checkModel('codex');
+    expect(ready).toMatchObject({
+      state: 'available',
+      stop: { supported: true, action: 'stop_provider', label: 'Stop Codex' },
+    });
+
+    const paused = await runtime.stopModel('codex');
+    expect(paused).toMatchObject({
+      state: 'unavailable',
+      start: { supported: true, action: 'start_provider', label: 'Start Codex' },
+    });
+
+    const resumed = await runtime.startModel('codex');
+    expect(resumed).toMatchObject({ state: 'available', stop: { label: 'Stop Codex' } });
+    expect(provider.stop).toHaveBeenCalledOnce();
+    expect(provider.start).toHaveBeenCalledOnce();
+    expect(provider.execute).not.toHaveBeenCalled();
   });
 
   it('validates and deduplicates model identifiers before checking', async () => {
