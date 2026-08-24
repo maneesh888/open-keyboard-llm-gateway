@@ -41,5 +41,8 @@ if (config.codex?.enabled) {
 if (config.allowLocalServiceStart) {
   console.log('[gateway] Local model service start controls enabled for loopback targets only');
 }
+if (config.modelServiceControllerUrl) {
+  console.log('[gateway] Authenticated host model-service controls configured');
+}
 
 serve({ fetch: app.fetch, port: config.port });

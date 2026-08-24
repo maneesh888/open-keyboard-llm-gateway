@@ -1,13 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { CodexConfig } from '../types/index.js';
 import type { ChatCompletionRequest } from '../proxy/openaiCompatibility.js';
-import { CodexCliRunner, CodexRunnerError, type CodexRunner } from './codexCliRunner.js';
+import { codexPlatformSupported, CodexCliRunner, CodexRunnerError, type CodexRunner } from './codexCliRunner.js';
 import {
   ProviderError,
   type GatewayProvider,
   type ProviderHealthStatus,
   type ProviderRequest,
   type ProviderResponse,
+  type RuntimeDiagnostic,
 } from './types.js';
 
 const SUPPORTED_ROLES = new Set(['system', 'developer', 'user', 'assistant']);
@@ -108,6 +109,8 @@ export class CodexProvider implements GatewayProvider {
 
   private readonly runner?: CodexRunner;
   private readonly apiKey?: string;
+  private stopped = false;
+  private lifecycleController = new AbortController();
   private active = 0;
   private readonly queue: QueueWaiter[] = [];
 
@@ -122,9 +125,67 @@ export class CodexProvider implements GatewayProvider {
 
   status(): ProviderHealthStatus {
     if (!this.config.enabled) return 'disabled';
+    if (this.stopped) return 'stopped';
     return this.apiKey && this.config.model && this.runner?.isAvailable()
       ? 'configured/ready'
       : 'unavailable';
+  }
+
+  diagnostic(): RuntimeDiagnostic | undefined {
+    if (!this.config.enabled) {
+      return {
+        code: 'provider_disabled',
+        message: 'Codex is disabled in gateway configuration.',
+        steps: ['Set codex.enabled to true and configure the approved underlying model.', 'Restart the gateway.'],
+      };
+    }
+    if (this.stopped) {
+      return {
+        code: 'provider_stopped',
+        message: 'Codex was stopped by an administrator.',
+        steps: ['Choose Start Codex to resume new requests, or restart the gateway to restore configured startup state.'],
+      };
+    }
+    if (!this.apiKey) {
+      return {
+        code: 'credential_missing',
+        message: 'The protected Codex service credential is missing.',
+        steps: ['Provide CODEX_API_KEY through the deployment secret manager.', 'Restart the gateway without putting the credential in config.json.'],
+      };
+    }
+    if (!codexPlatformSupported()) {
+      return {
+        code: 'unsupported_platform',
+        message: `The pinned Codex runtime does not support ${process.platform}/${process.arch}.`,
+        steps: ['Use a supported macOS, Linux, or Windows x64/arm64 deployment.', 'Rebuild the gateway on the target platform.'],
+      };
+    }
+    if (!this.runner?.isAvailable()) {
+      return {
+        code: 'codex_runtime_missing',
+        message: 'The pinned Codex CLI runtime is not installed in this gateway deployment.',
+        steps: ['Run npm ci in the gateway checkout to install the pinned @openai/codex package.', 'Run npm run build, then rebuild and redeploy the gateway image.'],
+      };
+    }
+    return undefined;
+  }
+
+  async start(): Promise<void> {
+    if (!this.config.enabled || !this.apiKey || !this.config.model || !this.runner?.isAvailable()) {
+      throw new ProviderError('unavailable', 'The Codex provider cannot be started because its configuration or runtime is unavailable.');
+    }
+    if (!this.stopped) return;
+    this.stopped = false;
+    this.lifecycleController = new AbortController();
+  }
+
+  async stop(): Promise<void> {
+    if (!this.config.enabled) {
+      throw new ProviderError('unavailable', 'The Codex provider is disabled by configuration.');
+    }
+    if (this.stopped) return;
+    this.stopped = true;
+    this.lifecycleController.abort();
   }
 
   handlesModel(model: string): boolean {
@@ -157,10 +218,11 @@ export class CodexProvider implements GatewayProvider {
 
     const expectsJSONObject = requestsJSONObject(request.chatRequest);
     const prompt = mapChatMessagesToCodexPrompt(request.chatRequest, this.config.maxInputChars);
+    const lifecycleSignal = this.lifecycleController.signal;
     const timeoutController = new AbortController();
     const timeout = setTimeout(() => timeoutController.abort(), this.config.timeoutMs);
     timeout.unref();
-    const signal = AbortSignal.any([request.signal, timeoutController.signal]);
+    const signal = AbortSignal.any([request.signal, timeoutController.signal, lifecycleSignal]);
 
     try {
       await this.acquire(signal);
@@ -197,6 +259,7 @@ export class CodexProvider implements GatewayProvider {
     } catch (error) {
       if (request.signal.aborted) throw new ProviderError('cancelled', 'The client cancelled the request.');
       if (timeoutController.signal.aborted) throw new ProviderError('timeout', 'The Codex request timed out.');
+      if (lifecycleSignal.aborted) throw new ProviderError('unavailable', 'The Codex provider was stopped by an administrator.');
       if (error instanceof ProviderError) throw error;
       if (error instanceof CodexRunnerError) {
         if (error.kind === 'unavailable') throw new ProviderError('unavailable', 'The Codex provider is unavailable.');

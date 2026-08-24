@@ -45,6 +45,10 @@ const TARGET_TRIPLES: Record<string, string> = {
   'win32:x64': 'x86_64-pc-windows-msvc',
 };
 
+export function codexPlatformSupported(platform = process.platform, arch = process.arch): boolean {
+  return Boolean(PLATFORM_PACKAGES[`${platform}:${arch}`] && TARGET_TRIPLES[`${platform}:${arch}`]);
+}
+
 function resolveCodexExecutable(): string | undefined {
   const platformKey = `${process.platform}:${process.arch}`;
   const packageName = PLATFORM_PACKAGES[platformKey];

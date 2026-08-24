@@ -11,6 +11,7 @@ import {
 import {
   CodexRunnerError,
   CodexCliRunner,
+  codexPlatformSupported,
   codexArguments,
   codexEnvironment,
   codexLoginArguments,
@@ -125,6 +126,51 @@ afterEach(() => {
 });
 
 describe('Codex provider configuration and discovery', () => {
+  it('reports common platform, credential, and runtime setup diagnostics', () => {
+    expect(codexPlatformSupported('linux', 'x64')).toBe(true);
+    expect(codexPlatformSupported('aix', 'ppc64')).toBe(false);
+
+    const missingCredential = new CodexProvider(codexConfig(), { apiKey: '', runner: new FakeRunner() });
+    expect(missingCredential.diagnostic()).toMatchObject({ code: 'credential_missing' });
+
+    const runner = new FakeRunner();
+    runner.available = false;
+    const missingRuntime = new CodexProvider(codexConfig(), { apiKey: 'protected-test-value', runner });
+    expect(missingRuntime.diagnostic()).toMatchObject({
+      code: 'codex_runtime_missing',
+      steps: expect.arrayContaining([
+        'Run npm ci in the gateway checkout to install the pinned @openai/codex package.',
+      ]),
+    });
+  });
+
+  it('supports bounded administrative stop and start without an inference call', async () => {
+    const runner = new FakeRunner();
+    const provider = new CodexProvider(codexConfig(), { apiKey: 'protected-test-value', runner });
+
+    expect(provider.status()).toBe('configured/ready');
+    await provider.stop();
+    expect(provider.status()).toBe('stopped');
+    await expect(provider.execute(providerRequest())).rejects.toMatchObject({ kind: 'unavailable' });
+    await provider.start();
+    expect(provider.status()).toBe('configured/ready');
+    expect(runner.calls).toHaveLength(0);
+  });
+
+  it('aborts active Codex work when an administrator stops the provider', async () => {
+    const runner = new FakeRunner(async (input) => new Promise<string>((_resolve, reject) => {
+      input.signal.addEventListener('abort', () => reject(new CodexRunnerError('cancelled')), { once: true });
+    }));
+    const provider = new CodexProvider(codexConfig(), { apiKey: 'protected-test-value', runner });
+
+    const execution = provider.execute(providerRequest());
+    await vi.waitFor(() => expect(runner.calls).toHaveLength(1));
+    await provider.stop();
+
+    await expect(execution).rejects.toMatchObject({ kind: 'unavailable' });
+    expect(provider.status()).toBe('stopped');
+  });
+
   it('uses only fixed isolation flags and a minimal process environment', () => {
     const args = codexArguments('configured-model', '/isolated/empty-work');
     expect(args).toEqual(expect.arrayContaining([

@@ -16,7 +16,9 @@ The provider baseline shipped in PR #7. Treat the current implementation and pub
 - The runner uses the pinned official Codex runtime with fixed arguments, prompt input over stdin, an empty temporary working directory, an isolated temporary `CODEX_HOME`, read-only sandboxing, no approvals, ephemeral state, and bounded output capture. It initializes only that temporary home by piping the protected service key to the official API-key login command over stdin, then removes the temporary authentication state with the invocation directory.
 - Configuration bounds request duration, concurrency, queue length, prompt size, and output size. Client cancellation reaches the isolated turn, and the runner attempts to remove its temporary invocation directory afterward.
 - Codex errors use the gateway's safe error envelope without returning credentials, prompts, raw responses, CLI events, stderr, private paths, or upstream configuration.
-- Health reports `disabled`, `configured/ready`, or `unavailable` without making a paid inference call or changing Ollama/Apfel health.
+- Health reports `disabled`, `configured/ready`, `stopped`, or `unavailable` without making a paid inference call or changing Ollama/Apfel health.
+- Authenticated admin model controls can pause and resume the on-demand provider without inference. Stop aborts active/queued work and blocks new requests; process restart restores the configured enabled state.
+- Model status reports safe setup guidance for disabled/stopped state, missing protected credentials, unsupported runtime platforms, and a missing pinned Codex CLI package. It never installs software or returns credential values.
 - Deterministic tests use an injected fake runner. GitHub CI and Docker smoke do not receive Codex credentials or make live OpenAI calls.
 
 The README and `docs/OPENAI_COMPATIBILITY.md` remain the public setup and API-contract sources. If implementation work changes the baseline, update those documents and this plan in the same change.

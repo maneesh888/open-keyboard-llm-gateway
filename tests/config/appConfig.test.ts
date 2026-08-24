@@ -17,6 +17,7 @@ describe('app config loading', () => {
       OLLAMA_HOST: 'http://localhost:11434/',
       APFEL_HOST: 'http://localhost:11435/',
       ALLOW_LOCAL_SERVICE_START: 'true',
+      MODEL_SERVICE_CONTROLLER_URL: 'http://host.docker.internal:18777/',
     });
 
     expect(config).toEqual({
@@ -24,6 +25,7 @@ describe('app config loading', () => {
       ollamaHost: 'http://localhost:11434',
       apfelHost: 'http://localhost:11435',
       allowLocalServiceStart: true,
+      modelServiceControllerUrl: 'http://host.docker.internal:18777',
       codex: {
         enabled: false,
         publicModel: 'codex',
@@ -55,6 +57,7 @@ describe('app config loading', () => {
       ollamaHost: 'http://localhost:11434',
       apfelHost: 'https://apfel.example',
       allowLocalServiceStart: false,
+      modelServiceControllerUrl: undefined,
       codex: {
         enabled: false,
         publicModel: 'codex',
@@ -106,6 +109,21 @@ describe('app config loading', () => {
       logLevel: 'info',
       corsOrigins: ['*'],
     })).toThrow(/allowLocalServiceStart/);
+
+    for (const modelServiceControllerUrl of [
+      'https://host.docker.internal:18777',
+      'http://controller.example:18777',
+      'http://host.docker.internal:18777/path',
+      'http://user@127.0.0.1:18777',
+    ]) {
+      expect(() => validateConfig({
+        port: 8080,
+        ollamaHost: 'http://localhost:11434',
+        modelServiceControllerUrl,
+        logLevel: 'info',
+        corsOrigins: ['*'],
+      })).toThrow(/modelServiceControllerUrl/);
+    }
   });
 
   it('keeps default config valid', () => {

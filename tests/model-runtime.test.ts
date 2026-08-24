@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { localServiceLaunchSpec, ModelControlError, ModelRuntimeManager } from '../src/models/runtime.js';
 import { ProviderRegistry, type GatewayProvider } from '../src/providers/types.js';
+import type { ModelServiceController } from '../src/models/serviceController.js';
 
 const noProviders = new ProviderRegistry();
 
@@ -248,6 +249,65 @@ describe('bounded model runtime checks', () => {
     await expect(runtime.stopModel('apple-foundationmodel')).rejects.toMatchObject({ code: 'stop_not_supported' });
   });
 
+  it('starts and stops the Docker-host Apfel service through the authenticated host controller', async () => {
+    let reachable = false;
+    const fetchSpy = vi.fn(async (input: string | URL | Request) => {
+      expect(String(input)).toBe('http://host.docker.internal:11435/health');
+      if (!reachable) throw new Error('offline');
+      return Response.json({ status: 'ok', model_available: true });
+    });
+    const serviceController = {
+      diagnostic: vi.fn(async () => ({ available: true, code: 'ready', message: 'ready', steps: [] })),
+      start: vi.fn(async () => { reachable = true; }),
+      stop: vi.fn(async () => { reachable = false; }),
+    } satisfies ModelServiceController;
+    vi.stubGlobal('fetch', fetchSpy);
+    const runtime = manager({
+      apfelHost: 'http://host.docker.internal:11435',
+      serviceController,
+    });
+
+    const stopped = await runtime.checkModel('apple-foundationmodel');
+    expect(stopped).toMatchObject({
+      service: 'unreachable',
+      start: { supported: true, action: 'start_service', label: 'Start Apfel' },
+    });
+
+    const started = await runtime.startModel('apple-foundationmodel');
+    expect(started).toMatchObject({
+      state: 'available',
+      service: 'reachable',
+      stop: { supported: true, action: 'stop_service', label: 'Stop Apfel' },
+    });
+
+    const stoppedAgain = await runtime.stopModel('apple-foundationmodel');
+    expect(stoppedAgain).toMatchObject({
+      service: 'unreachable',
+      start: { supported: true, label: 'Start Apfel' },
+    });
+    expect(serviceController.start).toHaveBeenCalledExactlyOnceWith('apfel');
+    expect(serviceController.stop).toHaveBeenCalledExactlyOnceWith('apfel');
+  });
+
+  it('never exposes the host controller for arbitrary remote Apfel targets', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ status: 'ok', model_available: true })));
+    const serviceController = {
+      diagnostic: vi.fn(async () => ({ available: true, code: 'ready', message: 'ready', steps: [] })),
+      start: vi.fn(),
+      stop: vi.fn(),
+    } satisfies ModelServiceController;
+    const runtime = manager({
+      apfelHost: 'http://apfel.remote.example:11435',
+      serviceController,
+    });
+
+    const status = await runtime.checkModel('apple-foundationmodel');
+    expect(status).toMatchObject({ start: { supported: false }, stop: { supported: false } });
+    await expect(runtime.stopModel('apple-foundationmodel')).rejects.toMatchObject({ code: 'stop_not_supported' });
+    expect(serviceController.diagnostic).not.toHaveBeenCalled();
+    expect(serviceController.stop).not.toHaveBeenCalled();
+  });
+
   it('coalesces concurrent duplicate starts for the same model', async () => {
     let loaded = false;
     const fetchSpy = vi.fn(async (input: string | URL | Request) => {
@@ -319,6 +379,40 @@ describe('bounded model runtime checks', () => {
       .rejects.toBeInstanceOf(ModelControlError);
     await expect(manager({ providers: new ProviderRegistry([provider]) }).stopModel('codex'))
       .rejects.toMatchObject({ code: 'stop_not_supported' });
+  });
+
+  it('pauses and resumes a controllable on-demand Codex provider without inference', async () => {
+    let stopped = false;
+    const provider = {
+      id: 'codex',
+      publicModel: 'codex',
+      ownedBy: 'codex',
+      requiresExplicitGrant: true,
+      status: () => stopped ? 'stopped' as const : 'configured/ready' as const,
+      handlesModel: (model: string) => model === 'codex',
+      start: vi.fn(async () => { stopped = false; }),
+      stop: vi.fn(async () => { stopped = true; }),
+      execute: vi.fn(),
+    } satisfies GatewayProvider;
+    const runtime = manager({ providers: new ProviderRegistry([provider]) });
+
+    const ready = await runtime.checkModel('codex');
+    expect(ready).toMatchObject({
+      state: 'available',
+      stop: { supported: true, action: 'stop_provider', label: 'Stop Codex' },
+    });
+
+    const paused = await runtime.stopModel('codex');
+    expect(paused).toMatchObject({
+      state: 'unavailable',
+      start: { supported: true, action: 'start_provider', label: 'Start Codex' },
+    });
+
+    const resumed = await runtime.startModel('codex');
+    expect(resumed).toMatchObject({ state: 'available', stop: { label: 'Stop Codex' } });
+    expect(provider.stop).toHaveBeenCalledOnce();
+    expect(provider.start).toHaveBeenCalledOnce();
+    expect(provider.execute).not.toHaveBeenCalled();
   });
 
   it('validates and deduplicates model identifiers before checking', async () => {
