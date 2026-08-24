@@ -50,13 +50,11 @@ All require `Authorization: Bearer <admin JWT>`.
   - Loads an installed idle local Ollama model with an empty bounded request when Ollama uses loopback or Docker's `host.docker.internal` target.
   - May start a fixed Ollama/Apfel CLI only when explicitly enabled and configured for loopback.
   - May start the macOS Apfel Homebrew service through the authenticated loopback host controller.
-  - Resumes an administratively stopped Codex provider without inference.
   - Refuses start for arbitrary remote, cloud, disabled, and unconfigured providers.
 - `POST /admin/models/stop`
   - Accepts only a model identifier; client-supplied commands or process options are rejected.
   - Unloads a running local Ollama model with a bounded `keep_alive: 0` request when Ollama uses loopback or Docker's `host.docker.internal` target.
   - Stops Apfel only through the authenticated loopback host controller's fixed Homebrew route.
-  - Stops Codex by aborting active/queued work and pausing new provider admission.
   - Refuses stop for arbitrary remote, cloud, disabled, and unconfigured providers.
 
 ## LLM Proxy
@@ -79,7 +77,7 @@ Requires `Authorization: Bearer <client API key>`.
 - `tests/admin/ui-static.test.ts`
   - Admin UI responsive/static wiring contract, separate key/model statuses, concise inference wording, and status/start/stop controls.
 - `tests/model-runtime.test.ts`
-  - Ollama loaded/idle/cloud behavior, empty start/stop requests, Apfel service lifecycle, Codex pause/resume, loopback/Docker-host controls, validation, and deduplication.
+  - Ollama loaded/idle/cloud behavior, empty start/stop requests, Apfel service lifecycle, loopback/Docker-host controls, validation, and deduplication.
 - `tests/model-service-controller.test.ts`
   - Controller authentication, fixed routes, fixed Homebrew commands, and protected client request shape.
 

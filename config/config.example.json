@@ -3,16 +3,6 @@
   "ollamaHost": "http://host.docker.internal:11434",
   "allowLocalServiceStart": false,
   "modelServiceControllerUrl": "http://host.docker.internal:18777",
-  "codex": {
-    "enabled": false,
-    "publicModel": "codex",
-    "model": "replace-with-approved-codex-model",
-    "timeoutMs": 120000,
-    "maxConcurrent": 1,
-    "maxQueue": 2,
-    "maxInputChars": 32000,
-    "maxOutputChars": 16000
-  },
   "logLevel": "info",
   "corsOrigins": ["*"]
 }

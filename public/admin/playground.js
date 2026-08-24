@@ -41,15 +41,10 @@
       : '';
   }
 
-  function classifyPlaygroundError(status, data, err, selectedModel) {
+  function classifyPlaygroundError(status, data, err) {
     const code = structuredErrorCode(data);
     const text = JSON.stringify(data || {}) + ' ' + (err?.message || '');
 
-    if (code === 'provider_unavailable') {
-      return selectedModel === 'codex'
-        ? 'Codex provider unavailable: verify its protected credential and runtime configuration.'
-        : 'Selected model provider is unavailable.';
-    }
     if (code === 'upstream_unreachable') {
       return 'Upstream unavailable: Ollama/Apfel backend is not reachable.';
     }

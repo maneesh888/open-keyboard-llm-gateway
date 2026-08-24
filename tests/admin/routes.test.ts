@@ -8,8 +8,6 @@ import { AdminAuth } from '../../src/admin/auth.js';
 import { createAdminRoutes } from '../../src/admin/keyRoutes.js';
 import type { AdminConfig } from '../../src/types/index.js';
 import { ModelRuntimeManager, type ModelRuntimeStatus } from '../../src/models/runtime.js';
-import { CodexProvider } from '../../src/providers/codex.js';
-import { ProviderRegistry } from '../../src/providers/types.js';
 
 function buildAdminApp(modelRuntime?: ModelRuntimeManager) {
   const dir = join(tmpdir(), 'llm-gateway-admin-routes-' + Date.now() + '-' + Math.random().toString(16).slice(2));
@@ -386,63 +384,6 @@ describe('Admin key routes', () => {
     expect(await res.json()).toEqual({ status, inferencePerformed: false });
     expect(runtime.stopModel).toHaveBeenCalledWith('local-model');
     expect(runtime.startModel).not.toHaveBeenCalled();
-  });
-
-  it('stops and starts Codex through authenticated admin routes without inference', async () => {
-    const runner = {
-      isAvailable: vi.fn(() => true),
-      run: vi.fn(async () => 'must not run'),
-    };
-    const provider = new CodexProvider({
-      enabled: true,
-      publicModel: 'codex',
-      model: 'configured-model',
-      timeoutMs: 5000,
-      maxConcurrent: 1,
-      maxQueue: 1,
-      maxInputChars: 32000,
-      maxOutputChars: 16000,
-    }, { apiKey: 'protected-test-value', runner });
-    const providers = new ProviderRegistry([provider]);
-    const runtime = new ModelRuntimeManager({
-      ollamaHost: 'http://127.0.0.1:11434',
-      apfelHost: 'http://127.0.0.1:11435',
-      providers,
-    });
-    ({ app, token } = buildAdminApp(runtime));
-
-    const stop = await app.request('/admin/models/stop', {
-      method: 'POST',
-      headers: { ...authHeaders(), 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'codex' }),
-    });
-    expect(stop.status).toBe(200);
-    expect(await stop.json()).toMatchObject({
-      inferencePerformed: false,
-      status: {
-        state: 'unavailable',
-        start: { supported: true, label: 'Start Codex' },
-      },
-    });
-    expect(provider.status()).toBe('stopped');
-    expect(providers.readyModels()).toEqual([]);
-
-    const start = await app.request('/admin/models/start', {
-      method: 'POST',
-      headers: { ...authHeaders(), 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'codex' }),
-    });
-    expect(start.status).toBe(200);
-    expect(await start.json()).toMatchObject({
-      inferencePerformed: false,
-      status: {
-        state: 'available',
-        stop: { supported: true, label: 'Stop Codex' },
-      },
-    });
-    expect(provider.status()).toBe('configured/ready');
-    expect(providers.readyModels()).toEqual(['codex']);
-    expect(runner.run).not.toHaveBeenCalled();
   });
 
   it('rejects malformed, unauthenticated, and command-shaped model control requests', async () => {

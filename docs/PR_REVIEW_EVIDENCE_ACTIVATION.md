@@ -12,4 +12,4 @@ For this activation PR:
 
 Only after that live exact-head proof may `main` protection add `Required review evidence` alongside `Required checks`. The protection update must preserve strict branch updating, conversation resolution, administrator enforcement, force-push blocking, and deletion blocking.
 
-This activation change does not alter gateway runtime behavior and does not prove a real Ollama, Apfel, Codex, or model-specific request. No credentialed GitHub workflow, deployment, or image publication is introduced.
+This activation change does not alter gateway runtime behavior and does not prove a real Ollama, Apfel, or model-specific request. No credentialed GitHub workflow, deployment, or image publication is introduced.

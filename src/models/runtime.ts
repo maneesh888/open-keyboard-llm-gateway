@@ -1,12 +1,11 @@
 import { spawn } from 'node:child_process';
-import type { GatewayProvider, ProviderRegistry, RuntimeDiagnostic } from '../providers/types.js';
-import type { ModelServiceController, ModelServiceDiagnostic } from './serviceController.js';
+import type { ModelServiceController, ModelServiceDiagnostic, RuntimeDiagnostic } from './serviceController.js';
 
 export type ModelRuntimeState = 'running' | 'available' | 'unavailable' | 'not_configured';
 export type ModelServiceState = 'reachable' | 'unreachable' | 'not_applicable';
 export type ModelRuntimeMode = 'loaded' | 'idle' | 'on_demand' | 'unknown' | 'not_applicable';
-export type ModelStartAction = 'start_service' | 'load_model' | 'start_provider';
-export type ModelStopAction = 'unload_model' | 'stop_service' | 'stop_provider';
+export type ModelStartAction = 'start_service' | 'load_model';
+export type ModelStopAction = 'unload_model' | 'stop_service';
 
 export type ModelRuntimeStatus = {
   model: string;
@@ -100,7 +99,6 @@ export class ProcessLocalServiceLauncher implements LocalServiceLauncher {
 type ModelRuntimeOptions = {
   ollamaHost: string;
   apfelHost?: string;
-  providers: ProviderRegistry;
   allowLocalServiceStart?: boolean;
   launcher?: LocalServiceLauncher;
   serviceController?: ModelServiceController;
@@ -180,7 +178,6 @@ function wait(ms: number): Promise<void> {
 export class ModelRuntimeManager {
   private readonly ollamaTarget?: URL;
   private readonly apfelTarget?: URL;
-  private readonly providers: ProviderRegistry;
   private readonly allowLocalServiceStart: boolean;
   private readonly launcher: LocalServiceLauncher;
   private readonly serviceController?: ModelServiceController;
@@ -193,7 +190,6 @@ export class ModelRuntimeManager {
   constructor(options: ModelRuntimeOptions) {
     this.ollamaTarget = optionalURL(options.ollamaHost);
     this.apfelTarget = optionalURL(options.apfelHost);
-    this.providers = options.providers;
     this.allowLocalServiceStart = options.allowLocalServiceStart === true;
     this.launcher = options.launcher || new ProcessLocalServiceLauncher();
     this.serviceController = options.serviceController;
@@ -206,8 +202,6 @@ export class ModelRuntimeManager {
 
   async checkModel(value: unknown): Promise<ModelRuntimeStatus> {
     const model = safeModelName(value);
-    const provider = this.providers.providerForModel(model);
-    if (provider) return this.providerStatus(model, provider);
     if (model === 'apple-foundationmodel') return this.apfelStatus(model);
     return this.ollamaStatus(model);
   }
@@ -230,56 +224,6 @@ export class ModelRuntimeManager {
     const operation = this.stopModelBounded(model).finally(() => this.stopInFlight.delete(model));
     this.stopInFlight.set(model, operation);
     return operation;
-  }
-
-  private providerStatus(model: string, provider: GatewayProvider): ModelRuntimeStatus {
-    const status = provider.status();
-    if (status === 'disabled') {
-      return {
-        ...statusBase(model, provider.id),
-        state: 'not_configured',
-        service: 'not_applicable',
-        runtime: 'not_applicable',
-        message: `${provider.id} is disabled. Enable and configure the provider before using this model.`,
-        guidance: provider.diagnostic?.(),
-        start: { supported: false },
-      };
-    }
-    if (status === 'stopped') {
-      return {
-        ...statusBase(model, provider.id),
-        state: 'unavailable',
-        service: 'not_applicable',
-        runtime: 'on_demand',
-        message: `${provider.id} is stopped. Starting it resumes new on-demand requests without running inference.`,
-        guidance: provider.diagnostic?.(),
-        start: provider.start
-          ? { supported: true, action: 'start_provider', label: `Start ${provider.id === 'codex' ? 'Codex' : provider.id}` }
-          : { supported: false },
-      };
-    }
-    if (status === 'unavailable') {
-      return {
-        ...statusBase(model, provider.id),
-        state: 'unavailable',
-        service: 'not_applicable',
-        runtime: 'on_demand',
-        message: `${provider.id} configuration or runtime is unavailable. No inference call was made.`,
-        guidance: provider.diagnostic?.(),
-        start: { supported: false },
-      };
-    }
-    return {
-      ...statusBase(model, provider.id),
-      state: 'available',
-      service: 'not_applicable',
-      runtime: 'on_demand',
-      message: `${provider.id} configuration and runtime are present. Live inference has not been tested.`,
-      start: { supported: false },
-      stop: provider.stop
-        ? { supported: true, action: 'stop_provider', label: `Stop ${provider.id === 'codex' ? 'Codex' : provider.id}` }
-        : { supported: false },
-    };
   }
 
   private canStartService(target: URL | undefined): boolean {
@@ -441,19 +385,6 @@ export class ModelRuntimeManager {
       throw new ModelControlError('start_not_supported', 'This provider does not expose a safe start action.');
     }
 
-    if (status.start.action === 'start_provider') {
-      const provider = this.providers.providerForModel(model);
-      if (!provider?.start) {
-        throw new ModelControlError('start_not_supported', 'This provider does not expose a safe start action.');
-      }
-      try {
-        await provider.start();
-      } catch {
-        throw new ModelControlError('start_failed', 'The provider could not be started.');
-      }
-      return this.checkModel(model);
-    }
-
     if (status.start.action === 'start_service') {
       const provider = status.provider as 'ollama' | 'apfel';
       const target = provider === 'ollama' ? this.ollamaTarget : this.apfelTarget;
@@ -510,19 +441,6 @@ export class ModelRuntimeManager {
     const status = await this.checkModel(model);
     if (!status.stop?.supported || !status.stop.action) {
       throw new ModelControlError('stop_not_supported', 'This provider does not expose a safe stop action.');
-    }
-
-    if (status.stop.action === 'stop_provider') {
-      const provider = this.providers.providerForModel(model);
-      if (!provider?.stop) {
-        throw new ModelControlError('stop_not_supported', 'This provider does not expose a safe stop action.');
-      }
-      try {
-        await provider.stop();
-      } catch {
-        throw new ModelControlError('stop_failed', 'The provider could not be stopped.');
-      }
-      return this.checkModel(model);
     }
 
     if (status.stop.action === 'stop_service') {

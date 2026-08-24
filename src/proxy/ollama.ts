@@ -2,7 +2,6 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import type { Context } from 'hono';
 import type { ApiKey } from '../types/index.js';
 import { errorResponse } from '../lib/errors.js';
-import { ProviderError, ProviderRegistry } from '../providers/types.js';
 import {
   applyChatCompletionCompatibilityProfile,
   parseChatCompletionRequest,
@@ -33,18 +32,15 @@ export class OllamaProxy {
   private host: string;
   private apfelHost?: string;
   private knownModelsPath: string;
-  private providers: ProviderRegistry;
 
   constructor(
     host: string,
     apfelHost?: string,
     knownModelsPath = './config/known-models.json',
-    providers = new ProviderRegistry(),
   ) {
     this.host = host.replace(/\/$/, '');
     this.apfelHost = apfelHost?.replace(/\/$/, '');
     this.knownModelsPath = knownModelsPath;
-    this.providers = providers;
   }
 
   private loadKnownModels(): string[] {
@@ -104,7 +100,6 @@ export class OllamaProxy {
       } catch {}
     }
 
-    for (const model of this.providers.readyModels()) models.add(model);
     return [...models].sort((a, b) => a.localeCompare(b));
   }
 
@@ -124,8 +119,7 @@ export class OllamaProxy {
   }
 
   private modelOwner(model: string): string {
-    return this.providers.ownerForModel(model)
-      || (model === 'apple-foundationmodel' ? 'apfel' : 'ollama');
+    return model === 'apple-foundationmodel' ? 'apfel' : 'ollama';
   }
 
   private openAIModelsResponse(models: string[]): { object: 'list'; data: OpenAIModel[] } {
@@ -141,12 +135,7 @@ export class OllamaProxy {
   }
 
   private async publicModelsForKey(apiKey?: ApiKey): Promise<string[]> {
-    const models = this.keyScopedModels(apiKey) || await this.listModels();
-    return this.providers.modelsForKey(models, apiKey);
-  }
-
-  providerStatus(providerId: string) {
-    return this.providers.status(providerId);
+    return this.keyScopedModels(apiKey) || await this.listModels();
   }
 
   private async handlePublicModels(c: Context): Promise<Response> {
@@ -258,15 +247,13 @@ export class OllamaProxy {
     }
 
     const apiKey = c.get('apiKey') as ApiKey | undefined;
-    const provider = model ? this.providers.providerForModel(model) : undefined;
-    if (!provider) outboundBody = this.applyConfiguredEffort(outboundBody, c.req.path, apiKey);
+    outboundBody = this.applyConfiguredEffort(outboundBody, c.req.path, apiKey);
 
     // Enforce per-key model allowlist (inline — no KeyManager dependency needed)
     if (model && apiKey) {
       const allowed = apiKey.allowedModels as string[] | undefined;
       const explicitlyGranted = allowed?.includes(model) === true;
-      if ((provider?.requiresExplicitGrant && !explicitlyGranted)
-        || (allowed && !allowed.includes('*') && !explicitlyGranted)) {
+      if (allowed && !allowed.includes('*') && !explicitlyGranted) {
         return errorResponse(c, 403, 'model_not_allowed', `Model '${model}' is not allowed for this API key`);
       }
     }
@@ -281,65 +268,6 @@ export class OllamaProxy {
         'unsupported_response_format',
         'JSON Schema structured output is not supported by this compatibility profile.',
       );
-    }
-
-    if (provider) {
-      try {
-        const providerChatRequest = outboundBody
-          ? this.parseJSONRequestBody(outboundBody) as ChatCompletionRequest | undefined
-          : chatRequest;
-        const result = await provider.execute({
-          method: c.req.method,
-          path: c.req.path,
-          body: outboundBody,
-          chatRequest: providerChatRequest,
-          signal: c.req.raw.signal,
-        });
-        let responseBody = result.body;
-        if (isChatCompletions) {
-          const compatibility = validateChatCompletionResponse(result.body);
-          if (!compatibility.ok) {
-            return errorResponse(c, 502, 'invalid_upstream_response', compatibility.message);
-          }
-        }
-        if (isChatCompletions) {
-          const profiled = applyChatCompletionCompatibilityProfile(responseBody, apiKey?.compatibilityProfile);
-          if (!profiled.ok) {
-            return errorResponse(c, 502, 'invalid_upstream_response', profiled.message);
-          }
-          responseBody = profiled.value;
-        }
-        return new Response(responseBody, {
-          status: 200,
-          headers: { 'Content-Type': result.contentType },
-        });
-      } catch (error) {
-        if (!(error instanceof ProviderError)) {
-          return errorResponse(c, 502, 'upstream_error', 'Provider request failed.');
-        }
-        if (error.kind === 'unsupported_stream') {
-          return errorResponse(c, 400, 'stream_not_supported_for_provider', error.message);
-        }
-        if (error.kind === 'unsupported_request') {
-          return errorResponse(c, 400, 'unsupported_parameter', error.message);
-        }
-        if (error.kind === 'overloaded') {
-          return errorResponse(c, 429, 'provider_overloaded', error.message);
-        }
-        if (error.kind === 'timeout') {
-          return errorResponse(c, 504, 'upstream_timeout', error.message);
-        }
-        if (error.kind === 'cancelled') {
-          return errorResponse(c, 408, 'request_cancelled', 'The client cancelled the request.');
-        }
-        if (error.kind === 'unavailable') {
-          return errorResponse(c, 503, 'provider_unavailable', error.message);
-        }
-        if (error.kind === 'invalid_output') {
-          return errorResponse(c, 502, 'invalid_upstream_response', error.message);
-        }
-        return errorResponse(c, 502, 'upstream_error', 'Provider request failed.');
-      }
     }
 
     // Build target URL — treat URL construction errors as a config problem (503)

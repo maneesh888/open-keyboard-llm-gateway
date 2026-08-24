@@ -23,15 +23,15 @@ runInNewContext(source, context);
 const logic = context.AdminPlaygroundLogic as PlaygroundLogic;
 
 describe('Admin Playground model selection', () => {
-  it('includes every discovered model plus the selected key provider alias', () => {
-    expect(logic.buildModelOptions(['local-a', 'local-b', 'local-a'], 'codex'))
-      .toEqual(['local-a', 'local-b', 'codex']);
+  it('includes every discovered model plus the selected key model', () => {
+    expect(logic.buildModelOptions(['local-a', 'local-b', 'local-a'], 'private-model'))
+      .toEqual(['local-a', 'local-b', 'private-model']);
   });
 
   it('automatically selects each key configured model without substituting the first catalog model', () => {
-    expect(logic.modelSelectionForKey(['local-a', 'local-b'], 'codex')).toEqual({
-      options: ['local-a', 'local-b', 'codex'],
-      selectValue: 'codex',
+    expect(logic.modelSelectionForKey(['local-a', 'local-b'], 'private-model')).toEqual({
+      options: ['local-a', 'local-b', 'private-model'],
+      selectValue: 'private-model',
       manualValue: '',
       manualVisible: false,
     });
@@ -53,17 +53,6 @@ describe('Admin Playground model selection', () => {
 });
 
 describe('Admin Playground error classification', () => {
-  it('classifies structured Codex provider_unavailable before generic 503 handling', () => {
-    const result = logic.classifyPlaygroundError(
-      503,
-      { error: { code: 'provider_unavailable', message: 'The Codex provider is unavailable.' } },
-      new Error('HTTP 503'),
-      'codex',
-    );
-    expect(result).toBe('Codex provider unavailable: verify its protected credential and runtime configuration.');
-    expect(result).not.toMatch(/Ollama|Apfel/);
-  });
-
   it('preserves Ollama/Apfel classification for genuine upstream failures', () => {
     expect(logic.classifyPlaygroundError(
       503,
