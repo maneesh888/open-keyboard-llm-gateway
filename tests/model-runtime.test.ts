@@ -212,6 +212,42 @@ describe('bounded model runtime checks', () => {
     expect(fetchSpy.mock.calls.some(([input]) => String(input).endsWith('/api/generate'))).toBe(false);
   });
 
+  it.each([
+    'https://host.docker.internal:11434',
+    'http://host.docker.internal:11434/nested-path',
+  ])('never mutates Ollama models through non-local-safe target %s', async (ollamaHost) => {
+    let loaded = false;
+    const fetchSpy = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/api/tags')) return Response.json({ models: [{ name: 'guarded-model' }] });
+      if (url.endsWith('/api/ps')) return Response.json({ models: loaded ? [{ name: 'guarded-model' }] : [] });
+      throw new Error('unexpected request');
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const runtime = manager({ ollamaHost });
+
+    const idle = await runtime.checkModel('guarded-model');
+    expect(idle).toMatchObject({ runtime: 'idle', start: { supported: false } });
+    await expect(runtime.startModel('guarded-model')).rejects.toMatchObject({ code: 'start_not_supported' });
+
+    loaded = true;
+    const running = await runtime.checkModel('guarded-model');
+    expect(running).toMatchObject({ runtime: 'loaded', stop: { supported: false } });
+    await expect(runtime.stopModel('guarded-model')).rejects.toMatchObject({ code: 'stop_not_supported' });
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).endsWith('/api/generate'))).toBe(false);
+  });
+
+  it('keeps available Apfel models start/stop read-only', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ status: 'ok', model_available: true })));
+    const runtime = manager();
+
+    const status = await runtime.checkModel('apple-foundationmodel');
+
+    expect(status).toMatchObject({ provider: 'apfel', state: 'available', start: { supported: false } });
+    await expect(runtime.startModel('apple-foundationmodel')).rejects.toMatchObject({ code: 'start_not_supported' });
+    await expect(runtime.stopModel('apple-foundationmodel')).rejects.toMatchObject({ code: 'stop_not_supported' });
+  });
+
   it('coalesces concurrent duplicate starts for the same model', async () => {
     let loaded = false;
     const fetchSpy = vi.fn(async (input: string | URL | Request) => {
@@ -281,6 +317,8 @@ describe('bounded model runtime checks', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     await expect(manager({ providers: new ProviderRegistry([provider]) }).startModel('codex'))
       .rejects.toBeInstanceOf(ModelControlError);
+    await expect(manager({ providers: new ProviderRegistry([provider]) }).stopModel('codex'))
+      .rejects.toMatchObject({ code: 'stop_not_supported' });
   });
 
   it('validates and deduplicates model identifiers before checking', async () => {
