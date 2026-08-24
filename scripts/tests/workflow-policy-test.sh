@@ -114,6 +114,9 @@ rg --fixed-strings --line-regexp --quiet '2. Read the relevant README sections a
   fail "the implementation workflow focused-source routing is stale."
 rg --fixed-strings --line-regexp --quiet '3. Select only directly relevant focused sources: `ADMIN_FUNCTION_TEST_PLAN.md`, `ADMIN_UI_REQUIREMENTS.md`, `docs/OPEN_KEYBOARD_CLIENT.md`, or `docs/APFEL_PORTAL_POC.md`.' "$ROOT/.agents/skills/plan-llm-gateway-work-package/SKILL.md" ||
   fail "the planning workflow focused-source routing is stale."
+if rg --fixed-strings --quiet 'Ollama/Apfel/Codex' "$ROOT/.github/pull_request_template.md"; then
+  fail "the pull request template still names the removed Codex provider."
+fi
 
 if rg --quiet 'TODO|\[TODO' "$ROOT/.agents" "$ROOT/.codex"; then
   fail "repository skills or agents still contain placeholders."

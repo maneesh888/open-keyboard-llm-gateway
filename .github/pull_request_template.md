@@ -64,9 +64,9 @@
 
 ## Backend evidence
 
-<!-- Deterministic tests and the disconnected Docker smoke do not prove real Ollama, Apfel, Codex, or model behavior. -->
+<!-- Deterministic tests and the disconnected Docker smoke do not prove real Ollama, Apfel, or model behavior. -->
 <!-- If a requirement names an exact backend/model, require that exact proof with no fallback. Never retain credentials or responses. -->
-- Real Ollama/Apfel/Codex verification: not required
+- Real Ollama/Apfel verification: not required
 - Exact live-tested head: not applicable
 - Exact required backend/model: not applicable
 - Exact tested backend/model: not applicable
