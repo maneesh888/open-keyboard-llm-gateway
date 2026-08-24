@@ -65,16 +65,6 @@ Open Keyboard currently uses these requests for:
 - Gateway logs should not include Authorization headers, API keys, or full private user text.
 - Public fixtures/docs must avoid real private text.
 
-When the optional Codex alias is used, its text-only, non-streaming provider consumes the exact
-client message conversation without adding Open Keyboard operation instructions. The Codex MVP
-supports `response_format: {"type":"json_object"}` by validating that the returned content parses
-as one JSON object; it does not add JSON instructions or support JSON Schema mode.
-For compatibility with Open Keyboard's canonical request builder, the Codex route accepts
-`temperature` and `max_tokens`; its CLI transport does not expose matching controls, so these two
-fields do not alter Codex execution. Other unsupported generation fields are rejected.
-The gateway key must explicitly list the Codex alias; a wildcard model grant alone is intentionally
-insufficient.
-
 ## Development notes
 
 Normal Open Keyboard CI uses offline mocks. Live gateway tests should remain opt-in through env vars such as:
@@ -86,4 +76,4 @@ OPEN_KEYBOARD_LIVE_MODEL=... \
 swift test --package-path OpenKeyboardCore --filter LiveGatewayTests
 ```
 
-Do not commit real keys, local config, or live logs. Fake-runner gateway tests and Docker smoke do not prove a live Codex inference path.
+Do not commit real keys, local config, or live logs. Deterministic gateway tests and Docker smoke do not prove a live model inference path.

@@ -1,15 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { localServiceLaunchSpec, ModelControlError, ModelRuntimeManager } from '../src/models/runtime.js';
-import { ProviderRegistry, type GatewayProvider } from '../src/providers/types.js';
 import type { ModelServiceController } from '../src/models/serviceController.js';
-
-const noProviders = new ProviderRegistry();
 
 function manager(overrides: Partial<ConstructorParameters<typeof ModelRuntimeManager>[0]> = {}) {
   return new ModelRuntimeManager({
     ollamaHost: 'http://127.0.0.1:11434',
     apfelHost: 'http://apfel.test',
-    providers: noProviders,
     ...overrides,
   });
 }
@@ -394,7 +390,7 @@ describe('bounded model runtime checks', () => {
   });
 
   it('uses fixed no-shell launch specs without passing gateway credentials', () => {
-    vi.stubEnv('CODEX_API_KEY', 'must-not-be-inherited');
+    vi.stubEnv('OPENAI_API_KEY', 'must-not-be-inherited');
     vi.stubEnv('APFEL_TOKEN', 'must-not-be-inherited');
 
     const ollama = localServiceLaunchSpec('ollama', new URL('http://127.0.0.1:11435'));
@@ -411,70 +407,6 @@ describe('bounded model runtime checks', () => {
     });
     expect(JSON.stringify(ollama.env)).not.toContain('must-not-be-inherited');
     expect(JSON.stringify(apfel.env)).not.toContain('must-not-be-inherited');
-  });
-
-  it('reports registered on-demand providers without inference or a daemon action', async () => {
-    const provider = {
-      id: 'codex',
-      publicModel: 'codex',
-      ownedBy: 'codex',
-      requiresExplicitGrant: true,
-      status: () => 'configured/ready' as const,
-      handlesModel: (model: string) => model === 'codex',
-      execute: vi.fn(),
-    } satisfies GatewayProvider;
-    const fetchSpy = vi.fn();
-    vi.stubGlobal('fetch', fetchSpy);
-
-    const status = await manager({ providers: new ProviderRegistry([provider]) }).checkModel('codex');
-
-    expect(status).toMatchObject({
-      provider: 'codex',
-      state: 'available',
-      service: 'not_applicable',
-      runtime: 'on_demand',
-      start: { supported: false },
-      inferenceVerified: false,
-    });
-    expect(fetchSpy).not.toHaveBeenCalled();
-    await expect(manager({ providers: new ProviderRegistry([provider]) }).startModel('codex'))
-      .rejects.toBeInstanceOf(ModelControlError);
-    await expect(manager({ providers: new ProviderRegistry([provider]) }).stopModel('codex'))
-      .rejects.toMatchObject({ code: 'stop_not_supported' });
-  });
-
-  it('pauses and resumes a controllable on-demand Codex provider without inference', async () => {
-    let stopped = false;
-    const provider = {
-      id: 'codex',
-      publicModel: 'codex',
-      ownedBy: 'codex',
-      requiresExplicitGrant: true,
-      status: () => stopped ? 'stopped' as const : 'configured/ready' as const,
-      handlesModel: (model: string) => model === 'codex',
-      start: vi.fn(async () => { stopped = false; }),
-      stop: vi.fn(async () => { stopped = true; }),
-      execute: vi.fn(),
-    } satisfies GatewayProvider;
-    const runtime = manager({ providers: new ProviderRegistry([provider]) });
-
-    const ready = await runtime.checkModel('codex');
-    expect(ready).toMatchObject({
-      state: 'available',
-      stop: { supported: true, action: 'stop_provider', label: 'Stop Codex' },
-    });
-
-    const paused = await runtime.stopModel('codex');
-    expect(paused).toMatchObject({
-      state: 'unavailable',
-      start: { supported: true, action: 'start_provider', label: 'Start Codex' },
-    });
-
-    const resumed = await runtime.startModel('codex');
-    expect(resumed).toMatchObject({ state: 'available', stop: { label: 'Stop Codex' } });
-    expect(provider.stop).toHaveBeenCalledOnce();
-    expect(provider.start).toHaveBeenCalledOnce();
-    expect(provider.execute).not.toHaveBeenCalled();
   });
 
   it('validates and deduplicates model identifiers before checking', async () => {

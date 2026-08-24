@@ -46,7 +46,7 @@ describe('host model-service controller', () => {
     expect((await app.request('/health', { headers })).status).toBe(200);
     expect((await app.request('/services/apfel/start', { method: 'POST', headers })).status).toBe(200);
     expect((await app.request('/services/apfel/stop', { method: 'POST', headers })).status).toBe(200);
-    expect((await app.request('/services/codex/start', { method: 'POST', headers })).status).toBe(404);
+    expect((await app.request('/services/ollama/start', { method: 'POST', headers })).status).toBe(404);
     expect(service.control.mock.calls).toEqual([['start'], ['stop']]);
   });
 

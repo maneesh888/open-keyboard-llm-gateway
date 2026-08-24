@@ -10,8 +10,6 @@ services:
     restart: unless-stopped
     ports:
       - "8880:8080"
-    environment:
-      - CODEX_API_KEY
     volumes:
       - ./config/keys.json:/app/config/keys.json
       - ./config/config.json:/app/config/config.json:ro

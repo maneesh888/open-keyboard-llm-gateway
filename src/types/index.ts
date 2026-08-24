@@ -52,21 +52,9 @@ export interface AppConfig {
   apfelHost?: string;
   allowLocalServiceStart?: boolean;
   modelServiceControllerUrl?: string;
-  codex?: CodexConfig;
   logLevel: string;
   corsOrigins: string[];
   trustedProxies?: string[]; // CIDR ranges of trusted reverse proxies (e.g. Cloudflare)
-}
-
-export interface CodexConfig {
-  enabled: boolean;
-  publicModel: string;
-  model?: string;
-  timeoutMs: number;
-  maxConcurrent: number;
-  maxQueue: number;
-  maxInputChars: number;
-  maxOutputChars: number;
 }
 
 export interface RequestLog {

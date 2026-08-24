@@ -54,7 +54,7 @@ describe('Integration', () => {
     const body = await res.json();
     expect(body.status).toBe('ok');
     expect(body.ollama).toBe('disconnected');
-    expect(body.codex).toBe('disabled');
+    expect(body).not.toHaveProperty('codex');
   });
 
   it('serves the pinned semantic prompt browser adapter without auth', async () => {

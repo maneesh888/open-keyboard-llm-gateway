@@ -85,11 +85,6 @@ done
   echo "Gateway smoke expected an intentionally disconnected test backend: $HEALTH_BODY" >&2
   exit 1
 }
-[[ "$HEALTH_BODY" == *'"codex":"disabled"'* ]] || {
-  echo "Gateway smoke expected the privileged Codex provider to remain disabled: $HEALTH_BODY" >&2
-  exit 1
-}
-
 UI_BODY="$(curl --fail --silent --show-error --max-time 3 "http://127.0.0.1:$GATEWAY_PORT/ui")"
 [[ "$UI_BODY" == *'<title>LLM Gateway · Admin</title>'* ]] || {
   echo "Gateway admin UI did not return the expected document." >&2
@@ -106,5 +101,5 @@ SEMANTIC_ADAPTER_BODY="$(curl --fail --silent --show-error --max-time 3 "http://
   exit 1
 }
 
-echo "Docker smoke passed: image starts as non-root, /health is reachable, Codex is disabled, and /ui plus its pinned semantic adapter are served."
-echo "Proof boundary: the fixture backend is intentionally disconnected; no live Ollama, Apfel, or Codex call was made."
+echo "Docker smoke passed: image starts as non-root, /health is reachable, and /ui plus its pinned semantic adapter are served."
+echo "Proof boundary: the fixture backend is intentionally disconnected; no live Ollama or Apfel call was made."

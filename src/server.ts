@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { bodyLimit } from 'hono/body-limit';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { KeyManager } from './keys/manager.js';
@@ -11,18 +10,11 @@ import { OllamaProxy } from './proxy/ollama.js';
 import { loggingMiddleware } from './logging/logger.js';
 import { createAdminApp } from './admin/index.js';
 import type { AppConfig, AdminConfig } from './types/index.js';
-import { DEFAULT_CODEX_CONFIG } from './config/appConfig.js';
-import { CodexProvider } from './providers/codex.js';
-import type { CodexRunner } from './providers/codexCliRunner.js';
-import { ProviderRegistry } from './providers/types.js';
-import { errorResponse } from './lib/errors.js';
 import { ModelRuntimeManager, type LocalServiceLauncher } from './models/runtime.js';
 import { HttpModelServiceController, type ModelServiceController } from './models/serviceController.js';
 import { protectedValue } from './lib/protectedValue.js';
 
 export type AppDependencies = {
-  codexApiKey?: string;
-  codexRunner?: CodexRunner;
   localServiceLauncher?: LocalServiceLauncher;
   modelServiceController?: ModelServiceController;
 };
@@ -36,11 +28,6 @@ export function createApp(
   const app = new Hono();
   const keyManager = new KeyManager(keysPath);
   const rateLimiter = new RateLimiter();
-  const codex = new CodexProvider(config.codex || DEFAULT_CODEX_CONFIG, {
-    apiKey: dependencies.codexApiKey ?? process.env.CODEX_API_KEY,
-    runner: dependencies.codexRunner,
-  });
-  const providers = new ProviderRegistry([codex]);
   const serviceControllerToken = protectedValue('MODEL_SERVICE_CONTROL_TOKEN', 'MODEL_SERVICE_CONTROL_TOKEN_FILE');
   const modelServiceController = dependencies.modelServiceController
     || (config.modelServiceControllerUrl && serviceControllerToken
@@ -50,12 +37,10 @@ export function createApp(
     config.ollamaHost,
     config.apfelHost,
     './config/known-models.json',
-    providers,
   );
   const modelRuntime = new ModelRuntimeManager({
     ollamaHost: config.ollamaHost,
     apfelHost: config.apfelHost,
-    providers,
     allowLocalServiceStart: config.allowLocalServiceStart,
     launcher: dependencies.localServiceLauncher,
     serviceController: modelServiceController,
@@ -70,11 +55,7 @@ export function createApp(
 
   const healthCheck = async () => {
     const ollamaOk = await proxy.healthCheck();
-    return {
-      status: 'ok',
-      ollama: ollamaOk ? 'connected' : 'disconnected',
-      codex: proxy.providerStatus('codex') || 'disabled',
-    } as const;
+    return { status: 'ok', ollama: ollamaOk ? 'connected' : 'disconnected' } as const;
   };
 
   app.get('/', async (c) => c.json(await healthCheck()));
@@ -138,19 +119,6 @@ export function createApp(
   app.use('/v1/*', authMiddleware(keyManager));
   app.use('/v1/*', rateLimiter.middleware());
   app.use('/v1/*', loggingMiddleware());
-  const chatRequestBodyLimit = providers.requestBodyLimitBytes('/v1/chat/completions');
-  if (chatRequestBodyLimit !== undefined) {
-    app.use('/v1/chat/completions', bodyLimit({
-      maxSize: chatRequestBodyLimit,
-      onError: (c) => errorResponse(
-        c,
-        413,
-        'request_too_large',
-        'The request body exceeds the configured provider transport limit.',
-      ),
-    }));
-  }
-
   app.all('/v1/*', (c) => proxy.forward(c));
 
   return { app, keyManager, proxy };

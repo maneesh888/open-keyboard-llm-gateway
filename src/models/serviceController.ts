@@ -1,4 +1,8 @@
-import type { RuntimeDiagnostic } from '../providers/types.js';
+export type RuntimeDiagnostic = {
+  code: string;
+  message: string;
+  steps: string[];
+};
 
 export type ControllableModelService = 'apfel';
 

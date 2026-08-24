@@ -26,15 +26,6 @@ describe('app config loading', () => {
       apfelHost: 'http://localhost:11435',
       allowLocalServiceStart: true,
       modelServiceControllerUrl: 'http://host.docker.internal:18777',
-      codex: {
-        enabled: false,
-        publicModel: 'codex',
-        timeoutMs: 120000,
-        maxConcurrent: 1,
-        maxQueue: 2,
-        maxInputChars: 32000,
-        maxOutputChars: 16000,
-      },
       logLevel: 'info',
       corsOrigins: ['*'],
       trustedProxies: undefined,
@@ -58,15 +49,6 @@ describe('app config loading', () => {
       apfelHost: 'https://apfel.example',
       allowLocalServiceStart: false,
       modelServiceControllerUrl: undefined,
-      codex: {
-        enabled: false,
-        publicModel: 'codex',
-        timeoutMs: 120000,
-        maxConcurrent: 1,
-        maxQueue: 2,
-        maxInputChars: 32000,
-        maxOutputChars: 16000,
-      },
       logLevel: 'info',
       corsOrigins: ['https://app.example'],
       trustedProxies: ['10.0.0.0/8'],
@@ -135,69 +117,13 @@ describe('app config loading', () => {
     });
   });
 
-  it('validates enabled Codex configuration without accepting credentials in files', () => {
-    const base = {
-      enabled: true,
-      publicModel: 'codex',
-      model: 'approved-codex-model',
-      timeoutMs: 60000,
-      maxConcurrent: 1,
-      maxQueue: 2,
-      maxInputChars: 16000,
-      maxOutputChars: 8000,
-    };
-    expect(validateConfig({
-      port: 8080,
-      ollamaHost: 'http://localhost:11434',
-      codex: base,
-      logLevel: 'info',
-      corsOrigins: ['*'],
-    }).codex).toEqual(base);
-
+  it('rejects removed Codex configuration instead of silently ignoring it', () => {
     expect(() => validateConfig({
       port: 8080,
       ollamaHost: 'http://localhost:11434',
-      codex: { ...base, apiKey: 'must-not-appear-in-error' },
+      codex: { enabled: false },
       logLevel: 'info',
       corsOrigins: ['*'],
-    })).toThrow('CODEX_API_KEY');
-    try {
-      validateConfig({
-        port: 8080,
-        ollamaHost: 'http://localhost:11434',
-        codex: { ...base, apiKey: 'must-not-appear-in-error' },
-        logLevel: 'info',
-        corsOrigins: ['*'],
-      });
-    } catch (error) {
-      expect(String(error)).not.toContain('must-not-appear-in-error');
-    }
-  });
-
-  it('rejects incomplete or unsafe Codex limits and aliases', () => {
-    const app = (codex: Record<string, unknown>) => validateConfig({
-      port: 8080,
-      ollamaHost: 'http://localhost:11434',
-      codex,
-      logLevel: 'info',
-      corsOrigins: ['*'],
-    });
-    const base = {
-      enabled: true,
-      publicModel: 'codex',
-      model: 'approved-codex-model',
-      timeoutMs: 60000,
-      maxConcurrent: 1,
-      maxQueue: 2,
-      maxInputChars: 16000,
-      maxOutputChars: 8000,
-    };
-
-    expect(() => app({ ...base, model: '' })).toThrow(/codex.model/);
-    expect(() => app({ ...base, publicModel: '*' })).toThrow(/reserved/);
-    expect(() => app({ ...base, maxConcurrent: 50 })).toThrow(/maxConcurrent/);
-    expect(() => app({ ...base, timeoutMs: 10 })).toThrow(/timeoutMs/);
-    expect(() => app({ ...base, model: '--unsafe-flag' })).toThrow(/codex.model/);
-    expect(() => app({ ...base, openaiApiKey: 'must-not-be-read' })).toThrow(/unsupported configuration/);
+    })).toThrow('codex configuration is no longer supported');
   });
 });

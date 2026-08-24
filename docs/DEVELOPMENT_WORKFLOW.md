@@ -25,9 +25,9 @@ The repository uses cumulative validation modes:
 
 ## Proof boundaries
 
-- Vitest tests use deterministic local doubles and do not prove a real Ollama, Apfel, or Codex backend. Codex tests use an injected fake runner and never make an OpenAI call.
+- Vitest tests use deterministic local doubles and do not prove a real Ollama or Apfel backend.
 - TypeScript build proves compilation for the declared project, not container startup.
-- Docker smoke proves image construction, non-root startup, mounted config, and `/health` response. It expects `ollama: disconnected` and `codex: disabled`; it does not prove model inference.
+- Docker smoke proves image construction, non-root startup, mounted config, and `/health` response. It expects `ollama: disconnected`; it does not prove model inference.
 - Real backend testing must be explicitly requested, use local ignored credentials/configuration, avoid retaining response bodies, and record its target and exact tested commit separately.
 - GitHub Actions is read-only and secretless. It never merges, deploys, or receives local gateway credentials.
 

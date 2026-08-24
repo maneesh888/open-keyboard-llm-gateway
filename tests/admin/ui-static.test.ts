@@ -153,8 +153,7 @@ describe('Admin UI static contract', () => {
     expect(html).not.toContain('data.detail||raw');
     expect(html).toContain('function classify(status,data,err,model)');
     expect(html).toContain('classifyPlaygroundError(status,data,err,model)');
-    expect(playgroundLogic).toContain("code === 'provider_unavailable'");
-    expect(playgroundLogic.indexOf("code === 'provider_unavailable'")).toBeLessThan(playgroundLogic.indexOf('status === 503'));
+    expect(playgroundLogic).not.toContain("code === 'provider_unavailable'");
     expect(html).toContain('history.replaceState(null');
     expect(html).toContain("history.pushState(null,'',next);applyRoute()");
     expect(html).toContain("window.addEventListener('popstate',applyRoute)");
