@@ -434,6 +434,9 @@ export class ModelRuntimeManager {
 
   private async startModelBounded(model: string): Promise<ModelRuntimeStatus> {
     let status = await this.checkModel(model);
+    if (status.provider === 'ollama' && status.state === 'running' && status.runtime === 'loaded') {
+      return status;
+    }
     if (!status.start.supported || !status.start.action) {
       throw new ModelControlError('start_not_supported', 'This provider does not expose a safe start action.');
     }

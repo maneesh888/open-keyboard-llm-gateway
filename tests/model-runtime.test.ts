@@ -82,6 +82,26 @@ describe('bounded model runtime checks', () => {
     ]);
   });
 
+  it('treats a stale start click for an already loaded Ollama model as success', async () => {
+    const fetchSpy = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/api/tags')) return Response.json({ models: [{ name: 'local-model' }] });
+      if (url.endsWith('/api/ps')) return Response.json({ models: [{ model: 'local-model' }] });
+      throw new Error('an already loaded model must not receive another activation request');
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const status = await manager().startModel('local-model');
+
+    expect(status).toMatchObject({
+      state: 'running',
+      runtime: 'loaded',
+      start: { supported: false },
+      stop: { supported: true, action: 'unload_model', label: 'Stop model' },
+    });
+    expect(fetchSpy.mock.calls.some(([input]) => String(input).endsWith('/api/generate'))).toBe(false);
+  });
+
   it('starts and stops Ollama models through the trusted Docker host target', async () => {
     let loaded = false;
     const controlBodies: Array<Record<string, unknown>> = [];
