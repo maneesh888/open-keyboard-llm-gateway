@@ -2,6 +2,8 @@ import type { RuntimeDiagnostic } from '../providers/types.js';
 
 export type ControllableModelService = 'apfel';
 
+export const MODEL_SERVICE_CONTROL_TIMEOUT_MS = 30000;
+
 export type ModelServiceDiagnostic = RuntimeDiagnostic & { available: boolean };
 
 export interface ModelServiceController {
@@ -51,7 +53,11 @@ export class HttpModelServiceController implements ModelServiceController {
   }
 
   private async control(provider: ControllableModelService, action: 'start' | 'stop'): Promise<void> {
-    const response = await this.request(`/services/${provider}/${action}`, 'POST', 15000);
+    const response = await this.request(
+      `/services/${provider}/${action}`,
+      'POST',
+      MODEL_SERVICE_CONTROL_TIMEOUT_MS,
+    );
     if (!response.ok) {
       await response.body?.cancel().catch(() => undefined);
       throw new Error(`The host model-service controller could not ${action} ${provider}.`);

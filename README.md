@@ -299,6 +299,8 @@ MODEL_SERVICE_CONTROL_TOKEN_FILE=/protected/model-control-token \
 
 Mount the same mode-`0600` token file read-only into the gateway and set `MODEL_SERVICE_CONTROL_TOKEN_FILE` to its container path. The controller binds only to `127.0.0.1`, requires the bearer token, and exposes only fixed Apfel Homebrew service start/stop routes. It never accepts a command, executable, arguments, environment, provider name, or host from the admin request. Configure Homebrew's Apfel service environment (for example `APFEL_PORT=11435`) before using Start Apfel when Ollama owns port 11434.
 
+Apfel service transitions remain bounded but may take up to 30 seconds end to end so a freshly loaded Apple model has time to shut down gracefully. The UI reports a safe failure if Homebrew does not complete within that limit; it never retries indefinitely.
+
 Model status uses a common setup diagnostic with a stable code, concise message, and ordered recovery steps. The UI displays these under **Setup help**. Apfel distinguishes unsupported OS/architecture, missing Homebrew, missing Apfel, missing controller configuration, and an unreachable controller. Codex distinguishes disabled/stopped state, missing protected credential, unsupported runtime platform, and a missing pinned CLI runtime. For the gateway, `npm ci` installs its pinned Codex runtime before rebuilding; standalone Codex installation options are documented in the [official Codex CLI guide](https://developers.openai.com/codex/cli/). Setup commands are advisory and are never executed automatically by an admin status request.
 
 ### 3. Admin API Endpoints

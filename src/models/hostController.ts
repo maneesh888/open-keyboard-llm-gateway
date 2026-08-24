@@ -6,6 +6,9 @@ import type { ModelServiceDiagnostic } from './serviceController.js';
 
 export type BrewServiceAction = 'start' | 'stop';
 
+export const BREW_SERVICE_MAX_WAIT_SECONDS = 20;
+export const BREW_SERVICE_CONTROL_TIMEOUT_MS = 25000;
+
 export type BrewServiceCommand = {
   command: string;
   args: string[];
@@ -26,7 +29,7 @@ export function brewServiceCommand(action: BrewServiceAction, executable = resol
     command: executable,
     args: action === 'start'
       ? ['services', 'start', 'apfel']
-      : ['services', 'stop', '--max-wait=10', 'apfel'],
+      : ['services', 'stop', `--max-wait=${BREW_SERVICE_MAX_WAIT_SECONDS}`, 'apfel'],
   };
 }
 
@@ -52,7 +55,7 @@ export class BrewApfelServiceManager implements ApfelServiceManager {
       const timeout = setTimeout(() => {
         child.kill('SIGTERM');
         reject(new Error(`Timed out while asking Homebrew to ${action} Apfel.`));
-      }, 12000);
+      }, BREW_SERVICE_CONTROL_TIMEOUT_MS);
       timeout.unref();
       child.once('error', () => {
         clearTimeout(timeout);

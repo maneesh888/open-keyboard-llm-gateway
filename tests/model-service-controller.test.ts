@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { apfelHostDiagnostic, brewServiceCommand, createModelServiceControllerApp } from '../src/models/hostController.js';
-import { HttpModelServiceController } from '../src/models/serviceController.js';
+import {
+  apfelHostDiagnostic,
+  BREW_SERVICE_CONTROL_TIMEOUT_MS,
+  BREW_SERVICE_MAX_WAIT_SECONDS,
+  brewServiceCommand,
+  createModelServiceControllerApp,
+} from '../src/models/hostController.js';
+import {
+  HttpModelServiceController,
+  MODEL_SERVICE_CONTROL_TIMEOUT_MS,
+} from '../src/models/serviceController.js';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -15,8 +24,12 @@ describe('host model-service controller', () => {
     });
     expect(brewServiceCommand('stop', '/opt/homebrew/bin/brew')).toEqual({
       command: '/opt/homebrew/bin/brew',
-      args: ['services', 'stop', '--max-wait=10', 'apfel'],
+      args: ['services', 'stop', '--max-wait=20', 'apfel'],
     });
+    expect(BREW_SERVICE_MAX_WAIT_SECONDS).toBe(20);
+    expect(BREW_SERVICE_CONTROL_TIMEOUT_MS).toBe(25000);
+    expect(MODEL_SERVICE_CONTROL_TIMEOUT_MS).toBe(30000);
+    expect(BREW_SERVICE_CONTROL_TIMEOUT_MS).toBeLessThan(MODEL_SERVICE_CONTROL_TIMEOUT_MS);
   });
 
   it('requires authentication and exposes only fixed Apfel start/stop routes', async () => {
