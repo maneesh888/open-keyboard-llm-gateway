@@ -21,6 +21,8 @@ export type GatewayErrorCode =
   | 'model_control_unavailable'
   | 'start_not_supported'
   | 'start_failed'
+  | 'stop_not_supported'
+  | 'stop_failed'
   | 'unsupported_response_format'
   | 'invalid_request'
   | 'invalid_upstream_response'

@@ -274,6 +274,30 @@ export function createAdminRoutes(
     }
   });
 
+  // POST /admin/models/stop - Bounded provider-owned model deactivation only.
+  app.post('/models/stop', async (c) => {
+    try {
+      if (!modelRuntime) return errorResponse(c, 503, 'model_control_unavailable', 'Model stop controls are unavailable');
+      const body = await c.req.json() as unknown;
+      if (!isObject(body) || Object.keys(body).some((field) => field !== 'model')) {
+        throw new ValidationError('Request body must contain only model');
+      }
+      const status = await modelRuntime.stopModel(body.model);
+      return c.json({ status, inferencePerformed: false });
+    } catch (error) {
+      if (error instanceof ValidationError || (error instanceof ModelControlError && error.code === 'invalid_model')) {
+        return errorResponse(c, 400, 'validation_error', error.message);
+      }
+      if (error instanceof ModelControlError && error.code === 'stop_not_supported') {
+        return errorResponse(c, 409, error.code, error.message);
+      }
+      if (error instanceof ModelControlError) {
+        return errorResponse(c, 503, 'stop_failed', error.message);
+      }
+      return errorResponse(c, 503, 'stop_failed', 'The bounded model stop action failed');
+    }
+  });
+
   // POST /admin/keys - Create new API key
   app.post('/keys', async (c) => {
     try {

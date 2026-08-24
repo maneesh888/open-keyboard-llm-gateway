@@ -46,9 +46,13 @@ All require `Authorization: Bearer <admin JWT>`.
   - Separates model availability from API-key enablement and never claims live inference proof.
 - `POST /admin/models/start`
   - Accepts only a model identifier; client-supplied commands or process options are rejected.
-  - Loads an installed idle local Ollama model with an empty bounded request.
+  - Loads an installed idle local Ollama model with an empty bounded request when Ollama uses loopback or Docker's `host.docker.internal` target.
   - May start a fixed Ollama/Apfel CLI only when explicitly enabled and configured for loopback.
   - Refuses start for remote, cloud, disabled, unconfigured, and on-demand providers.
+- `POST /admin/models/stop`
+  - Accepts only a model identifier; client-supplied commands or process options are rejected.
+  - Unloads a running local Ollama model with a bounded `keep_alive: 0` request when Ollama uses loopback or Docker's `host.docker.internal` target.
+  - Refuses stop for arbitrary remote, cloud, disabled, unconfigured, and on-demand providers.
 
 ## LLM Proxy
 
@@ -68,9 +72,9 @@ Requires `Authorization: Bearer <client API key>`.
 - `tests/admin/routes.test.ts`
   - Admin auth guard, list sanitize, get, create, update, delete, missing-key paths, model-status, and model-start routes.
 - `tests/admin/ui-static.test.ts`
-  - Admin UI responsive/static wiring contract, separate key/model statuses, token warning, and status/start controls.
+  - Admin UI responsive/static wiring contract, separate key/model statuses, concise inference wording, and status/start/stop controls.
 - `tests/model-runtime.test.ts`
-  - Ollama loaded/idle/cloud behavior, empty preload request, Apfel health, Codex on-demand status, loopback controls, validation, and deduplication.
+  - Ollama loaded/idle/cloud behavior, empty start/stop requests, Apfel health, Codex on-demand status, loopback/Docker-host controls, validation, and deduplication.
 
 ## Test Harness
 
