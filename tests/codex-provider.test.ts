@@ -18,7 +18,7 @@ import {
   type CodexRunInput,
   type CodexRunner,
 } from '../src/providers/codexCliRunner.js';
-import { ProviderError } from '../src/providers/types.js';
+import { ProviderError, ProviderRegistry } from '../src/providers/types.js';
 import type { CodexConfig } from '../src/types/index.js';
 
 class FakeRunner implements CodexRunner {
@@ -142,6 +142,20 @@ describe('Codex provider configuration and discovery', () => {
         'Run npm ci in the gateway checkout to install the pinned @openai/codex package.',
       ]),
     });
+
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('aix');
+    vi.spyOn(process, 'arch', 'get').mockReturnValue('ppc64');
+    const unsupportedPlatform = new CodexProvider(codexConfig(), {
+      apiKey: 'protected-test-value',
+      runner: new FakeRunner(),
+    });
+    expect(unsupportedPlatform.diagnostic()).toMatchObject({
+      code: 'unsupported_platform',
+      message: expect.stringContaining('aix/ppc64'),
+      steps: expect.arrayContaining([
+        'Use a supported macOS, Linux, or Windows x64/arm64 deployment.',
+      ]),
+    });
   });
 
   it('supports bounded administrative stop and start without an inference call', async () => {
@@ -169,6 +183,36 @@ describe('Codex provider configuration and discovery', () => {
 
     await expect(execution).rejects.toMatchObject({ kind: 'unavailable' });
     expect(provider.status()).toBe('stopped');
+  });
+
+  it('rejects queued Codex work and removes discovery when the provider stops', async () => {
+    const runner = new FakeRunner(async (input) => new Promise<string>((_resolve, reject) => {
+      input.signal.addEventListener('abort', () => reject(new CodexRunnerError('cancelled')), { once: true });
+    }));
+    const provider = new CodexProvider(codexConfig(), { apiKey: 'protected-test-value', runner });
+    const registry = new ProviderRegistry([provider]);
+
+    const active = provider.execute(providerRequest());
+    await vi.waitFor(() => expect(runner.calls).toHaveLength(1));
+    const queued = provider.execute(providerRequest());
+    await Promise.resolve();
+
+    expect(registry.readyModels()).toEqual(['codex']);
+    await provider.stop();
+
+    await expect(active).rejects.toMatchObject({ kind: 'unavailable' });
+    await expect(queued).rejects.toMatchObject({ kind: 'unavailable' });
+    expect(runner.calls).toHaveLength(1);
+    expect(registry.readyModels()).toEqual([]);
+    expect(registry.modelsForKey([], {
+      id: 'key',
+      name: 'Key',
+      key: 'gateway-key',
+      enabled: true,
+      allowedModels: ['codex'],
+      rateLimit: 1,
+      createdAt: '2026-01-01',
+    })).toEqual([]);
   });
 
   it('uses only fixed isolation flags and a minimal process environment', () => {

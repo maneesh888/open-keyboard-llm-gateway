@@ -48,32 +48,38 @@ describe('bounded model runtime checks', () => {
     ]);
   });
 
-  it('loads an idle local Ollama model with an empty bounded request', async () => {
+  it('loads and unloads a loopback Ollama model with exact empty bounded requests', async () => {
     let loaded = false;
+    const controlBodies: Array<Record<string, unknown>> = [];
     const fetchSpy = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith('/api/tags')) return Response.json({ models: [{ name: 'local-model' }] });
       if (url.endsWith('/api/ps')) return Response.json({ models: loaded ? [{ model: 'local-model' }] : [] });
       if (url.endsWith('/api/generate')) {
+        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
         expect(init?.method).toBe('POST');
-        expect(JSON.parse(String(init?.body))).toEqual({
-          model: 'local-model',
-          stream: false,
-          keep_alive: '5m',
-        });
-        expect(JSON.parse(String(init?.body))).not.toHaveProperty('prompt');
-        loaded = true;
+        expect(body).not.toHaveProperty('prompt');
+        controlBodies.push(body);
+        loaded = body.keep_alive !== 0;
         return Response.json({ done: true });
       }
       throw new Error('unexpected request');
     });
     vi.stubGlobal('fetch', fetchSpy);
 
-    const before = await manager().checkModel('local-model');
+    const runtime = manager();
+    const before = await runtime.checkModel('local-model');
     expect(before).toMatchObject({ state: 'available', runtime: 'idle', start: { action: 'load_model' } });
 
-    const after = await manager().startModel('local-model');
+    const after = await runtime.startModel('local-model');
     expect(after).toMatchObject({ state: 'running', runtime: 'loaded', inferenceVerified: false });
+
+    const stopped = await runtime.stopModel('local-model');
+    expect(stopped).toMatchObject({ state: 'available', runtime: 'idle' });
+    expect(controlBodies).toEqual([
+      { model: 'local-model', stream: false, keep_alive: '5m' },
+      { model: 'local-model', stream: false, keep_alive: 0 },
+    ]);
   });
 
   it('starts and stops Ollama models through the trusted Docker host target', async () => {
@@ -287,6 +293,42 @@ describe('bounded model runtime checks', () => {
     });
     expect(serviceController.start).toHaveBeenCalledExactlyOnceWith('apfel');
     expect(serviceController.stop).toHaveBeenCalledExactlyOnceWith('apfel');
+  });
+
+  it('classifies missing and unreachable Apfel host controllers with setup guidance', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+
+    const notConfigured = await manager({
+      apfelHost: 'http://host.docker.internal:11435',
+    }).checkModel('apple-foundationmodel');
+    expect(notConfigured).toMatchObject({
+      guidance: {
+        code: 'controller_not_configured',
+        steps: expect.arrayContaining([
+          'Run the repository model-service controller on the Mac.',
+        ]),
+      },
+      start: { supported: false },
+    });
+
+    const serviceController = {
+      diagnostic: vi.fn().mockRejectedValue(new Error('offline')),
+      start: vi.fn(),
+      stop: vi.fn(),
+    } satisfies ModelServiceController;
+    const unreachable = await manager({
+      apfelHost: 'http://host.docker.internal:11435',
+      serviceController,
+    }).checkModel('apple-foundationmodel');
+    expect(unreachable).toMatchObject({
+      guidance: {
+        code: 'controller_unreachable',
+        steps: expect.arrayContaining([
+          'Start the controller, verify its protected token file, and run Check again.',
+        ]),
+      },
+      start: { supported: false },
+    });
   });
 
   it('never exposes the host controller for arbitrary remote Apfel targets', async () => {
