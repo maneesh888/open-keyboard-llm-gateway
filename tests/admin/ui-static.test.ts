@@ -194,7 +194,8 @@ describe('Admin UI static contract', () => {
     expect(html).not.toContain('testerRequestJson');
     expect(html).not.toContain('testerExpectedSchema');
     expect(semanticAdapter).toContain('Generated from contracts/*.json');
-    expect(semanticAdapter).toContain('"contractVersion":"3.0.0"');
+    expect(semanticAdapter).toContain('"contractVersion":"3.1.1"');
+    expect(semanticAdapter).toContain('Structured operation · Translate to Dutch');
     expect(semanticAdapter).toContain('"operation":"fix_grammar"');
     expect(semanticAdapter).toContain('"input_text"');
     expect(semanticAdapter).toContain('"response_format":{"type":"json_object"}');
