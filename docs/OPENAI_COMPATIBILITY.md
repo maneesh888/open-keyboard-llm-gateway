@@ -54,7 +54,8 @@ and repeated or mixed terminal cloud markers are rejected fail-closed.
 
 Keys without this profile do not compare the response model with the requested model and do not
 rewrite it. Their otherwise valid OpenAI-compatible non-streaming bodies and SSE chunk data retain
-the upstream model identity.
+the upstream model identity. After validation, profileless SSE event framing is forwarded
+byte-for-byte, including comments, data-field spacing, and line endings.
 
 For non-streaming completions, the profile removes `reasoning`, `reasoning_content`, and
 `reasoning_details` only from each `choices[].message`. For streaming completions, it removes the

@@ -255,8 +255,11 @@ describe('OllamaProxy', () => {
   });
 
   it.each([
+    ['an ordinary identity without a cloud marker', 'synthetic-ordinary-request', 'synthetic-ordinary-upstream'],
     ['an arbitrary identity', 'synthetic-request:cloud', 'synthetic-unrelated-upstream'],
     ['a prefix-only identity', 'synthetic-family:variant-cloud', 'synthetic-family'],
+    ['a non-terminal cloud marker', 'synthetic:cloud-variant', 'synthetic-variant'],
+    ['an additional upstream suffix', 'synthetic-additional:cloud', 'synthetic-additional-extra'],
     ['a doubled colon marker', 'synthetic-stacked:cloud:cloud', 'synthetic-stacked:cloud'],
     ['a doubled hyphen marker', 'synthetic-stacked-cloud-cloud', 'synthetic-stacked-cloud'],
     ['mixed stacked markers', 'synthetic-stacked-cloud:cloud', 'synthetic-stacked-cloud'],
@@ -572,13 +575,39 @@ describe('OllamaProxy', () => {
   });
 
   it('streams profileless SSE response-model mismatches through byte-for-byte', async () => {
+    const requestedModel = 'synthetic-profileless-stream-request:cloud';
+    const upstreamModel = 'synthetic-profileless-stream-upstream';
+    const firstChunk = {
+      id: 'chatcmpl-profileless-model-test',
+      object: 'chat.completion.chunk',
+      created: 1_700_000_000,
+      model: upstreamModel,
+      choices: [{
+        index: 0,
+        delta: { role: 'assistant', content: '', reasoning: 'fixture' },
+        finish_reason: null,
+      }],
+    };
+    const finalChunk = {
+      ...firstChunk,
+      choices: [{
+        index: 0,
+        delta: { content: 'hello', reasoning_content: 'fixture', reasoning_details: ['fixture'] },
+        finish_reason: 'stop',
+      }],
+    };
+    const usageChunk = {
+      ...firstChunk,
+      choices: [],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    };
     const sseBody = [
-      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[{"index":0,"delta":{"role":"assistant","content":"","reasoning":"fixture"},"finish_reason":null}]}',
-      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[{"index":0,"delta":{"content":"hello","reasoning_content":"fixture","reasoning_details":["fixture"]},"finish_reason":"stop"}]}',
-      'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1700000000,"model":"gemma4","choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}',
-      'data: [DONE]',
-      '',
-    ].join('\n\n');
+      ': synthetic keepalive\r\n\r\n',
+      `data:   ${JSON.stringify(firstChunk)}\r\n\r\n`,
+      `data:  ${JSON.stringify(finalChunk)}\r\n\r\n`,
+      `data:    ${JSON.stringify(usageChunk)}\r\n\r\n`,
+      'data:   [DONE]\r\n\r\n',
+    ].join('');
     fetchSpy.mockResolvedValueOnce(
       new Response(sseBody, {
         status: 200,
@@ -591,7 +620,7 @@ describe('OllamaProxy', () => {
     const res = await app.request('/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model: 'gemma4:cloud', messages: [], stream: true }),
+      body: JSON.stringify({ model: requestedModel, messages: [], stream: true }),
     });
 
     expect(res.status).toBe(200);

@@ -206,10 +206,19 @@ class ChatCompletionStreamValidator {
     private readonly profile?: CompatibilityProfile,
   ) {}
 
-  event(rawEvent: string): StreamEventResult {
+  event(rawEvent: string, passthroughEvent: string): StreamEventResult {
     const lines = rawEvent.replace(/\r\n/g, '\n').split('\n');
     const meaningful = lines.filter((line) => line.length > 0 && !line.startsWith(':'));
-    if (meaningful.length === 0) return { ok: true, value: { chunk: false, terminal: false } };
+    if (meaningful.length === 0) {
+      return {
+        ok: true,
+        value: {
+          output: this.profile === 'universal-ai-connector' ? undefined : encoder.encode(passthroughEvent),
+          chunk: false,
+          terminal: false,
+        },
+      };
+    }
     if (meaningful.some((line) => !line.startsWith('data:'))) {
       return failure('The upstream emitted unsupported SSE fields.');
     }
@@ -220,7 +229,11 @@ class ChatCompletionStreamValidator {
       this.sawDone = true;
       return {
         ok: true,
-        value: { output: encoder.encode('data: [DONE]\n\n'), chunk: false, terminal: true },
+        value: {
+          output: encoder.encode(this.profile === 'universal-ai-connector' ? 'data: [DONE]\n\n' : passthroughEvent),
+          chunk: false,
+          terminal: true,
+        },
       };
     }
     if (this.sawDone) return failure('The upstream emitted data after [DONE].');
@@ -287,7 +300,9 @@ class ChatCompletionStreamValidator {
     return {
       ok: true,
       value: {
-        output: encoder.encode(`data: ${this.profile === 'universal-ai-connector' ? JSON.stringify(chunk) : data}\n\n`),
+        output: encoder.encode(this.profile === 'universal-ai-connector'
+          ? `data: ${JSON.stringify(chunk)}\n\n`
+          : passthroughEvent),
         chunk: true,
         terminal: false,
       },
@@ -301,12 +316,14 @@ class ChatCompletionStreamValidator {
   }
 }
 
-function takeEvent(buffer: string): { event: string; rest: string } | undefined {
+function takeEvent(buffer: string): { event: string; passthrough: string; rest: string } | undefined {
   const separator = /\r?\n\r?\n/.exec(buffer);
   if (!separator || separator.index === undefined) return undefined;
+  const eventEnd = separator.index + separator[0].length;
   return {
     event: buffer.slice(0, separator.index),
-    rest: buffer.slice(separator.index + separator[0].length),
+    passthrough: buffer.slice(0, eventEnd),
+    rest: buffer.slice(eventEnd),
   };
 }
 
@@ -358,7 +375,7 @@ export async function prepareChatCompletionStream(
           return failure(message);
         }
         buffer = split.rest;
-        const checked = validator.event(split.event);
+        const checked = validator.event(split.event, split.passthrough);
         if (!checked.ok) {
           await reader.cancel(checked.message).catch(() => undefined);
           upstreamController.abort(checked.message);
@@ -429,7 +446,7 @@ export async function prepareChatCompletionStream(
           }
 
           buffer = split.rest;
-          const checked = validator.event(split.event);
+          const checked = validator.event(split.event, split.passthrough);
           if (!checked.ok) {
             controller.enqueue(streamFailureEvent());
             upstreamController.abort(checked.message);
