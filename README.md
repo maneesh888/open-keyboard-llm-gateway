@@ -377,9 +377,17 @@ Each API key can have custom configuration:
 The Universal AI Connector profile is a fallback for reasoning models whose otherwise valid Chat
 Completions responses include reasoning-only fields. It removes `reasoning`, `reasoning_content`,
 and `reasoning_details` from assistant messages and streaming deltas without merging them into
-visible content. It also rejects `response_format.type: "json_schema"` before contacting the
-backend because the profile does not claim JSON Schema enforcement. Prefer assigning connector
-keys to a non-reasoning model/provider with real JSON Schema support. See
+visible content. The profile also requires the response model to equal the exact requested model.
+Its only model-identity normalization applies when a requested Ollama alias has one terminal
+`:cloud` or `-cloud` routing marker, the remaining base does not end in either marker, and the
+upstream reports exactly that base: the gateway restores the exact requested alias. Every streaming
+chunk is checked before it can be returned or omitted. All other response-model differences fail
+closed with a generic error that does not echo either identity. Keys without the profile neither
+compare nor rewrite response model identities.
+
+The profile also rejects `response_format.type: "json_schema"` before contacting the backend
+because it does not claim JSON Schema enforcement. Prefer assigning connector keys to a
+non-reasoning model/provider with real JSON Schema support. See
 [the compatibility contract](docs/OPENAI_COMPATIBILITY.md#universal-ai-connector-profile).
 
 ## Open Keyboard integration
@@ -452,8 +460,8 @@ Every gateway-generated non-2xx JSON response uses the OpenAI-style nested error
 | `model_not_allowed` | The requested model is outside the API key's allowlist. |
 | `unsupported_response_format` | The selected compatibility profile cannot faithfully provide the requested response format. |
 | `invalid_request` | The Chat Completions request does not satisfy the documented JSON contract. |
-| `invalid_upstream_response` | A successful upstream response did not satisfy the guaranteed non-streaming contract. |
-| `invalid_stream` | The upstream stream had an unsupported content type, event, chunk, order, or termination. |
+| `invalid_upstream_response` | A successful upstream response did not satisfy the guaranteed non-streaming contract, including any disallowed response-model mismatch for a selected profile. |
+| `invalid_stream` | The upstream stream had an unsupported content type, event, chunk, order, or termination, or a disallowed response-model mismatch for a selected profile. |
 | `request_cancelled` | The client cancelled the request and the gateway aborted the upstream request. |
 
 **Health check (no auth):**
