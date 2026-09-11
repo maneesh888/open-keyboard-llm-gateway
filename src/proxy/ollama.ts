@@ -310,6 +310,7 @@ export class OllamaProxy {
         const prepared = await prepareChatCompletionStream(
           res.body,
           upstreamController,
+          model!,
           apiKey?.compatibilityProfile,
         );
         if (!prepared.ok) {
@@ -345,7 +346,11 @@ export class OllamaProxy {
         }
       }
       if (isChatCompletions) {
-        const profiled = applyChatCompletionCompatibilityProfile(responseBody, apiKey?.compatibilityProfile);
+        const profiled = applyChatCompletionCompatibilityProfile(
+          responseBody,
+          model!,
+          apiKey?.compatibilityProfile,
+        );
         if (!profiled.ok) {
           return errorResponse(c, 502, 'invalid_upstream_response', profiled.message);
         }

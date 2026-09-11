@@ -39,6 +39,7 @@ const numericGenerationFields = [
 const encoder = new TextEncoder();
 const MAX_SSE_EVENT_LENGTH = 1024 * 1024;
 const REASONING_RESPONSE_FIELDS = ['reasoning', 'reasoning_content', 'reasoning_details'] as const;
+const OLLAMA_CLOUD_MODEL_SUFFIXES = [':cloud', '-cloud'] as const;
 
 function isRecord(value: unknown): value is RecordValue {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -151,8 +152,29 @@ function stripReasoningFields(value: RecordValue): void {
   for (const field of REASONING_RESPONSE_FIELDS) delete value[field];
 }
 
+function connectorModelIdentity(
+  response: RecordValue,
+  requestedModel: string,
+): CompatibilityResult<undefined> {
+  if (response.model === requestedModel) return { ok: true, value: undefined };
+
+  const suffix = OLLAMA_CLOUD_MODEL_SUFFIXES.find((candidate) => requestedModel.endsWith(candidate));
+  if (suffix) {
+    const baseModel = requestedModel.slice(0, -suffix.length);
+    const hasSingleTerminalSuffix = Boolean(baseModel)
+      && !OLLAMA_CLOUD_MODEL_SUFFIXES.some((candidate) => baseModel.endsWith(candidate));
+    if (hasSingleTerminalSuffix && response.model === baseModel) {
+      response.model = requestedModel;
+      return { ok: true, value: undefined };
+    }
+  }
+
+  return failure('The upstream response model did not match the requested model.');
+}
+
 export function applyChatCompletionCompatibilityProfile(
   body: string,
+  requestedModel: string,
   profile?: CompatibilityProfile,
 ): CompatibilityResult<string> {
   if (profile !== 'universal-ai-connector') return { ok: true, value: body };
@@ -161,6 +183,8 @@ export function applyChatCompletionCompatibilityProfile(
   if (!validated.ok) return validated;
 
   const response = validated.value;
+  const modelIdentity = connectorModelIdentity(response, requestedModel);
+  if (!modelIdentity.ok) return modelIdentity;
   for (const choice of response.choices as RecordValue[]) {
     stripReasoningFields(choice.message as RecordValue);
   }
@@ -177,7 +201,10 @@ class ChatCompletionStreamValidator {
   private sawChunk = false;
   private sawDone = false;
 
-  constructor(private readonly profile?: CompatibilityProfile) {}
+  constructor(
+    private readonly requestedModel: string,
+    private readonly profile?: CompatibilityProfile,
+  ) {}
 
   event(rawEvent: string): StreamEventResult {
     const lines = rawEvent.replace(/\r\n/g, '\n').split('\n');
@@ -228,6 +255,11 @@ class ChatCompletionStreamValidator {
       if (hasOwn(choice, 'finish_reason') && choice.finish_reason !== null && typeof choice.finish_reason !== 'string') {
         return failure('The upstream emitted an invalid Chat Completions finish reason.');
       }
+    }
+
+    if (this.profile === 'universal-ai-connector') {
+      const modelIdentity = connectorModelIdentity(chunk, this.requestedModel);
+      if (!modelIdentity.ok) return modelIdentity;
     }
 
     this.sawChunk = true;
@@ -291,13 +323,14 @@ function streamFailureEvent(): Uint8Array {
 export async function prepareChatCompletionStream(
   body: ReadableStream<Uint8Array> | null,
   upstreamController: AbortController,
+  requestedModel: string,
   profile?: CompatibilityProfile,
 ): Promise<CompatibilityResult<PreparedChatCompletionStream>> {
   if (!body) return failure('The upstream returned an empty Chat Completions stream.');
 
   const reader = body.getReader();
   const decoder = new TextDecoder();
-  const validator = new ChatCompletionStreamValidator(profile);
+  const validator = new ChatCompletionStreamValidator(requestedModel, profile);
   const prefetched: Uint8Array[] = [];
   let buffer = '';
   let firstChunkSeen = false;
