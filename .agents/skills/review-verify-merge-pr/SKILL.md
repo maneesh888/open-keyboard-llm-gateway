@@ -15,6 +15,14 @@ Bind every review conclusion and state change to one exact pull-request head.
 - Do not request another confirmation while the same-head reviewer reports operational confidence exactly `100%` and recommends `automatic`. Below 100%, explicit repository-owner authorization naming the current full SHA is mandatory.
 - Deployment remains separate. Never bypass hooks, scanners, required checks, protection, or valid review findings.
 
+## Review prerequisites and later readiness
+
+The report schema's legacy field `Mandatory exact-head gates` means **review-stage prerequisites**: clean unchanged head, local Full, same-head technical `Required checks`, classified live/observed proof, and every requirement's specified evidence. The reviewer may mark that field `complete` only when these prerequisites pass.
+
+Metadata validation consumes the report and its PR link, so it is a **post-report readiness gate**. It cannot be a prerequisite for producing that same report. Include `Post-report readiness: pending` in the report and state that both `Required review evidence` event families plus `gh pr checks --required` still must pass. An automatic review recommendation does not itself authorize readiness or merge.
+
+Missing or failed review-stage prerequisites remain blockers to the report's automatic recommendation. Missing or failed post-report checks remain non-overridable blockers to readiness and merge. The root must complete the post-report sequence below and inspect its actual results; it must never relabel a failed check as passing. Every new commit invalidates both stages.
+
 ## Establish the target
 
 1. Resolve the PR number, base, full head SHA, draft state, diff, mergeability, reviews, unresolved threads, and checks.
