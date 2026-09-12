@@ -10,7 +10,7 @@ Usage: ./scripts/check.sh [--hygiene|--quick|--full]
 
   --hygiene  Validate tooling, shell/YAML syntax, policies, secrets, and whitespace.
   --quick    Run hygiene, all Vitest tests, and the TypeScript build.
-  --full     Run quick checks plus Compose validation and a Docker runtime smoke.
+  --full     Run quick checks, browser/API E2E, Compose validation and Docker smoke.
              This is the default and the release/pre-push gate.
 EOF
 }

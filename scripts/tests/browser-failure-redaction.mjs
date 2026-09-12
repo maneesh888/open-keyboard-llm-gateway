@@ -1,9 +1,10 @@
 // A deliberately failing browser test must not persist credential-bearing DOM state.
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 const root = resolve('.');
+mkdirSync(join(root, '.ci-results'), { recursive: true });
 const directory = mkdtempSync(join(root, '.ci-results/browser-redaction-'));
 const canary = randomBytes(32).toString('hex');
 try {
