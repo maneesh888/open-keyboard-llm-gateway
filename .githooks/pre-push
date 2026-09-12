@@ -23,3 +23,10 @@ require_clean_head() {
 require_clean_head
 "$ROOT/scripts/check.sh" --full
 require_clean_head
+
+BASE_REF="${GATEWAY_BASE_REF:-origin/main}"
+IMPACT="$(node "$ROOT/scripts/verification-impact.mjs" "$BASE_REF" "$HEAD_SHA")"
+if [[ "$(node -e 'process.stdout.write(String(JSON.parse(process.argv[1]).live))' "$IMPACT")" == "true" ]]; then
+  "$ROOT/scripts/check-live.sh"
+  require_clean_head
+fi

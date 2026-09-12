@@ -42,4 +42,4 @@ if (config.modelServiceControllerUrl) {
   console.log('[gateway] Authenticated host model-service controls configured');
 }
 
-serve({ fetch: app.fetch, port: config.port });
+serve({ fetch: app.fetch, port: config.port, hostname: config.bindAddress });

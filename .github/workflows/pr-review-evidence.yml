@@ -68,6 +68,19 @@ jobs:
             echo "source=bootstrap-candidate" >> "$GITHUB_OUTPUT"
           fi
 
+          if git cat-file -e "$PR_BASE_SHA:.github/verification-evidence-enforced" 2>/dev/null; then
+            for validator_name in verification-impact.mjs live-proof-lib.mjs validate-workflow-evidence.mjs; do
+              if ! git cat-file -e "$PR_BASE_SHA:scripts/$validator_name" 2>/dev/null; then
+                echo "Trusted workflow-evidence validator is missing." >&2
+                exit 1
+              fi
+              git show "$PR_BASE_SHA:scripts/$validator_name" > "$validator_root/$validator_name"
+            done
+            echo "workflow_evidence=trusted-base" >> "$GITHUB_OUTPUT"
+          else
+            echo "workflow_evidence=bootstrap-not-enforced" >> "$GITHUB_OUTPUT"
+          fi
+
           echo "root=$validator_root" >> "$GITHUB_OUTPUT"
 
       - name: Fetch current read-only GitHub evidence
@@ -92,6 +105,14 @@ jobs:
           REVIEWS_JSON_FILE: ${{ runner.temp }}/reviews.json
           VALIDATOR_ROOT: ${{ steps.validators.outputs.root }}
         run: node "$VALIDATOR_ROOT/validate-pr-review-evidence-event.mjs"
+
+      - name: Validate trusted workflow evidence
+        if: steps.validators.outputs.workflow_evidence == 'trusted-base'
+        env:
+          CURRENT_PR_JSON_FILE: ${{ runner.temp }}/current-pr.json
+          EVENT_JSON_FILE: ${{ runner.temp }}/event.json
+          VALIDATOR_ROOT: ${{ steps.validators.outputs.root }}
+        run: node "$VALIDATOR_ROOT/validate-workflow-evidence.mjs"
 
       - name: Report validator trust source
         env:

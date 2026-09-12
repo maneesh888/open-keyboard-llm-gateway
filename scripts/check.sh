@@ -10,7 +10,7 @@ Usage: ./scripts/check.sh [--hygiene|--quick|--full]
 
   --hygiene  Validate tooling, shell/YAML syntax, policies, secrets, and whitespace.
   --quick    Run hygiene, all Vitest tests, and the TypeScript build.
-  --full     Run quick checks plus Compose validation and a Docker runtime smoke.
+  --full     Run quick checks, browser/API E2E, Compose validation and Docker smoke.
              This is the default and the release/pre-push gate.
 EOF
 }
@@ -85,6 +85,7 @@ run_hygiene() {
   "$ROOT/scripts/tests/push-ref-policy-test.sh"
   node "$ROOT/scripts/tests/pr-evidence-policy-test.mjs"
   node "$ROOT/scripts/tests/review-evidence-snapshot-test.mjs"
+  node --test "$ROOT/scripts/tests/workflow-verification-test.mjs"
   "$ROOT/scripts/tests/workflow-policy-test.sh"
   validate_whitespace
   echo "LLM Gateway hygiene checks passed."
@@ -101,6 +102,7 @@ run_full() {
   run_hygiene --full
   "$ROOT/scripts/check-semantic-prompt-contract.sh"
   "$ROOT/scripts/local-ci.sh" --quick
+  "$ROOT/scripts/check-e2e.sh"
   "$ROOT/scripts/local-ci.sh" --docker
   echo "LLM Gateway full checks passed."
 }

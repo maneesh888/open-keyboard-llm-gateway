@@ -1,0 +1,6 @@
+name = "gateway-product-copy"
+description = "Read-only Gateway content and product-claim review."
+sandbox_mode = "read-only"
+model = "gpt-6-astra"
+model_reasoning_effort = "high"
+developer_instructions = "Use $write-gateway-product-copy for the assigned journey. Remain read-only, trace shipping claims to production behavior, and return one decisive copy recommendation with non-copy gaps separated. Never edit semantic prompts or claim unobserved visual acceptance."

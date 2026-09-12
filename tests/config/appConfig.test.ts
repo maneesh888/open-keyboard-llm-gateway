@@ -127,3 +127,14 @@ describe('app config loading', () => {
     })).toThrow('codex configuration is no longer supported');
   });
 });
+
+describe('listener binding', () => {
+  it('accepts explicit IP bindings and rejects hostnames or invalid values', () => {
+    for (const bindAddress of ['127.0.0.1', '::1', '0.0.0.0']) {
+      expect(validateConfig({ ...defaultConfig(), bindAddress }).bindAddress).toBe(bindAddress);
+    }
+    for (const bindAddress of ['', 'localhost', 'bad-address', 123]) {
+      expect(() => validateConfig({ ...defaultConfig(), bindAddress })).toThrow(/bindAddress/);
+    }
+  });
+});

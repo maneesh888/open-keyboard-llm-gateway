@@ -14,7 +14,7 @@ Work on one bounded gateway package while preserving API compatibility, secret b
 3. Read `docs/DEVELOPMENT_WORKFLOW.md` when choosing checks or changing scripts, hooks, CI, Docker, skills, agents, or release behavior.
 4. For semantic diagnostics, initialize the pinned `Vendor/semantic-prompt-contract` submodule and treat its canonical JSON and generated browser adapter as the source of truth.
 5. If the user requests a plan, invoke the read-only `work-package-planner`; otherwise keep a compact internal work order and proceed.
-6. Preserve unrelated work and use an isolated branch/worktree when a dirty integration checkout makes exact-head work unsafe.
+6. Apply the authority/phase record and fresh isolated worktree rules in `AGENTS.md`. Preserve unrelated work and inspect all outgoing commits before publication.
 
 ## Select the mode
 
@@ -35,9 +35,15 @@ Use the highest mode required by the requested outcome or affected surface.
 7. Never copy canonical prompt wording into gateway code. The admin tester may consume package fixtures, while the production proxy must preserve client messages exactly.
 8. Maintain the PR requirement ledger with one stable sequential row per in-scope requirement. Missing, stale, substituted, fallback, wrong-target, uninspectable, or weaker evidence remains `UNVERIFIED`.
 
+## Content and journey loop
+
+For changed visible wording, use `$write-gateway-product-copy`; for UI or journey changes, use `$audit-gateway-ui`. Resolve conflicting product sources before drafting. Keep findings tied to reachable production states and retain missing behavior as behavior work, not a wording fix. Follow `docs/BROWSER_SMOKE_PLAN.md` for observed acceptance and `./scripts/check-e2e.sh` for regression proof. These are distinct from live-provider evidence.
+
+Use the configured project agent roles when delegation is useful: `gateway-explorer` for bounded source questions, `gateway-product-copy` for content, and `gateway-ui-auditor` for journeys. Roles select model/effort; skills define the method. Keep implementation ownership with the root and independent final review with `pr-reviewer`. Escalate uncertain conclusions to the root rather than silently substituting a model or weakening evidence.
+
 ## Lifecycle autonomy
 
-A bounded implementation request authorizes branch preparation, edits, checks, commit, push, draft PR, in-scope review fixes, readiness, and guarded merge. Honor the latest explicit opt-out: `local only`, `do not commit`, `do not push`, `do not create a PR`, `keep draft`, or `do not merge`.
+A bounded implementation request authorizes branch preparation, edits, checks, commit, push, draft PR, in-scope review fixes, readiness, and guarded merge. Preserve each active constraint with its phase/task scope as described in `AGENTS.md`. Honor explicit opt-outs: `local only`, `do not commit`, `do not push`, `do not create a PR`, `keep draft`, or `do not merge`.
 
 Planning/review-only requests remain read-only. Stop for unavailable credentials, ambiguous dirty-file ownership, destructive actions, material scope expansion, deployment, or another external change outside the request.
 
@@ -46,6 +52,7 @@ Planning/review-only requests remain read-only. Stop for unavailable credentials
 - Run affected tests while iterating.
 - Run `./scripts/check.sh --hygiene` for Fast, `--quick` for Standard, and `--full` for Release.
 - Run `./scripts/check-semantic-prompt-contract.sh` when the contract gitlink, semantic fixtures, generated browser adapter, or adapter-serving route changes.
+- Run the classifier-selected `./scripts/check-live.sh` on the clean committed head before push. Inspect the sanitized proof; preserve exact provider/model identity.
 - Install and never bypass the committed hooks.
 - Start PRs as drafts and complete `.github/pull_request_template.md` with the full exact head SHA, exact-copy acceptance/proof rows, and current authorization fields.
 - Use `$review-verify-merge-pr` for independent review, readiness, and guarded merge.

@@ -44,6 +44,7 @@
 - Blocking findings: pending
 - Non-overridable blockers: pending
 - Mandatory exact-head gates: pending
+- Post-report readiness: pending
 - Independent review evidence: pending
 - Reviewer confidence: pending
 - Merge recommendation: pending
@@ -61,6 +62,15 @@
 - Human approval status: pending
 - Human-approved head: pending
 - Human approval evidence: pending
+
+## Workflow evidence
+
+<!-- Run verification-impact.mjs against the current base/head. Fields are checked from the trusted base. -->
+<!-- Live: paste the single-line sanitized .ci-results/live-proof.json output, or not-required only when unclassified. -->
+<!-- Browser: observed:<full-sha>:<inspectable-reference>, or human-approved:<full-sha>:<approval-reference>. -->
+<!-- The human form also requires the existing exact-head human authorization record. Never relabel absent proof. -->
+- Workflow live proof: pending
+- Workflow browser proof: pending
 
 ## Backend evidence
 
