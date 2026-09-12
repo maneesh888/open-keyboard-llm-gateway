@@ -1,5 +1,8 @@
 import { defineConfig } from '@playwright/test';
 
+// Pinned Playwright also captures ARIA error contexts independently of trace settings.
+process.env.PLAYWRIGHT_NO_COPY_PROMPT = '1';
+
 export default defineConfig({
   testDir: './tests/e2e',
   testMatch: '**/*.spec.mjs',

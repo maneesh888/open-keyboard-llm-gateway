@@ -69,6 +69,13 @@ export async function probeContract({ url, clientKey, profile }) {
   if (!models.ok) { await models.body?.cancel(); throw new Error('Live model listing failed.'); }
   const catalog = JSON.parse(await boundedText(models));
   if (!catalog.data?.some(item => item.id === profile.model)) throw new Error('Exact required live model is absent.');
+  const providerModels = await fetch(profile.upstreamUrl + (profile.provider === 'ollama' ? '/api/tags' : '/v1/models'), { redirect: 'error', signal: AbortSignal.timeout(profile.timeoutMs) });
+  if (!providerModels.ok) { await providerModels.body?.cancel(); throw new Error('Required provider catalog is unavailable.'); }
+  const providerCatalog = JSON.parse(await boundedText(providerModels));
+  const available = profile.provider === 'ollama'
+    ? providerCatalog.models?.some(item => (item.name || item.model) === profile.model)
+    : providerCatalog.data?.some(item => item.id === profile.model);
+  if (!available) throw new Error('Exact model is absent from the required provider catalog.');
   // Public transport fixture only: this is not a semantic operation or model-quality evaluation.
   const messages = [{ role: 'user', content: 'Reply with a brief greeting.' }];
   for (const stream of [false, true]) {

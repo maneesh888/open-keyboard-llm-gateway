@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
-export async function startGateway({ root = resolve('.'), upstreamUrl, apfelUrl, adminConfig, keys = [] }) {
+export async function startGateway({ root = resolve('.'), upstreamUrl, apfelUrl, adminConfig, proofModel, keys = [] }) {
   const directory = await mkdtemp(join(tmpdir(), 'gateway-proof-'));
   let child;
   let closed = false;
@@ -35,9 +35,9 @@ export async function startGateway({ root = resolve('.'), upstreamUrl, apfelUrl,
     await new Promise((resolveClose, reject) => reservation.close(error => error ? reject(error) : resolveClose()));
     const clientKey = randomBytes(32).toString('hex');
     const fixtureKey = { id: 'proof-key', name: 'Proof fixture', key: clientKey, enabled: true,
-      allowedModels: ['*'], rateLimitConfig: { requestsPerMinute: 600, burstAllowance: 100 },
+      allowedModels: proofModel ? [proofModel] : ['*'], rateLimitConfig: { requestsPerMinute: 600, burstAllowance: 100 },
       createdAt: '2026-01-01T00:00:00Z' };
-    const config = { port, ollamaHost: upstreamUrl, ...(apfelUrl ? { apfelHost: apfelUrl } : {}),
+    const config = { port, bindAddress: '127.0.0.1', ollamaHost: upstreamUrl, ...(apfelUrl ? { apfelHost: apfelUrl } : {}),
       allowLocalServiceStart: false, logLevel: 'error', corsOrigins: ['*'] };
     for (const [name, content] of Object.entries({ 'config.json': config, 'keys.json': { keys: [fixtureKey, ...keys] },
       ...(adminConfig ? { 'admin.json': adminConfig } : {}) })) {
@@ -63,4 +63,10 @@ export async function startGateway({ root = resolve('.'), upstreamUrl, apfelUrl,
     }
     throw new Error('Owned gateway did not become ready.');
   } catch (error) { await close(); throw error; }
+}
+
+export function startLiveGateway({ root, profile }) {
+  return startGateway({ root, proofModel: profile.model,
+    upstreamUrl: profile.provider === 'ollama' ? profile.upstreamUrl : 'http://127.0.0.1:9',
+    apfelUrl: profile.provider === 'apfel' ? profile.upstreamUrl : undefined });
 }

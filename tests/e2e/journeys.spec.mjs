@@ -1,6 +1,11 @@
 import { test as base, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { connect, createServer } from 'node:net';
+import { networkInterfaces } from 'node:os';
+import { once } from 'node:events';
+import { startLiveGateway } from '../../scripts/lib/gateway-test-server.mjs';
+import { probeContract } from '../../scripts/live-proof-lib.mjs';
 import { startFixture } from './harness.mjs';
 
 const test = base.extend({
@@ -178,3 +183,27 @@ test('public API covers both provider routes, streaming, malformed upstream and 
   expect((await chat(gateway, { model: 'fixture:model', messages })).status).toBe(200);
   expect(gateway.state.credentialForwarded).toBe(false);
 });
+
+for (const provider of ['ollama', 'apfel']) {
+  test(`live runner isolates ${provider} from an absent opposite provider`, async ({ gateway }) => {
+    const profile = { version: 1, provider, upstreamUrl: gateway.upstreamUrl,
+      model: provider === 'apfel' ? 'apple-foundationmodel' : 'fixture:model', timeoutMs: 5000 };
+    const owned = await startLiveGateway({ profile });
+    try {
+      expect(await probeContract({ ...owned, profile })).toEqual({ authentication: true, models: true, completion: true, streaming: true });
+      const host = Object.values(networkInterfaces()).flat().find(address => address.family === 'IPv4' && !address.internal)?.address || '127.0.0.2';
+      const canConnect = port => new Promise(resolve => {
+        const socket = connect({ host, port });
+        socket.once('connect', () => { socket.destroy(); resolve(true); });
+        socket.once('error', () => resolve(false));
+        socket.setTimeout(1000, () => { socket.destroy(); resolve(false); });
+      });
+      // Confirm this address actually detects a wildcard listener before testing isolation.
+      const control = createServer(socket => socket.destroy());
+      control.listen(0, '0.0.0.0'); await once(control, 'listening');
+      try { expect(await canConnect(control.address().port)).toBe(true); }
+      finally { await new Promise(resolve => control.close(resolve)); }
+      expect(await canConnect(Number(new URL(owned.url).port))).toBe(false);
+    } finally { await owned.close(); }
+  });
+}

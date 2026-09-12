@@ -42,6 +42,6 @@ export async function startFixture() {
     jwtSecret: randomBytes(32).toString('hex'), sessionExpiryHours: 1 };
   try {
     const gateway = await startGateway({ upstreamUrl, apfelUrl: upstreamUrl, adminConfig });
-    return { ...gateway, state, async close() { await gateway.close(); upstream.closeAllConnections(); await new Promise(resolve => upstream.close(resolve)); } };
+    return { ...gateway, upstreamUrl, state, async close() { await gateway.close(); upstream.closeAllConnections(); await new Promise(resolve => upstream.close(resolve)); } };
   } catch (error) { upstream.closeAllConnections(); upstream.close(); throw error; }
 }

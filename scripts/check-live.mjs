@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { readSecureProfile, targetDigest, probeContract, validateLiveProof } from './live-proof-lib.mjs';
-import { startGateway } from './lib/gateway-test-server.mjs';
+import { startLiveGateway } from './lib/gateway-test-server.mjs';
 const root = resolve('.');
 const output = join(root, '.ci-results/live-proof.json');
 const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -16,7 +16,7 @@ try {
   const profile = readSecureProfile(root);
   execFileSync('npm', ['run', 'build'], { cwd: root, stdio: 'ignore' });
   requireHead();
-  gateway = await startGateway({ root, upstreamUrl: profile.provider === 'ollama' ? profile.upstreamUrl : 'http://127.0.0.1:9', apfelUrl: profile.provider === 'apfel' ? profile.upstreamUrl : undefined });
+  gateway = await startLiveGateway({ root, profile });
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => { void gateway.close().finally(() => process.exit(1)); });
   const assertions = await probeContract({ ...gateway, profile });
   requireHead();

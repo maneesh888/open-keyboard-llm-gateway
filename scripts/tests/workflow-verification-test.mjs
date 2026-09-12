@@ -64,6 +64,7 @@ test('contract probe rejects wrong model, empty completion, malformed SSE and fa
   let mode = 'ok';
   globalThis.fetch = async (url, options) => {
     assert.equal(options.redirect, 'error');
+    if (url === profile.upstreamUrl + '/api/tags') return Response.json({ models: mode === 'missing-provider-model' ? [] : [{ name: profile.model }] });
     if (!options.headers.Authorization) return new Response(null, { status: mode === 'auth' ? 200 : 401 });
     if (url.endsWith('/models')) return Response.json({ data: [{ id: profile.model }] });
     const model = mode === 'wrong-model' ? 'substitute:model' : profile.model;
@@ -74,6 +75,6 @@ test('contract probe rejects wrong model, empty completion, malformed SSE and fa
   try {
     const options = { url: 'http://127.0.0.1', clientKey: 'fixture', profile };
     assert.deepEqual(await probeContract(options), proof().assertions);
-    for (mode of ['auth', 'wrong-model', 'empty', 'bad-stream']) await assert.rejects(probeContract(options));
+    for (mode of ['auth', 'wrong-model', 'empty', 'bad-stream', 'missing-provider-model']) await assert.rejects(probeContract(options));
   } finally { globalThis.fetch = original; }
 });

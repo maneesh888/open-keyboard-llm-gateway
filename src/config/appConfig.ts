@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'fs';
+import { isIP } from 'node:net';
 import type { AppConfig } from '../types/index.js';
 
 export type ConfigEnv = {
@@ -64,6 +65,9 @@ export function validateConfig(raw: unknown): AppConfig {
   if ('codex' in config) {
     throw new Error('codex configuration is no longer supported');
   }
+  if (config.bindAddress !== undefined && (typeof config.bindAddress !== 'string' || !isIP(config.bindAddress))) {
+    throw new Error('bindAddress must be an IPv4 or IPv6 address when provided');
+  }
   const port = config.port;
   if (!Number.isInteger(port) || port === undefined || port < 1 || port > 65535) {
     throw new Error('port must be an integer between 1 and 65535');
@@ -83,6 +87,7 @@ export function validateConfig(raw: unknown): AppConfig {
 
   return {
     port,
+    ...(config.bindAddress === undefined ? {} : { bindAddress: config.bindAddress }),
     ollamaHost: validateURL(config.ollamaHost, 'ollamaHost'),
     apfelHost: config.apfelHost === undefined ? undefined : validateURL(config.apfelHost, 'apfelHost'),
     allowLocalServiceStart: config.allowLocalServiceStart ?? false,

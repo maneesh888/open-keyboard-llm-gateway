@@ -48,6 +48,7 @@ export interface KeysConfig {
 
 export interface AppConfig {
   port: number;
+  bindAddress?: string;
   ollamaHost: string;
   apfelHost?: string;
   allowLocalServiceStart?: boolean;

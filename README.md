@@ -521,3 +521,5 @@ docker compose down         # stop
 docker compose logs -f      # follow logs
 docker compose build        # rebuild after code changes
 ```
+
+The optional `config.json` field `bindAddress` accepts an IPv4 or IPv6 address. Omit it for the existing all-interface listener; local browser/live verification sets `127.0.0.1` to keep disposable credentials on loopback.
