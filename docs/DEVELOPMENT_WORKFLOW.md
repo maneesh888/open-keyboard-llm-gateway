@@ -78,6 +78,8 @@ Automatic authorization requires all rows `VERIFIED`, no blocker or material unc
 
 The independent report submission initially fails its review-event family because the immutable PR snapshot cannot yet link that new report. After the PR body links the report and its body/state event succeeds, submit the exact same-head non-approval COMMENTED revalidation sentence from `$review-verify-merge-pr`. This reruns the review-event family without masquerading as a report or approval. Before readiness and merge, `gh pr checks <number> --required` must succeed so an unsuperseded failed event family cannot be hidden by a newer result with the same protected name.
 
+The legacy report field `Mandatory exact-head gates` records the review-stage prerequisites (clean head, Full, technical `Required checks`, required live/observed proof and per-row evidence). The report also records `Post-report readiness: pending`. Its recommendation is not standalone merge authorization: the root must publish/link the report, revalidate both metadata event families and pass the required rollup before readiness/merge. Requiring the report's own metadata result before the report exists would create a circular gate. Failures remain blocking at their applicable stage; this sequence waives no check.
+
 The metadata workflow does not run the Node matrices, build, semantic-contract checks, or Docker smoke. Those remain in `.github/workflows/ci.yml` with their existing triggers, concurrency behavior, and stable technical aggregate `Required checks`.
 
 ## Staged enforcement rollout

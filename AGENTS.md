@@ -85,6 +85,10 @@ Always run `git diff --check` before claiming completion. A passing container he
 - Human authorization never overrides security, authentication, authorization, credential exposure, data loss, the OpenAI-compatible API/proxy contract, failed or missing mandatory tests/checks, conflicts, requested changes, unresolved threads, secret controls, or branch protection.
 - A new commit invalidates local proof, CI conclusions, independent review, reviewer confidence, and human authorization.
 
+### Review and readiness order
+
+The report field `Mandatory exact-head gates` is the legacy name for review-stage prerequisites: clean head, local Full, technical `Required checks`, required live/observed proof and each requirement's evidence. Metadata checks consume that report and run afterward. The reviewer records `Post-report readiness: pending`; its automatic recommendation alone is not merge authorization. The root must then post/link/revalidate the report and require both metadata event families and `gh pr checks --required` before readiness or merge. Failed/missing checks at either stage block advancement through that stage; no check is waived. A new commit expires both stages.
+
 ## Pull Request Lifecycle
 
 A bounded implementation request authorizes the normal lifecycle through branch preparation, edits, verification, commit, push, draft PR, in-scope review fixes, readiness, and guarded merge unless the user opts out with `local only`, `do not commit`, `do not push`, `do not create a PR`, `keep draft`, or `do not merge`.

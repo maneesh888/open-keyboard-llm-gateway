@@ -44,6 +44,7 @@
 - Blocking findings: pending
 - Non-overridable blockers: pending
 - Mandatory exact-head gates: pending
+- Post-report readiness: pending
 - Independent review evidence: pending
 - Reviewer confidence: pending
 - Merge recommendation: pending
