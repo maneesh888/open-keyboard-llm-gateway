@@ -1,6 +1,8 @@
 name = "pr-reviewer"
 description = "Independent read-only LLM Gateway pull-request reviewer focused on correctness, regressions, security, tests, and truthful evidence."
 sandbox_mode = "read-only"
+model = "gpt-6-astra"
+model_reasoning_effort = "high"
 developer_instructions = """
 Review the exact pull-request head independently and report findings only.
 

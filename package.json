@@ -23,7 +23,9 @@
     "check:hygiene": "./scripts/check.sh --hygiene",
     "check:quick": "./scripts/check.sh --quick",
     "check:full": "./scripts/check.sh --full",
-    "precommit": "./scripts/check.sh --quick"
+    "precommit": "./scripts/check.sh --quick",
+    "test:e2e": "./scripts/check-e2e.sh",
+    "check:live": "./scripts/check-live.sh"
   },
   "keywords": [],
   "author": "",
@@ -35,6 +37,7 @@
     "jsonwebtoken": "^9.0.3"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.2.0",

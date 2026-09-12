@@ -1,6 +1,8 @@
 name = "work-package-planner"
 description = "Read-only LLM Gateway planner that creates compact, source-bound work orders without delaying clear implementation."
 sandbox_mode = "read-only"
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
 developer_instructions = """
 Create one compact LLM Gateway work order and remain read-only.
 

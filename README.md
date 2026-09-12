@@ -511,6 +511,8 @@ npm run test:watch          # watch mode
 
 The Docker smoke expects the safe fixture backend to be disconnected. It proves image startup, `/health`, and `/ui`, not a real Ollama or Apfel model call. See `docs/DEVELOPMENT_WORKFLOW.md` for proof boundaries and `.github/CI-CD-SETUP.md` for the pull-request workflow.
 
+Browser/API end-to-end checks are now part of Full and CI. Install Chromium once with `npx playwright install chromium`, then run `./scripts/check-e2e.sh`. They use disposable gateway state and fixture upstreams. For observed UI acceptance, follow [the browser walkthrough](docs/BROWSER_SMOKE_PLAN.md). For the secure local profile, exact-head live gate and distinct proof limits, see [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md). User-facing work uses the product-copy and UI-audit skills before verification.
+
 ## Docker Commands
 
 ```bash

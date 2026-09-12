@@ -147,4 +147,14 @@ rg --fixed-strings --quiet '| ID | Requirement and durable source | Observable a
 rg --fixed-strings --quiet -- '- Non-overridable blockers: pending' "$ROOT/.github/pull_request_template.md" ||
   fail "the PR template does not retain non-overridable blockers."
 
+rg --quiet '^  browser-e2e:' "$CI_WORKFLOW" || fail "browser E2E CI is missing."
+rg --quiet '^      - browser-e2e$' "$CI_WORKFLOW" || fail "browser E2E must feed Required checks."
+rg --fixed-strings --quiet '$BROWSER_RESULT' "$CI_WORKFLOW" || fail "aggregate must reject failed browser E2E."
+rg --fixed-strings --quiet '"$ROOT/scripts/check-e2e.sh"' "$ROOT/scripts/check.sh" || fail "Full must include browser E2E."
+rg --fixed-strings --quiet '"$ROOT/scripts/check-live.sh"' "$ROOT/.githooks/pre-push" || fail "pre-push must enforce selected live proof."
+rg --fixed-strings --quiet '$PR_BASE_SHA:.github/verification-evidence-enforced' "$REVIEW_WORKFLOW" || fail "workflow evidence must activate from trusted base."
+for required_path in .agents/skills/audit-gateway-ui/SKILL.md .agents/skills/write-gateway-product-copy/SKILL.md docs/BROWSER_SMOKE_PLAN.md scripts/validate-workflow-evidence.mjs; do
+  [[ -f "$ROOT/$required_path" ]] || fail "$required_path is missing."
+done
+
 echo "Workflow policy test passed."

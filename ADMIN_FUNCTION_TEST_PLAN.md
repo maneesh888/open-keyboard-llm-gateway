@@ -84,3 +84,7 @@ Requires `Authorization: Bearer <client API key>`.
 ## Test Harness
 
 `vitest.config.ts` excludes private agent worktrees (`.claude` and `.claire`) and E2E specs, so plain `npm test` is the canonical deterministic suite. The full release gate additionally builds and starts the Docker image with safe fixture configuration.
+
+## End-to-end acceptance
+
+`./scripts/check-e2e.sh` runs the production UI and gateway over HTTP with disposable upstream fixtures and state. It covers complete auth/key/playground/model-control journeys and both provider routes, streaming, failure, recovery, redaction and metadata timeout. It is part of Full and the technical CI aggregate. See `docs/BROWSER_SMOKE_PLAN.md` for separately observed usability and `docs/DEVELOPMENT_WORKFLOW.md` for exact-head real-provider proof. Fixture success never establishes real inference.

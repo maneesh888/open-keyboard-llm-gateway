@@ -8,11 +8,25 @@ Use this workflow for gateway implementation, tests, Docker validation, CI, inde
 
 1. Resolve the repository root with `git rev-parse --show-toplevel` and inspect `git status --short --branch` before edits.
 2. Preserve unrelated user or agent changes. Never clean, restage, or revert files outside the current task.
-3. For a feature, bug fix, or workflow change, create an isolated branch/worktree from `origin/main` when the integration checkout is dirty. Use `codex/<session-slug>` unless the user requests another branch.
+3. Before authorized coding, fetch the configured remote and create an isolated `codex/<session-slug>` worktree from fresh `origin/main`, unless the user explicitly selects another base or the current checkout. Stop on fetch failure; do not silently use a stale base. Preserve the integration checkout even when clean.
 4. Treat an existing dirty file as in scope only when the user explicitly assigns it or the requested workflow necessarily includes it.
 5. If the user requests planning or asks what to do next, invoke the read-only `work-package-planner`; it uses `$plan-llm-gateway-work-package`.
 6. For a clear implementation request, use `$develop-llm-gateway` and keep an internal work order: objective, affected surfaces, out-of-scope behavior, verification, and publish authority.
 7. Ask only when scope, dirty-file ownership, destructive cleanup, credentials, external deployment, or a material architectural choice is genuinely ambiguous.
+
+## Authority and task phases
+
+Keep a compact internal record of objective, phase, constraints and their scope/expiry, edit/commit/push/PR/merge authority, required evidence, and blockers. Recheck it before each state change. A bounded implementation request grants the normal lifecycle below; evidence gates determine when an authorized action is ready, without another permission request.
+
+Planning, audits, diagnosis, and “test and report before implementing” are read-only. Use existing checks or a temporary non-repository harness for proof-first experiments. Do not edit tracked production, tests, or docs in that phase. “Try another approach” does not clear an active restriction. After delivering a diagnostic checkpoint, a clear implementation request ends that phase's constraints; independently task-wide restrictions remain active until revoked. An unavailable required provider is `LIVE_UNVERIFIED`, not evidence about model capability.
+
+## Content, usability, and evidence
+
+For user-visible wording, use `$write-gateway-product-copy`; for changed screens or journeys, use `$audit-gateway-ui` inside the development loop. Review the entry, affected screen, next action, and recovery without expanding edit scope. Reconcile stale requirements before using them as acceptance authority. A copy change cannot replace a missing behavior or recovery path.
+
+Keep these evidence classes separate: **automated regression**, **browser/API E2E with fixture upstreams**, **live provider transport/contract**, and **observed browser usability**. UI journeys need browser E2E and the walkthrough in `docs/BROWSER_SMOKE_PLAN.md`; affected provider/proxy behavior needs the classifier-selected live gate. Source inspection and successful clicks alone do not prove visual acceptance. Live transport does not prove semantic quality.
+
+Report applicable `DETERMINISTIC_VERIFIED`, `LIVE_VERIFIED`/`LIVE_UNVERIFIED`, and `RUNTIME_VERIFIED`/`RUNTIME_UNVERIFIED` task labels separately from PR-row statuses. Missing required evidence blocks automatic readiness; keep the gap visible and follow the existing exact-head human route only for overridable evidence risk. Never call a required unverified journey working.
 
 ## Repository Tools
 
@@ -25,11 +39,14 @@ Prefer the committed routes over ad hoc command sequences:
 - Exact-head release gate: `./scripts/check.sh --full`
 - Focused unit/integration tests: `npm test`
 - TypeScript build: `npm run build`
+- Browser/API E2E: `./scripts/check-e2e.sh`
+- Exact-head live provider gate: `./scripts/check-live.sh`
+- Change impact: `node scripts/verification-impact.mjs <base> <head>`
 - Container runtime smoke: `./scripts/docker-smoke.sh`
 - Hook installation: `./scripts/install-hooks.sh`
 - Independent PR review: `pr-reviewer` via `$review-verify-merge-pr`
 
-GitHub Actions runs repository hygiene, Node 24/22 tests, the Node 24 build, and the Docker runtime smoke, then reports the stable `Required checks` status.
+GitHub Actions runs repository hygiene, Node 24/22 tests, the Node 24 build, and the Docker runtime smoke, and browser/API E2E, then reports the stable `Required checks` status.
 Pull-request metadata validation runs separately and reports the fixed `Required review evidence` status without rerunning technical jobs.
 
 ## Change Rules
@@ -53,7 +70,7 @@ Pull-request metadata validation runs separately and reports the fixed `Required
 
 - **Fast:** targeted tests plus `./scripts/check.sh --hygiene`.
 - **Standard:** `./scripts/check.sh --quick` (hygiene, all Vitest tests, TypeScript build).
-- **Release:** clean exact head plus `./scripts/check.sh --full` (Standard plus Compose validation, image build, and container `/health` smoke).
+- **Release:** clean exact head plus `./scripts/check.sh --full` (Standard plus browser/API E2E, Compose validation, image build, and container `/health` smoke).
 
 Always run `git diff --check` before claiming completion. A passing container health smoke proves the gateway image starts with safe fixture configuration and reports the backend disconnected; it does not prove a live Ollama/Apfel request.
 
@@ -81,6 +98,8 @@ Before commit:
 
 Create PRs as drafts with the repository template completed, including the full exact head SHA. For review/readiness/merge, use `$review-verify-merge-pr`. Any new commit invalidates earlier exact-head local checks and independent review.
 
+Before push, inspect `git log origin/main..HEAD` and the complete outgoing diff. Stop if earlier unrelated commits have ambiguous ownership. The hook requires a clean exact head, Full, and any classifier-selected live check.
+
 Before guarded merge require:
 
 - exact-head `./scripts/check.sh --full` success;
@@ -92,6 +111,8 @@ Before guarded merge require:
 - effective protection of `main` requiring PRs and the aggregate check.
 
 Use GitHub's native squash merge with exact-head matching. Never force, bypass protection, dismiss valid feedback, or leave an unattended queued auto-merge. Deployment or image publication is separate and requires an explicit target and authorization.
+
+After merge, inspect relevant `main` CI. Remove only an owned, clean session worktree and a confirmed merged branch when no longer needed; never discard dirty or unmerged work.
 
 ## Reporting
 
