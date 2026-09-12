@@ -101,3 +101,9 @@ PR fields are `Workflow live proof` (the sanitized JSON, or `not-required` when 
 Pull requests begin as drafts and use `.github/pull_request_template.md`. Record the full head SHA, requirement ledger, verification, independent review link/status, authorization route, scope, and proof limits. A new commit invalidates exact-head evidence.
 
 The fixed protected statuses after activation are technical `Required checks` and metadata `Required review evidence`. Configure `main` according to `.github/BRANCH_PROTECTION_GUIDE.md`. Only the root implementation agent may fix findings, update PR state, or invoke a guarded squash merge after all exact-head gates pass.
+
+### Exercising activation on a documentation change
+
+A documentation-only activation PR is a useful first check after the browser/live marker lands on `main`. Confirm the exact base contains the marker and all three workflow validators, and run `verification-impact.mjs` against that base and head. When both impacts are false, set both workflow-proof fields to `not-required`; do not attach stale evidence from the bootstrap head.
+
+Complete the independent review-stage prerequisites, then post/link the report and run the labeled review-event revalidation. Before readiness or merge, inspect successful `Validate trusted workflow evidence` steps in both the pull-request and review-event runs and require `gh pr checks --required` to pass. Keep those run links in the PR body as the durable activation record. This exercises trusted-source loading and both snapshot paths; adversarial policy tests separately cover classified live/browser proof rejection.
