@@ -22,7 +22,7 @@ This is an independently selectable OpenAI-compatible backend. It is not a Unive
 | Common generation fields | Provider-dependent | Ollama/Apfel pass through the documented fields after type validation. |
 | Tools, multimodal message parts, `response_format`, `stream_options`, and other additive request fields | Partial/backend-dependent | Ollama/Apfel pass requests through subject to the response contract. |
 | Per-key reasoning effort | Ollama/Apfel custom default | Ollama/Apfel add configured effort only when the caller supplies none. |
-| Universal AI Connector profile | Explicit per-key fallback | Strips reasoning-only response fields, validates every response model, and restores one documented terminal Ollama cloud marker while preserving visible text, usage, finish events, and one terminal `[DONE]`. JSON Schema requests are rejected before upstream execution. |
+| Universal AI Connector profile | Explicit per-key fallback | Strips reasoning-only response fields; all keys validate every response model and restore one documented terminal Ollama cloud marker while preserving visible text, usage, finish events, and one terminal `[DONE]`. JSON Schema requests are rejected before upstream execution. |
 | OpenKeyboard `operation` + `input_text` | Additive metadata | Forwarded without interpretation. Standard `model` and `messages` remain required. |
 | `/v1/responses` | Experimental pass-through | Authenticated, rate-limited proxy behavior only. It is outside the guaranteed OpenAI Responses API contract and may depend entirely on the upstream backend. |
 | Other `/v1/*` routes | Unsupported contract | They may be proxied for backward compatibility, but no OpenAI compatibility claim is made. |
@@ -33,9 +33,9 @@ A standard Chat Completions body must be a JSON object with a non-empty string `
 
 The gateway does not invent generation defaults or application prompts. Common generation parameters and unknown additive fields are passed through. The only gateway default is a per-key `reasoning_effort` configured by an administrator, and it is added only when the caller did not specify an effort setting. Invalid JSON, invalid standard field types, and disallowed models are rejected before an upstream call. Message order and content are not rebuilt.
 
-For non-streaming standard requests, the upstream response must be JSON with `id`, `object: "chat.completion"`, `created`, `model`, and at least one choice containing `index`, `message.role`, and string `message.content`. Unknown additive fields remain intact.
+For non-streaming standard requests, the upstream response must be JSON with `id`, `object: "chat.completion"`, `created`, `model`, and exactly one usable plain-text choice with `index: 0`, `message.role: "assistant"`, nonblank string `message.content`, and `finish_reason: "stop"`. Missing, blank, reasoning-only, truncated, multiple-choice, and unsupported-finish responses return a sanitized HTTP 502 `invalid_upstream_response`; the gateway does not manufacture final content, retry generation, or relabel truncation as success. Unknown additive fields remain intact.
 
-For streaming requests, every data event must contain an OpenAI-style object with `object: "chat.completion.chunk"`, `id`, `created`, `model`, and `choices`. A usage-only chunk with empty `choices` is allowed when it contains `usage`. Individual SSE events are limited to 1,048,576 decoded characters. After validating one initial event, upstream reads advance only when the downstream client requests another event. The stream must end with `data: [DONE]`. An invalid first event is returned as HTTP 502. If a later event, transport failure, or termination is invalid after streaming has begun, the gateway emits a safe nested SSE error followed by `[DONE]` and aborts the upstream stream. For a Universal AI Connector key, the response-model rule below is checked on every JSON chunk, including usage-only chunks and chunks later omitted after reasoning-field stripping.
+For streaming requests, every data event must contain an OpenAI-style object with `object: "chat.completion.chunk"`, `id`, `created`, `model`, and `choices`. A usage-only chunk with empty `choices` is allowed when it contains `usage`. Individual SSE events are limited to 1,048,576 decoded characters. After validating one initial event, upstream reads advance only when the downstream client requests another event. The stream must end with `data: [DONE]`. An invalid first event is returned as HTTP 502. If a later event, transport failure, or termination is invalid after streaming has begun, the gateway emits a safe nested SSE error followed by `[DONE]` and aborts the upstream stream. For every key, the response-model rule below is checked on every JSON chunk, including usage-only chunks and chunks later omitted after reasoning-field stripping.
 
 ## Universal AI Connector profile
 
@@ -43,7 +43,7 @@ Set `compatibilityProfile: "universal-ai-connector"` on an individual API key on
 backend produces additive reasoning fields that the connector's conservative text contract does
 not accept. The profile is opt-in; keys without it preserve upstream additive fields unchanged.
 
-The profile requires the top-level `model` in a non-streaming response and in every streaming chunk
+Every key requires the top-level `model` in a non-streaming response and in every streaming chunk
 to equal the exact model requested at the Gateway boundary. There is one bounded exception for the
 documented Ollama cloud-routing aliases. If the requested model ends in exactly one terminal
 `:cloud` or `-cloud` marker, the remaining base does not itself end in either marker, and the
@@ -52,10 +52,11 @@ This is a case-sensitive comparison and does not trim, decode, or otherwise rewr
 Exact matches remain unchanged. Arbitrary differences, marker-like prefixes, additional suffixes,
 and repeated or mixed terminal cloud markers are rejected fail-closed.
 
-Keys without this profile do not compare the response model with the requested model and do not
-rewrite it. Their otherwise valid OpenAI-compatible non-streaming bodies and SSE chunk data retain
-the upstream model identity. After validation, profileless SSE event framing is forwarded
-byte-for-byte, including comments, data-field spacing, and line endings.
+Model identity validation is independent of the reasoning profile. Keys without the profile keep
+reasoning metadata and final content intact. Their response bodies and SSE event framing remain
+byte-for-byte when the model already matches, including comments, data-field spacing, and line
+endings. Restoring a cloud marker reserializes the affected JSON body or SSE data event. It never
+changes the outbound requested model or the client message array, and never routes to a fallback.
 
 For non-streaming completions, the profile removes `reasoning`, `reasoning_content`, and
 `reasoning_details` only from each `choices[].message`. For streaming completions, it removes the
@@ -149,4 +150,4 @@ Rate-limited responses include `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-
 
 ## Model semantics
 
-Ollama and Apfel model IDs are exact backend routing identifiers. Keys without a compatibility profile return an otherwise valid upstream response model unchanged. The Universal AI Connector profile instead enforces the exact Gateway-boundary identity and performs only the single terminal cloud-marker restoration documented above. `owned_by: "ollama"` means the ID is served through the configured Ollama backend; `owned_by: "apfel"` identifies the configured Apfel route. Ownership labels describe routing only and do not assert tool, vision, context-window, or other model capabilities.
+Ollama and Apfel model IDs are exact backend routing identifiers. All keys enforce the exact Gateway-boundary identity and perform only the single terminal cloud-marker restoration documented above. `owned_by: "ollama"` means the ID is served through the configured Ollama backend; `owned_by: "apfel"` identifies the configured Apfel route. Ownership labels describe routing only and do not assert tool, vision, context-window, or other model capabilities.

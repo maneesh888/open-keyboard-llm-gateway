@@ -77,3 +77,61 @@ swift test --package-path OpenKeyboardCore --filter LiveGatewayTests
 ```
 
 Do not commit real keys, local config, or live logs. Deterministic gateway tests and Docker smoke do not prove a live model inference path.
+
+## Exact-model verification diagnosis (September 2026)
+
+The profileless response path previously accepted the upstream model field unchanged. The
+September 11 cloud identity correction (`6e87ae7`) only applied to keys that opted into the
+legacy Universal AI Connector reasoning profile. Current connectors accept additive reasoning
+metadata, so an ordinary key could still receive a cloud-routing marker omitted from the response
+model even though the outbound request used the exact configured identity. Identity validation and
+the documented single terminal cloud-marker restoration now apply independently of that profile.
+No client messages, model selection, token budgets, or reasoning defaults are changed.
+
+Sanitized live observations from the configured profiles, using canonical package diagnostics:
+
+| Profile / operation | Deployed content length | Corrected content length | Deployed → corrected model match |
+| --- | --- | --- | --- |
+| Low grammar | 42 | 42 | true → true |
+| Low rewrite | 548 | 548 | true → true |
+| Low translation | 1001 | 985 | true → true |
+| High grammar | 39 | 42 | false → true |
+| High rewrite | 690 | 688 | false → true |
+| High translation | 553 | 710 | false → true |
+
+Every sampled row returned HTTP 200, one assistant choice, string content, and `finish_reason:
+stop`; both authenticated catalogs contained the requested model. High-profile reasoning lengths
+were 1537/2596/2403 before and 1604/1644/3231 afterward. These were separate inference calls, so
+length differences do not imply response-text rewriting. The corrected gateway was an owned
+isolated process with the existing model, effort and quota settings and ephemeral authentication.
+These observations prove outer response structure, not semantic correctness or the client's full
+exact-head differential. No prompts, response text, credentials, URLs, or exact model IDs are retained.
+
+A separate upstream probe with a 32-token cap returned one assistant choice, blank string content,
+nonblank reasoning (length 128), and `finish_reason: length`. The old validator accepted that shape;
+the corrected validator returns a sanitized HTTP 502 `invalid_upstream_response`. It does not turn
+reasoning into final content, expand caller token budgets, retry inference, or label truncation
+`stop`. This rejection alone cannot make an undersized request produce a usable answer.
+
+### Quota correction at deployment
+
+The low key's observed quota was 30 requests/minute with burst 10; the high key's was 60/minute
+with burst 20. Authenticated catalog and completion calls share each key's token bucket. In a
+bounded 14-call catalog probe (concurrency 4), the low key returned three HTTP 429 responses with
+remaining capacity zero and `Retry-After: 2`. No inference was needed to reproduce the failure.
+The limiter's consumption policy predates the recent proxy changes. Upstream HTTP 429 is handled
+separately as HTTP 502 `upstream_error` with `upstreamStatus: 429` and no raw upstream body.
+
+Do not deploy an unlimited retry or globally disable quota enforcement to make a verification
+sequence pass. At the separately authorized deployment, adjust only the existing low key's
+`rateLimitConfig` to cover the intended bounded workload. A concrete starting setting is
+`requestsPerMinute: 60, burstAllowance: 30`; regression coverage proves a 14-request mixed sequence
+fits that setting after refill. This is not evidence that an arbitrary longer or concurrent run
+fits. Size the quota against the complete client sequence and concurrent iPhone use, allow the
+bucket to refill, and retain the existing credentials, URLs, model identities and environment names.
+No deployed configuration was changed by this source correction.
+
+After deploying the gateway and applying the intended verification quota, rerun OpenKeyboard's
+`./scripts/check-live.sh gateway-differential` on its required exact head. Acceptance remains open
+until both profiles pass transport, grammar, rewrite and translation without 429, substitution,
+fallback or `invalidResponse`. A successful gateway fixture or structural probe cannot replace it.
