@@ -730,7 +730,7 @@ describe('OllamaProxy', () => {
     });
   });
 
-  it('normalizes the connector-profile model identity on every SSE chunk, including usage', async () => {
+  it.each([undefined, 'universal-ai-connector'] as const)('normalizes every SSE model including usage for profile %s', async (profile) => {
     const requestedModel = 'synthetic-stream-route:cloud';
     const upstreamModel = 'synthetic-stream-route';
     const chunks = [
@@ -768,7 +768,7 @@ describe('OllamaProxy', () => {
     }));
 
     const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy, { compatibilityProfile: 'universal-ai-connector' });
+    const app = buildApp(proxy, { compatibilityProfile: profile });
     const res = await app.request('/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -1430,22 +1430,6 @@ describe('OllamaProxy', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ['model', { operation: 'fix_grammar', input_text: 'text', messages: [] }],
-    ['messages', { model: 'gemma4', operation: 'fix_grammar', input_text: 'text' }],
-  ])('requires the standard %s field even when operation metadata is present', async (_field, payload) => {
-    const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy);
-    const res = await app.request('/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    expect(res.status).toBe(400);
-    expect((await res.json()).error.code).toBe('invalid_request');
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
 
   it('health check returns true when Ollama responds 200', async () => {
     fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));

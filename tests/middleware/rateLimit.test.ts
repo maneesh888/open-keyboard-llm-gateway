@@ -62,7 +62,10 @@ describe('RateLimiter - Token Bucket', () => {
       expect((await app.request('/v1/models')).status).toBe(429);
       vi.advanceTimersByTime(60_000);
       for (let i = 0; i < 14; i++) {
-        expect((await app.request('/v1/models')).status).toBe(200);
+        const response = i % 2 === 0
+          ? await app.request('/v1/models')
+          : await app.request('/v1/chat/completions', { method: 'POST' });
+        expect(response.status).toBe(200);
       }
       expect(rateLimiter.getStatus(apiKey.id)?.capacity).toBe(30);
     } finally {
