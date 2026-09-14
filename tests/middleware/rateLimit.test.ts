@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { Hono } from 'hono';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { RateLimiter } from '../../src/middleware/rateLimit.js';
 import type { ApiKey } from '../../src/types/index.js';
 
@@ -32,6 +33,42 @@ describe('RateLimiter - Token Bucket', () => {
   };
 
   const mockNext = async () => {};
+
+  it('shares catalog and completion quota, then honors a bounded configuration increase', async () => {
+    vi.useFakeTimers();
+    try {
+      const apiKey: ApiKey = {
+        id: 'matrix-fixture', name: 'Matrix fixture', key: 'sk-test', enabled: true,
+        createdAt: '2026-01-01', rateLimitConfig: { requestsPerMinute: 30, burstAllowance: 10 },
+      };
+      let forwarded = 0;
+      const app = new Hono();
+      app.use('/v1/*', async (c, next) => { c.set('apiKey', apiKey); await next(); });
+      app.use('/v1/*', rateLimiter.middleware());
+      app.all('/v1/*', (c) => { forwarded++; return c.json({ ok: true }); });
+      const matrix = Array.from({ length: 14 }, (_, i) => i % 2 === 0
+        ? app.request('/v1/models')
+        : app.request('/v1/chat/completions', { method: 'POST' }));
+      const responses = await Promise.all(matrix);
+      expect(responses.filter((response) => response.status === 200)).toHaveLength(10);
+      expect(responses.filter((response) => response.status === 429)).toHaveLength(4);
+      expect(forwarded).toBe(10);
+      const denied = responses.find((response) => response.status === 429)!;
+      expect(denied.headers.get('Retry-After')).toBe('2');
+      expect((await denied.json()).error.code).toBe('rate_limit_exceeded');
+      // A deployment may tune this existing key; credentials/model policy do not change.
+      apiKey.rateLimitConfig = { requestsPerMinute: 60, burstAllowance: 30 };
+      // Applying a new quota does not instantly refill an exhausted bucket.
+      expect((await app.request('/v1/models')).status).toBe(429);
+      vi.advanceTimersByTime(60_000);
+      for (let i = 0; i < 14; i++) {
+        expect((await app.request('/v1/models')).status).toBe(200);
+      }
+      expect(rateLimiter.getStatus(apiKey.id)?.capacity).toBe(30);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   describe('Token consumption', () => {
     it('should allow requests when tokens available', async () => {

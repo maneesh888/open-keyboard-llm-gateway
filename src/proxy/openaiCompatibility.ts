@@ -128,19 +128,18 @@ export function validateChatCompletionResponse(body: string): CompatibilityResul
     || typeof parsed.created !== 'number'
     || typeof parsed.model !== 'string'
     || !Array.isArray(parsed.choices)
-    || parsed.choices.length === 0) {
+    || parsed.choices.length !== 1) {
     return failure('The upstream returned an invalid Chat Completions response.');
   }
 
   for (const choice of parsed.choices) {
     if (!isRecord(choice)
-      || typeof choice.index !== 'number'
       || !isRecord(choice.message)
-      || typeof choice.message.role !== 'string'
-      || typeof choice.message.content !== 'string') {
-      return failure('The upstream returned an invalid Chat Completions response.');
-    }
-    if (hasOwn(choice, 'finish_reason') && choice.finish_reason !== null && typeof choice.finish_reason !== 'string') {
+      || choice.index !== 0
+      || choice.message.role !== 'assistant'
+      || typeof choice.message.content !== 'string'
+      || !choice.message.content.trim()
+      || choice.finish_reason !== 'stop') {
       return failure('The upstream returned an invalid Chat Completions response.');
     }
   }
@@ -152,7 +151,7 @@ function stripReasoningFields(value: RecordValue): void {
   for (const field of REASONING_RESPONSE_FIELDS) delete value[field];
 }
 
-function connectorModelIdentity(
+function responseModelIdentity(
   response: RecordValue,
   requestedModel: string,
 ): CompatibilityResult<undefined> {
@@ -177,16 +176,20 @@ export function applyChatCompletionCompatibilityProfile(
   requestedModel: string,
   profile?: CompatibilityProfile,
 ): CompatibilityResult<string> {
-  if (profile !== 'universal-ai-connector') return { ok: true, value: body };
-
   const validated = validateChatCompletionResponse(body);
   if (!validated.ok) return validated;
 
   const response = validated.value;
-  const modelIdentity = connectorModelIdentity(response, requestedModel);
+  const originalModel = response.model;
+  const modelIdentity = responseModelIdentity(response, requestedModel);
   if (!modelIdentity.ok) return modelIdentity;
-  for (const choice of response.choices as RecordValue[]) {
-    stripReasoningFields(choice.message as RecordValue);
+  if (profile !== 'universal-ai-connector' && originalModel === response.model) {
+    return { ok: true, value: body };
+  }
+  if (profile === 'universal-ai-connector') {
+    for (const choice of response.choices as RecordValue[]) {
+      stripReasoningFields(choice.message as RecordValue);
+    }
   }
   return { ok: true, value: JSON.stringify(response) };
 }
@@ -270,10 +273,10 @@ class ChatCompletionStreamValidator {
       }
     }
 
-    if (this.profile === 'universal-ai-connector') {
-      const modelIdentity = connectorModelIdentity(chunk, this.requestedModel);
-      if (!modelIdentity.ok) return modelIdentity;
-    }
+    const originalModel = chunk.model;
+    const modelIdentity = responseModelIdentity(chunk, this.requestedModel);
+    if (!modelIdentity.ok) return modelIdentity;
+    const modelRestored = chunk.model !== originalModel;
 
     this.sawChunk = true;
     if (this.profile === 'universal-ai-connector') {
@@ -300,7 +303,7 @@ class ChatCompletionStreamValidator {
     return {
       ok: true,
       value: {
-        output: encoder.encode(this.profile === 'universal-ai-connector'
+        output: encoder.encode(this.profile === 'universal-ai-connector' || modelRestored
           ? `data: ${JSON.stringify(chunk)}\n\n`
           : passthroughEvent),
         chunk: true,
