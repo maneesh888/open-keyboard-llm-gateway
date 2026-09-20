@@ -294,7 +294,7 @@ describe('OllamaProxy', () => {
     expect(responseText).not.toContain(upstreamModel);
   });
 
-  it('keeps a mismatched response model unchanged for profileless keys', async () => {
+  it('rejects a mismatched response model for profileless keys', async () => {
     const requestedModel = 'synthetic-profileless-request:cloud';
     const upstreamModel = 'synthetic-profileless-upstream';
     const upstreamBody = chatCompletion('ready', { model: upstreamModel });
@@ -311,8 +311,65 @@ describe('OllamaProxy', () => {
       body: JSON.stringify({ model: requestedModel, messages: [] }),
     });
 
-    expect(res.status).toBe(200);
-    expect(await res.text()).toBe(upstreamBody);
+    expect(res.status).toBe(502);
+    const result = await res.text();
+    expect(result).not.toContain(requestedModel);
+    expect(result).not.toContain(upstreamModel);
+    expect(JSON.parse(result).error.code).toBe('invalid_upstream_response');
+  });
+
+  it.each([undefined, 'universal-ai-connector'] as const)(
+    'restores cloud identity without changing messages or final content for profile %s', async (profile) => {
+      const requestedModel = 'fixture-exact:cloud';
+      const upstream = JSON.parse(chatCompletion('final text', { model: 'fixture-exact' }));
+      upstream.choices[0].message.reasoning = 'fixture reasoning';
+      fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify(upstream)));
+      const payload = JSON.stringify({ model: requestedModel, messages: [
+        { role: 'system', content: 'fixture system' }, { role: 'user', content: 'fixture user' },
+      ], max_tokens: 256 });
+      const res = await buildApp(new OllamaProxy('http://localhost:11434'), {
+        compatibilityProfile: profile,
+      }).request('/v1/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload });
+      expect(res.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(fetchSpy.mock.calls[0][1].body).toBe(payload);
+      const result = await res.json();
+      expect(result.model).toBe(requestedModel);
+      expect(result.choices).toHaveLength(1);
+      expect(result.choices[0]).toMatchObject({
+        message: { role: 'assistant', content: 'final text' }, finish_reason: 'stop',
+      });
+      expect(result.choices[0].message.reasoning).toBe(profile ? undefined : 'fixture reasoning');
+    },
+  );
+
+  it.each([
+    ['blank final', { content: '' }, 'stop', 1],
+    ['whitespace final', { content: ' \n ' }, 'stop', 1],
+    ['missing final', {}, 'stop', 1],
+    ['null final', { content: null }, 'stop', 1],
+    ['reasoning budget exhausted', { content: '' }, 'length', 1],
+    ['truncated final', { content: 'partial' }, 'length', 1],
+    ['unsupported finish', { content: 'final' }, 'unknown', 1],
+    ['missing finish', { content: 'final' }, undefined, 1],
+    ['wrong role', { role: 'user', content: 'final' }, 'stop', 1],
+    ['no choices', { content: 'final' }, 'stop', 0],
+    ['multiple choices', { content: 'final' }, 'stop', 2],
+  ])('rejects unusable plain-text completion: %s', async (_label, message, finishReason, count) => {
+    const upstream = JSON.parse(chatCompletion());
+    upstream.choices = Array.from({ length: count as number }, (_, index) => ({
+      index, message: { role: 'assistant', reasoning: 'private fixture', ...(message as object) },
+      finish_reason: finishReason,
+    }));
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify(upstream)));
+    const res = await buildApp(new OllamaProxy('http://localhost:11434')).request('/v1/chat/completions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'gemma4', messages: [] }),
+    });
+    expect(res.status).toBe(502);
+    const text = await res.text();
+    expect(JSON.parse(text).error.code).toBe('invalid_upstream_response');
+    expect(text).not.toContain('private fixture');
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
   it('rejects JSON Schema requests for connector-profile keys before calling upstream', async () => {
@@ -345,7 +402,7 @@ describe('OllamaProxy', () => {
   });
 
   it('keeps JSON Schema pass-through unchanged for default keys', async () => {
-    const upstreamBody = chatCompletion('{"answer":"ready"}');
+    const upstreamBody = chatCompletion('{"answer":"ready"}', { model: 'schema-capable-model' });
     fetchSpy.mockResolvedValueOnce(new Response(upstreamBody, {
       status: 200,
       headers: { 'content-type': 'application/json' },
@@ -524,10 +581,10 @@ describe('OllamaProxy', () => {
     expect(body.error.code).toBe('upstream_unreachable');
   });
 
-  it('normalizes upstream non-2xx responses into the gateway error envelope', async () => {
+  it.each([429, 500])('normalizes upstream HTTP %s without retries or leaking the upstream body', async (status) => {
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify({ error: 'raw upstream error', code: 'raw_code' }), {
-        status: 500,
+        status,
         headers: { 'content-type': 'application/json' },
       }),
     );
@@ -541,12 +598,13 @@ describe('OllamaProxy', () => {
     });
 
     expect(res.status).toBe(502);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
     await expect(res.json()).resolves.toEqual(gatewayError(
       'Upstream model request failed.',
       'server_error',
       'upstream_error',
       {
-        upstreamStatus: 500,
+        upstreamStatus: status,
       },
     ));
   });
@@ -574,9 +632,9 @@ describe('OllamaProxy', () => {
     });
   });
 
-  it('streams profileless SSE response-model mismatches through byte-for-byte', async () => {
+  it('preserves profileless SSE framing and reasoning when the model matches', async () => {
     const requestedModel = 'synthetic-profileless-stream-request:cloud';
-    const upstreamModel = 'synthetic-profileless-stream-upstream';
+    const upstreamModel = requestedModel;
     const firstChunk = {
       id: 'chatcmpl-profileless-model-test',
       object: 'chat.completion.chunk',
@@ -672,7 +730,7 @@ describe('OllamaProxy', () => {
     });
   });
 
-  it('normalizes the connector-profile model identity on every SSE chunk, including usage', async () => {
+  it.each([undefined, 'universal-ai-connector'] as const)('normalizes every SSE model including usage for profile %s', async (profile) => {
     const requestedModel = 'synthetic-stream-route:cloud';
     const upstreamModel = 'synthetic-stream-route';
     const chunks = [
@@ -710,7 +768,7 @@ describe('OllamaProxy', () => {
     }));
 
     const proxy = new OllamaProxy('http://localhost:11434');
-    const app = buildApp(proxy, { compatibilityProfile: 'universal-ai-connector' });
+    const app = buildApp(proxy, { compatibilityProfile: profile });
     const res = await app.request('/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -764,6 +822,41 @@ describe('OllamaProxy', () => {
     expect(responseText).not.toContain('must-not-escape');
   });
 
+  it('rejects a profileless model mismatch in the first SSE chunk with a safe HTTP error', async () => {
+    const requestedModel = 'synthetic-first-stream-request:cloud';
+    const upstreamModel = 'synthetic-first-stream-mismatch';
+    const firstChunk = {
+      id: 'chatcmpl-model-test',
+      object: 'chat.completion.chunk',
+      created: 1_700_000_000,
+      model: upstreamModel,
+      choices: [{ index: 0, delta: { content: 'must-not-escape' }, finish_reason: null }],
+    };
+    fetchSpy.mockResolvedValueOnce(new Response(`data: ${JSON.stringify(firstChunk)}\n\n`, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: requestedModel, messages: [], stream: true }),
+    });
+    const responseText = await res.text();
+
+    expect(res.status).toBe(502);
+    expect(JSON.parse(responseText)).toEqual(gatewayError(
+      'The upstream emitted an invalid Chat Completions stream.',
+      'server_error',
+      'invalid_stream',
+    ));
+    expect(responseText).not.toContain(requestedModel);
+    expect(responseText).not.toContain(upstreamModel);
+    expect(responseText).not.toContain('must-not-escape');
+  });
+
   it('terminates a later connector-profile model mismatch without emitting the invalid identity', async () => {
     const requestedModel = 'synthetic-later-stream-request-cloud';
     const normalizedUpstreamModel = 'synthetic-later-stream-request';
@@ -793,6 +886,59 @@ describe('OllamaProxy', () => {
 
     const proxy = new OllamaProxy('http://localhost:11434');
     const app = buildApp(proxy, { compatibilityProfile: 'universal-ai-connector' });
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: requestedModel, messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const streamed = await res.text();
+    const events = streamed.trim().split('\n\n');
+    expect(JSON.parse(events[0].slice('data: '.length))).toMatchObject({
+      model: requestedModel,
+      choices: [{ delta: { content: 'safe-first-chunk' } }],
+    });
+    expect(JSON.parse(events[1].slice('data: '.length))).toEqual(gatewayError(
+      'The upstream emitted an invalid Chat Completions stream.',
+      'server_error',
+      'invalid_stream',
+    ));
+    expect(events[2]).toBe('data: [DONE]');
+    expect(streamed.match(/data: \[DONE\]/g)).toHaveLength(1);
+    expect(streamed).not.toContain(invalidUpstreamModel);
+    expect(streamed).not.toContain('must-not-escape');
+  });
+
+  it('terminates a later profileless model mismatch without emitting the invalid identity', async () => {
+    const requestedModel = 'synthetic-later-stream-request-cloud';
+    const normalizedUpstreamModel = 'synthetic-later-stream-request';
+    const invalidUpstreamModel = 'synthetic-later-stream-mismatch';
+    const firstChunk = {
+      id: 'chatcmpl-model-test',
+      object: 'chat.completion.chunk',
+      created: 1_700_000_000,
+      model: normalizedUpstreamModel,
+      choices: [{ index: 0, delta: { content: 'safe-first-chunk' }, finish_reason: null }],
+    };
+    const laterChunk = {
+      ...firstChunk,
+      model: invalidUpstreamModel,
+      choices: [{ index: 0, delta: { reasoning: 'must-not-escape' }, finish_reason: null }],
+    };
+    const sseBody = [
+      `data: ${JSON.stringify(firstChunk)}`,
+      `data: ${JSON.stringify(laterChunk)}`,
+      'data: [DONE]',
+      '',
+    ].join('\n\n');
+    fetchSpy.mockResolvedValueOnce(new Response(sseBody, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+    }));
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy);
     const res = await app.request('/v1/chat/completions', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -1283,6 +1429,7 @@ describe('OllamaProxy', () => {
     expect((await res.json()).error.code).toBe('invalid_request');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
 
   it('health check returns true when Ollama responds 200', async () => {
     fetchSpy.mockResolvedValueOnce(new Response('{}', { status: 200 }));
