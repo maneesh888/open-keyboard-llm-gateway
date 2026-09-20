@@ -132,6 +132,11 @@ bucket to refill, and retain the existing credentials, URLs, model identities an
 No deployed configuration was changed by this source correction.
 
 After deploying the gateway and applying the intended verification quota, rerun OpenKeyboard's
-`./scripts/check-live.sh gateway-differential` on its required exact head. Acceptance remains open
-until both profiles pass transport, grammar, rewrite and translation without 429, substitution,
-fallback or `invalidResponse`. A successful gateway fixture or structural probe cannot replace it.
+`./scripts/check-live.sh gateway-differential` on its required exact head. Both profiles must pass
+exact-model transport and the canonical grammar, rewrite, and translation diagnostics without 429,
+substitution, fallback, or `invalidResponse`. The configured low profile is intentionally not
+required to satisfy the long-translation capability boundary: unusable upstream output there must
+fail closed as the sanitized `invalid_upstream_response`, while the high profile must complete that
+boundary. OpenKeyboard owns translating that low-profile rejection into its capability-warning UX;
+that client classification does not block this gateway correction. A successful gateway fixture or
+structural probe cannot replace the deployed diagnostic evidence.
