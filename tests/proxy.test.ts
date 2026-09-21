@@ -343,13 +343,52 @@ describe('OllamaProxy', () => {
     },
   );
 
+  it.each([undefined, 'universal-ai-connector'] as const)(
+    'preserves token-limit responses and request budgets for profile %s', async (profile) => {
+      // Incomplete assistant JSON is still a valid outer Chat Completions envelope.
+      const content = '{"summary":"unfinished';
+      const upstream = JSON.parse(chatCompletion(content, { model: 'gemma2:2b' }));
+      upstream.choices[0].finish_reason = 'length';
+      upstream.choices[0].message.reasoning = 'fixture reasoning';
+      upstream.usage = { prompt_tokens: 10, completion_tokens: 32, total_tokens: 42 };
+      fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify(upstream)));
+      const payload = JSON.stringify({
+        model: 'gemma2:2b', messages: [{ role: 'user', content: 'Public summary fixture.' }],
+        max_tokens: 32, response_format: { type: 'json_object' },
+      });
+      const res = await buildApp(new OllamaProxy('http://localhost:11434'), {
+        compatibilityProfile: profile,
+      }).request('/v1/chat/completions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload,
+      });
+      expect(res.status).toBe(200);
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(fetchSpy.mock.calls[0][1].body).toBe(payload);
+      const result = await res.json();
+      if (profile) delete upstream.choices[0].message.reasoning;
+      expect(result).toEqual(upstream);
+    },
+  );
+
+  it('still rejects a token-limit response from the wrong model', async () => {
+    const upstream = JSON.parse(chatCompletion('partial', { model: 'unexpected-model' }));
+    upstream.choices[0].finish_reason = 'length';
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify(upstream)));
+    const res = await buildApp(new OllamaProxy('http://localhost:11434')).request('/v1/chat/completions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'gemma2:2b', messages: [] }),
+    });
+    expect(res.status).toBe(502);
+    expect((await res.json()).error.code).toBe('invalid_upstream_response');
+  });
+
   it.each([
     ['blank final', { content: '' }, 'stop', 1],
     ['whitespace final', { content: ' \n ' }, 'stop', 1],
     ['missing final', {}, 'stop', 1],
     ['null final', { content: null }, 'stop', 1],
     ['reasoning budget exhausted', { content: '' }, 'length', 1],
-    ['truncated final', { content: 'partial' }, 'length', 1],
+    ['whitespace truncated final', { content: ' \n ' }, 'length', 1],
     ['unsupported finish', { content: 'final' }, 'unknown', 1],
     ['missing finish', { content: 'final' }, undefined, 1],
     ['wrong role', { role: 'user', content: 'final' }, 'stop', 1],

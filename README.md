@@ -383,7 +383,10 @@ upstream reports exactly that base: the gateway restores the exact requested ali
 chunk is checked before it can be returned or omitted. All other response-model differences fail
 closed with a generic error that does not echo either identity. Ordinary keys retain reasoning
 metadata. Successful non-streaming plain-text responses require exactly one assistant choice with
-nonblank string content and `finish_reason: "stop"`; unusable upstream results return HTTP 502.
+nonblank string content and `finish_reason: "stop"` or `"length"`. Token-limited responses retain
+their content and `"length"` marker with HTTP 200; clients must check that marker before treating
+an answer as complete or parsing structured content. Empty or otherwise unusable upstream results
+return HTTP 502. The gateway does not retry inference or increase the caller's token budget.
 
 The profile also rejects `response_format.type: "json_schema"` before contacting the backend
 because it does not claim JSON Schema enforcement. Prefer assigning connector keys to a
