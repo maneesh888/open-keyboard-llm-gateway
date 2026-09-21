@@ -34,6 +34,12 @@ Backend-supported structured requests can include `response_format: {"type":"jso
 Upstream non-2xx or an invalid outer Chat Completions envelope fails through the generic gateway
 error contract. See [README.md](../README.md) for the gateway source of truth.
 
+A nonblank assistant response ending with `finish_reason: "length"` remains HTTP 200 with its
+content and truncation marker preserved. Open Keyboard must distinguish this incomplete answer
+from `"stop"` before consuming it; JSON mode can still end with incomplete assistant JSON when the
+token budget runs out. The gateway does not retry, expand the budget, or claim semantic success.
+Blank or reasoning-only responses remain HTTP 502, including when their finish reason is `"length"`.
+
 Authentication:
 
 ```http

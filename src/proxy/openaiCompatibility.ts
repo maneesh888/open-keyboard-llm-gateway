@@ -139,7 +139,7 @@ export function validateChatCompletionResponse(body: string): CompatibilityResul
       || choice.message.role !== 'assistant'
       || typeof choice.message.content !== 'string'
       || !choice.message.content.trim()
-      || choice.finish_reason !== 'stop') {
+      || (choice.finish_reason !== 'stop' && choice.finish_reason !== 'length')) {
       return failure('The upstream returned an invalid Chat Completions response.');
     }
   }
