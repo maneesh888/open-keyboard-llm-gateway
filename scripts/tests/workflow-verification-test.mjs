@@ -78,3 +78,9 @@ test('contract probe rejects wrong model, empty completion, malformed SSE and fa
     for (mode of ['auth', 'wrong-model', 'empty', 'bad-stream', 'missing-provider-model']) await assert.rejects(probeContract(options));
   } finally { globalThis.fetch = original; }
 });
+
+test('missing and unknown impact cannot suppress required evidence', () => {
+  for (const impact of [undefined, null, {}, { live: false }, { live: 'false', browser: false }, { live: false, browser: null }]) {
+    assert.throws(() => validateWorkflowEvidence({ body: '- Workflow live proof: not-required\n- Workflow browser proof: not-required', head, impact }));
+  }
+});

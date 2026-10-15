@@ -29,9 +29,20 @@
 
 ## Verification summary
 
-- `./scripts/check.sh --full`: pending
+- Trusted deterministic scope (base/head and docs/full): pending
+- Selected local gate and committed whitespace: pending
 - Targeted checks: pending
 - `Required checks`: pending
+
+## Advisory review
+
+<!-- Keep vulnerability details and private report paths out of public PRs. No findings is not security proof. -->
+<!-- Record actual pending/completed/failed/unavailable/not-applicable, scope, base/head and sanitized disposition. -->
+<!-- Detailed records and inspectable report references belong in the private reviewer packet. -->
+- Code Review route and status: pending
+- Security review route, applicability and status: pending
+- Reviewed revision and sanitized disposition: pending
+- Account activation: unchanged; repository documentation does not enable services
 
 ## Independent review
 

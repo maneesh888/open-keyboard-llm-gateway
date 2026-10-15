@@ -8,4 +8,9 @@ if ! git -C "$ROOT" diff --quiet || [[ -n "$(git -C "$ROOT" ls-files --others --
   exit 1
 fi
 
-"$ROOT/scripts/check.sh" --quick
+SCOPE="$("$ROOT/scripts/select-verification-scope.sh" --staged)"
+case "$SCOPE" in
+  docs) "$ROOT/scripts/check.sh" --hygiene ;;
+  full) "$ROOT/scripts/check.sh" --quick ;;
+  *) exit 1 ;;
+esac

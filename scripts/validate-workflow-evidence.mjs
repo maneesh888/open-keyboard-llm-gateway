@@ -12,6 +12,7 @@ function field(body, name) {
 }
 export function validateWorkflowEvidence({ body, head, impact }) {
   if (!/^[0-9a-f]{40}$/u.test(head) || typeof body !== 'string') throw new Error('Workflow evidence requires exact head and PR body.');
+  if (!impact || typeof impact.live !== 'boolean' || typeof impact.browser !== 'boolean') throw new Error('A complete trusted impact classification is required.');
   const live = field(body, 'Workflow live proof');
   if (impact.live || live !== 'not-required') {
     let proof; try { proof = JSON.parse(live); } catch { throw new Error('Required live proof is absent or malformed.'); }

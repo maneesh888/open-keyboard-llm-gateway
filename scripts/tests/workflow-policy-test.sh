@@ -157,4 +157,16 @@ for required_path in .agents/skills/audit-gateway-ui/SKILL.md .agents/skills/wri
   [[ -f "$ROOT/$required_path" ]] || fail "$required_path is missing."
 done
 
+rg --fixed-strings --quiet 'select-verification-scope.sh --range' "$CI_WORKFLOW" || fail "CI must classify with trusted scope."
+rg --fixed-strings --quiet 'validate-check-results.mjs' "$CI_WORKFLOW" || fail "CI must validate selected outcomes."
+for hook in pre-commit pre-push; do
+  rg --fixed-strings --quiet 'select-verification-scope.sh' "$ROOT/.githooks/$hook" || fail "hook lacks trusted scope."
+done
+if rg --quiet 'bootstrap-candidate|bootstrap-not-enforced|cp "scripts/' "$REVIEW_WORKFLOW"; then
+  fail "metadata must not fall back to candidate policy."
+fi
+for required_path in SECURITY.md docs/CODE_REVIEW_SECURITY.md scripts/advisory-review.mjs; do
+  [[ -f "$ROOT/$required_path" ]] || fail "$required_path is missing."
+done
+
 echo "Workflow policy test passed."

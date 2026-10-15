@@ -20,7 +20,7 @@ Work on one bounded gateway package while preserving API compatibility, secret b
 
 - **Fast:** focused change, affected tests, and hygiene.
 - **Standard:** complete deterministic implementation plus the quick gate.
-- **Release:** clean exact head, full gate, GitHub CI, independent review, and guarded readiness/merge.
+- **Release:** clean exact head, trusted deterministic scope gate, GitHub CI, independent review, and guarded readiness/merge.
 
 Use the highest mode required by the requested outcome or affected surface.
 
@@ -50,7 +50,7 @@ Planning/review-only requests remain read-only. Stop for unavailable credentials
 ## Verify and publish
 
 - Run affected tests while iterating.
-- Run `./scripts/check.sh --hygiene` for Fast, `--quick` for Standard, and `--full` for Release.
+- Run `./scripts/check.sh --hygiene` for Fast, `--quick` for Standard, and the trusted deterministic scope gate for Release: `select-verification-scope.sh --range <base> <head>` selects hygiene only for ordinary docs; otherwise run Full. Always check committed whitespace with `git diff --check <base>...<head>`.
 - Run `./scripts/check-semantic-prompt-contract.sh` when the contract gitlink, semantic fixtures, generated browser adapter, or adapter-serving route changes.
 - Run the classifier-selected `./scripts/check-live.sh` on the clean committed head before push. Inspect the sanitized proof; preserve exact provider/model identity.
 - Install and never bypass the committed hooks.

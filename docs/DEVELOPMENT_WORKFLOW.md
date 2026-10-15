@@ -10,7 +10,7 @@ The repository uses cumulative validation modes:
 | Quick | `./scripts/check.sh --quick` | Hygiene plus all Vitest tests and TypeScript build |
 | Full | `./scripts/check.sh --full` | Quick plus browser/API E2E, Compose validation, Docker image build, and runtime `/health` smoke |
 
-`--full` is the exact-head release and pre-push gate. The runtime smoke mounts generated, non-secret fixture configuration and expects the gateway to start successfully while reporting its intentionally absent Ollama backend as disconnected.
+`--full` is the exact-head release and pre-push gate unless trusted policy classifies the complete diff as ordinary documentation. The runtime smoke mounts generated, non-secret fixture configuration and expects the gateway to start successfully while reporting its intentionally absent Ollama backend as disconnected.
 
 ## Routing by changed surface
 
@@ -21,7 +21,8 @@ The repository uses cumulative validation modes:
 | Config or process startup | Config/integration tests | Full |
 | Dockerfile, Compose, dependencies, runtime files | Build or focused script | Full |
 | CI, hooks, scripts, repository skills/agents | Workflow policy test | Full |
-| Docs only | Hygiene | Hygiene unless a behavior claim changed |
+| Ordinary docs selected by trusted policy | Hygiene | Hygiene + committed-range whitespace; required claims still need proof |
+| Policy/setup/contract/acceptance documentation | Policy tests | Full |
 
 ## Proof boundaries
 
@@ -37,7 +38,7 @@ The repository uses cumulative validation modes:
 2. Prepare authorized coding in a fresh isolated worktree and inspect the outgoing commit scope before push.
 3. Reconcile product sources. Apply `$write-gateway-product-copy` and `$audit-gateway-ui` to affected wording/journeys before edits; inspect adjacent handoffs without broadening scope.
 4. Implement narrowly and run focused regression checks.
-5. Run Full, browser E2E, applicable observed walkthrough and classifier-selected live proof. Preserve separate evidence classes and requirement rows.
+5. Run the trusted deterministic scope gate (Full includes browser E2E), applicable observed walkthrough and classifier-selected live proof. Preserve separate evidence classes and requirement rows.
 6. Follow the existing independent exact-head review and guarded merge route. Verify relevant `main` CI afterward; clean only owned, clean, merged work.
 
 ### Browser/API E2E
@@ -78,7 +79,7 @@ Automatic authorization requires all rows `VERIFIED`, no blocker or material unc
 
 The independent report submission initially fails its review-event family because the immutable PR snapshot cannot yet link that new report. After the PR body links the report and its body/state event succeeds, submit the exact same-head non-approval COMMENTED revalidation sentence from `$review-verify-merge-pr`. This reruns the review-event family without masquerading as a report or approval. Before readiness and merge, `gh pr checks <number> --required` must succeed so an unsuperseded failed event family cannot be hidden by a newer result with the same protected name.
 
-The legacy report field `Mandatory exact-head gates` records the review-stage prerequisites (clean head, Full, technical `Required checks`, required live/observed proof and per-row evidence). The report also records `Post-report readiness: pending`. Its recommendation is not standalone merge authorization: the root must publish/link the report, revalidate both metadata event families and pass the required rollup before readiness/merge. Requiring the report's own metadata result before the report exists would create a circular gate. Failures remain blocking at their applicable stage; this sequence waives no check.
+The legacy report field `Mandatory exact-head gates` records the review-stage prerequisites (clean head, trusted deterministic scope gate, technical `Required checks`, required live/observed proof and per-row evidence). The report also records `Post-report readiness: pending`. Its recommendation is not standalone merge authorization: the root must publish/link the report, revalidate both metadata event families and pass the required rollup before readiness/merge. Requiring the report's own metadata result before the report exists would create a circular gate. Failures remain blocking at their applicable stage; this sequence waives no check.
 
 The metadata workflow does not run the Node matrices, build, semantic-contract checks, or Docker smoke. Those remain in `.github/workflows/ci.yml` with their existing triggers, concurrency behavior, and stable technical aggregate `Required checks`.
 
@@ -107,3 +108,66 @@ The fixed protected statuses after activation are technical `Required checks` an
 A documentation-only activation PR is a useful first check after the browser/live marker lands on `main`. Confirm the exact base contains the marker and all three workflow validators, and run `verification-impact.mjs` against that base and head. When both impacts are false, set both workflow-proof fields to `not-required`; do not attach stale evidence from the bootstrap head.
 
 Complete the independent review-stage prerequisites, then post/link the report and run the labeled review-event revalidation. Before readiness or merge, inspect successful `Validate trusted workflow evidence` steps in both the pull-request and review-event runs and require `gh pr checks --required` to pass. Keep those run links in the PR body as the durable activation record. This exercises trusted-source loading and both snapshot paths; adversarial policy tests separately cover classified live/browser proof rejection.
+
+## Trusted proportional deterministic checks
+
+`./scripts/select-verification-scope.sh --range <base> <head>` runs the classifier from
+that exact base; `--staged` uses committed HEAD policy for the staged diff. Only ordinary
+regular Markdown under `docs/` selects `docs`. README, policy, setup, requirements,
+contracts, compatibility/client instructions, skills, hooks, CI, runtime, dependencies,
+unknown paths and mixed diffs select `full`. Renames inspect both paths with rename
+coalescing disabled; mode/type changes cannot take the docs route. Ordinary new documents
+are supported. Empty/malformed diff records select Full; invalid Git comparisons and
+invalid/failed trusted classifier output stop the route. Missing older-base policy selects
+Full without executing candidate policy. The implementation that introduces or modifies
+this policy must pass Full.
+
+For `docs`, run hygiene and `git diff --check <base>...<head>`; for `full`, run Full and
+the same committed whitespace check. Pre-commit selects hygiene or Quick over the staged
+diff. Pre-push requires clean unchanged HEAD and selected checks, then still runs the
+existing live-impact classifier and any selected live gate. A path classification cannot
+prove a behavior claim: independently inspect the acceptance criterion and require relevant
+proof even for prose changes. The live/browser classifier remains a conservative minimum;
+this change does not introduce a manifest that can reduce its requirements.
+
+CI classifies PR and main-push ranges against trusted policy. Dispatch/reusable runs default
+to Full. Hygiene and secret scans always run. Tests, build, contract, browser/API E2E and
+Docker jobs run for Full; the stable `Required checks` aggregate accepts their deliberate
+skips only with successful docs classification and hygiene. Missing/failed classification,
+cancelled jobs and unexpected skips fail. Do not count skipped tests as executed evidence.
+The metadata workflow remains separate and never reruns the technical matrix. Missing
+trusted metadata markers or scripts now fail closed; the earlier bootstrap sections above
+are historical rollout context, not a candidate-policy fallback route.
+
+Select proof for changed behavior and explicit acceptance criteria. Record why live or
+observed evidence is not applicable instead of creating unrelated unverified requirements.
+Equivalent proof must establish the same observable criterion within the same evidence class;
+inspect its limits. Full already includes browser/API E2E, so do not repeat it without a new
+change, failure or unresolved concern. Hooks still enforce their prescribed checks; there is
+no cache that carries exact-head proof across commits. The existing exact-head human route
+accepts only disclosed overridable gaps and cannot waive security, API contracts or mandatory
+checks. Simulator and physical-device evidence rules from OpenKeyboard do not apply here.
+
+## Cross-project adoption record
+
+Source inspection used merged OpenKeyboard PR [#59](https://github.com/maneesh888/open-keyboard/pull/59),
+commit `a0889a06cbb0dcd7dec373f6ea99cfd0ed4bbc1d`, and PR
+[#63](https://github.com/maneesh888/open-keyboard/pull/63), commit
+`8f50cb5af294c967c5b32274b5f6c8474cf91ef1`. These are references, not ongoing dependencies.
+The latter was on fetched main during implementation. Subsequent merged PRs #60–#62 were
+inspected through that baseline; the canonical AGENTS.md last changed in #59 before #63.
+
+| Improvement | Decision and Gateway destination |
+| --- | --- |
+| #59 behavior-scoped and equivalent proof | Adopt explicit applicability guidance here and in `AGENTS.md`; retain Gateway's conservative live/browser minimum and evidence classes. |
+| #59 diff-bound assessment reductions | Not adopted: Gateway currently has boolean live/browser gates rather than OpenKeyboard's multi-level model comparison. No new reduction/waiver mechanism. |
+| #63 proportional ordinary documentation | Adopt in `scripts/verification-scope.mjs`, trusted selector, hooks, CI aggregate and regression tests; Gateway policy changes retain Full. |
+| #59/#63 trusted-base, complete paths/modes and negative tests | Adopt for deterministic selection and remove legacy metadata fallback; extend `scripts/tests/verification-scope-test.mjs` and workflow-evidence tests. |
+| Authority/phase handling and exact-head validity | Already present in `AGENTS.md` and development/review skills; preserve standing authority and scoped restrictions. |
+| Stage-appropriate checks | Already present in separate technical and metadata workflows and review skill; retain both metadata event families and exact-head rollup. |
+| Avoid redundant checks | Document Full's included E2E and one routine advisory route in `docs/CODE_REVIEW_SECURITY.md`; required hooks still run. |
+| Human runtime approval | Preserve Gateway's exact-head human route and non-overridable blockers; no automatic verification of absent browser evidence. |
+| Swift/MVVM, Simulator/device and runtime carry-forward | Not applicable; retain TypeScript/Hono, Node 22/24, Docker, OpenAI API and Gateway proof rules. |
+
+See [Code Review and security review](CODE_REVIEW_SECURITY.md) for advisory routing,
+private report handling, baseline preparation and activation boundaries.
