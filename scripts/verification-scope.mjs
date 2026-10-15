@@ -4,7 +4,7 @@ import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 // Ordinary prose only. Setup, contracts, acceptance criteria and policy remain Full.
-const protectedName = /agent|readme|policy|workflow|verification|release|testing|security|privacy|test[_-]?plan|smoke|setup|requirements|contract|compatibility|client|audit|apfel/iu;
+const protectedName = /agent|readme|policy|workflow|verification|review|evidence|activation|release|testing|security|privacy|test[_-]?plan|smoke|setup|requirements|contract|compatibility|client|audit|apfel/iu;
 export function documentationPath(path) {
   return /^docs\/(?:[a-zA-Z0-9_-]+\/)*[a-zA-Z0-9_-]+\.md$/u.test(path)
     && !path.split('/').slice(1).some(part => protectedName.test(part));

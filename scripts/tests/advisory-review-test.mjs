@@ -19,4 +19,8 @@ test('stale revisions, invented statuses, missing inspection and unsupported dis
   for (const patch of [{ head: 'c'.repeat(40) }, { base: 'c'.repeat(40) }, { status: 'clean' }, { inspected: false }, { privateReport: '' }, { reason: '' }, { route: 'project-reviewer' }, { findings: [{ id: 'F1', disposition: 'waived', evidence: 'none' }] }]) assert.throws(() => validateAdvisory({ ...record(), ...patch }, expected));
   const finding = { id: 'F1', disposition: 'fixed', evidence: 'Regression reference' };
   assert.throws(() => validateAdvisory({ ...record(), findings: [finding, finding] }, expected));
+  for (const placeholder of ['pending', 'none', 'unknown']) {
+    assert.throws(() => validateAdvisory({ ...record(), privateReport: placeholder }, expected));
+    assert.throws(() => validateAdvisory({ ...record(), findings: [{ ...finding, evidence: placeholder }] }, expected));
+  }
 });

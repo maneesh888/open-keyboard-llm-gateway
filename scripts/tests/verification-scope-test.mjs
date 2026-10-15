@@ -15,7 +15,7 @@ test('only ordinary prose with regular modes can select docs', () => {
     assert.equal(classifyRaw(raw(path, '000000', '100644', 'A')), 'docs');
     assert.equal(classifyRaw(raw(path, '100644', '000000', 'D')), 'docs');
   }
-  for (const path of ['README.md', 'AGENTS.md', 'src/server.ts', 'package-lock.json', '.github/workflows/ci.yml', '.agents/skills/x/SKILL.md', 'scripts/example.md', 'docs/SECURITY.md', 'docs/nested/WORKFLOW.md', 'docs/setup/example.md', 'docs/OPENAI_COMPATIBILITY.md', 'docs/OPEN_KEYBOARD_CLIENT.md', 'docs/requirements.md', 'config.json', 'unknown', 'docs/bad\nname.md']) {
+  for (const path of ['README.md', 'AGENTS.md', 'src/server.ts', 'package-lock.json', '.github/workflows/ci.yml', '.agents/skills/x/SKILL.md', 'scripts/example.md', 'docs/SECURITY.md', 'docs/nested/WORKFLOW.md', 'docs/setup/example.md', 'docs/OPENAI_COMPATIBILITY.md', 'docs/OPEN_KEYBOARD_CLIENT.md', 'docs/PR_REVIEW_EVIDENCE_ACTIVATION.md', 'docs/requirements.md', 'config.json', 'unknown', 'docs/bad\nname.md']) {
     assert.equal(classifyRaw(raw('docs/notes.md') + raw(path)), 'full', path);
   }
   for (const mode of ['100755', '120000', '160000']) assert.equal(classifyRaw(raw('docs/notes.md', '100644', mode)), 'full');

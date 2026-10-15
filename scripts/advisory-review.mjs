@@ -8,7 +8,8 @@ export function validateAdvisory(record, expected) {
   const sha = /^[0-9a-f]{40}$/u;
   if (!record || record.version !== 1 || !sha.test(expected.base) || !sha.test(expected.head)
       || record.base !== expected.base || record.head !== expected.head) throw new Error('Review revisions are missing or stale.');
-  const text = value => typeof value === 'string' && value.trim().length > 0;
+  const text = value => typeof value === 'string' && value.trim().length > 0
+    && !/^(pending|unknown|none|unavailable|not[- ]applicable)$/iu.test(value.trim());
   if (!['app-code-review', 'github-code-review', 'local-security', 'github-security', 'security-cloud'].includes(record.route)
       || !['pending', 'completed', 'failed', 'unavailable', 'not-applicable'].includes(record.status)
       || !text(record.scope) || !text(record.reason) || !Array.isArray(record.findings)) throw new Error('Invalid advisory record.');
