@@ -21,10 +21,16 @@ require_clean_head() {
 
 "$ROOT/scripts/validate-push-refs.sh" "$HEAD_SHA"
 require_clean_head
-"$ROOT/scripts/check.sh" --full
+BASE_REF="${GATEWAY_BASE_REF:-origin/main}"
+SCOPE="$("$ROOT/scripts/select-verification-scope.sh" --range "$BASE_REF" "$HEAD_SHA")"
+git -C "$ROOT" diff --check "$BASE_REF...$HEAD_SHA"
+case "$SCOPE" in
+  docs) "$ROOT/scripts/check.sh" --hygiene ;;
+  full) "$ROOT/scripts/check.sh" --full ;;
+  *) exit 1 ;;
+esac
 require_clean_head
 
-BASE_REF="${GATEWAY_BASE_REF:-origin/main}"
 IMPACT="$(node "$ROOT/scripts/verification-impact.mjs" "$BASE_REF" "$HEAD_SHA")"
 if [[ "$(node -e 'process.stdout.write(String(JSON.parse(process.argv[1]).live))' "$IMPACT")" == "true" ]]; then
   "$ROOT/scripts/check-live.sh"

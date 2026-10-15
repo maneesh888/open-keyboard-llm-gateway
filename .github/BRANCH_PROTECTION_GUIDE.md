@@ -17,7 +17,7 @@ Recommended repository settings:
 - Delete head branches automatically after merge.
 - Enable auto-merge only for the guarded exact-head lifecycle.
 
-Before an intentional merge, invoke `$review-verify-merge-pr`, record and link the newest independent project-reviewer COMMENTED report for the exact SHA, and confirm the local full gate and both GitHub statuses refer to that same head. Run `gh pr checks <number> --required` before readiness and again before merge so a failed event family cannot be hidden by a newer same-name result.
+Before an intentional merge, invoke `$review-verify-merge-pr`, record and link the newest independent project-reviewer COMMENTED report for the exact SHA, and confirm the local trusted deterministic scope gate (Full unless trusted ordinary-docs classification selects hygiene) and both GitHub statuses refer to that same head. Run `gh pr checks <number> --required` before readiness and again before merge so a failed event family cannot be hidden by a newer same-name result.
 
 Automatic authorization is allowed only for N/N `VERIFIED` requirements, no blocker or material uncertainty, complete mandatory exact-head gates, reviewer confidence exactly `100%`, and recommendation `automatic`. Below 100%, keep the PR draft until the repository owner explicitly authorizes the current full SHA. Human authorization retains every proof gap and never overrides a security, authentication, authorization, credential, data-loss, API/proxy-contract, mandatory-check, conflict, requested-change, unresolved-thread, secret-control, or protection blocker.
 

@@ -70,7 +70,7 @@ Pull-request metadata validation runs separately and reports the fixed `Required
 
 - **Fast:** targeted tests plus `./scripts/check.sh --hygiene`.
 - **Standard:** `./scripts/check.sh --quick` (hygiene, all Vitest tests, TypeScript build).
-- **Release:** clean exact head plus `./scripts/check.sh --full` (Standard plus browser/API E2E, Compose validation, image build, and container `/health` smoke).
+- **Release:** clean exact head plus the trusted deterministic scope gate: Full (Standard plus browser/API E2E, Compose validation, image build, and container `/health` smoke), or hygiene and committed whitespace for classified ordinary docs.
 
 Always run `git diff --check` before claiming completion. A passing container health smoke proves the gateway image starts with safe fixture configuration and reports the backend disconnected; it does not prove a live Ollama/Apfel request.
 
@@ -87,7 +87,7 @@ Always run `git diff --check` before claiming completion. A passing container he
 
 ### Review and readiness order
 
-The report field `Mandatory exact-head gates` is the legacy name for review-stage prerequisites: clean head, local Full, technical `Required checks`, required live/observed proof and each requirement's evidence. Metadata checks consume that report and run afterward. The reviewer records `Post-report readiness: pending`; its automatic recommendation alone is not merge authorization. The root must then post/link/revalidate the report and require both metadata event families and `gh pr checks --required` before readiness or merge. Failed/missing checks at either stage block advancement through that stage; no check is waived. A new commit expires both stages.
+The report field `Mandatory exact-head gates` is the legacy name for review-stage prerequisites: clean head, local trusted deterministic scope gate, technical `Required checks`, required live/observed proof and each requirement's evidence. Metadata checks consume that report and run afterward. The reviewer records `Post-report readiness: pending`; its automatic recommendation alone is not merge authorization. The root must then post/link/revalidate the report and require both metadata event families and `gh pr checks --required` before readiness or merge. Failed/missing checks at either stage block advancement through that stage; no check is waived. A new commit expires both stages.
 
 ## Pull Request Lifecycle
 
@@ -102,11 +102,11 @@ Before commit:
 
 Create PRs as drafts with the repository template completed, including the full exact head SHA. For review/readiness/merge, use `$review-verify-merge-pr`. Any new commit invalidates earlier exact-head local checks and independent review.
 
-Before push, inspect `git log origin/main..HEAD` and the complete outgoing diff. Stop if earlier unrelated commits have ambiguous ownership. The hook requires a clean exact head, Full, and any classifier-selected live check.
+Before push, inspect `git log origin/main..HEAD` and the complete outgoing diff. Stop if earlier unrelated commits have ambiguous ownership. The hook requires a clean exact head, the trusted deterministic scope gate, and any classifier-selected live check.
 
 Before guarded merge require:
 
-- exact-head `./scripts/check.sh --full` success;
+- exact-head trusted deterministic scope gate success (Full unless ordinary documentation is classified by trusted policy);
 - independent review of the same head with no blocking findings;
 - successful `Required checks` for the same head;
 - successful `Required review evidence` for both relevant event families and a successful `gh pr checks <number> --required` rollup;
@@ -121,3 +121,34 @@ After merge, inspect relevant `main` CI. Remove only an owned, clean session wor
 ## Reporting
 
 Report the branch, changed areas, checks and results, exact SHA for Release work, PR/merge state, and residual proof limits. Do not equate mock tests or a disconnected-backend container smoke with live model behavior.
+
+## Proportional verification and advisory review
+
+Use `./scripts/select-verification-scope.sh --range <base> <head>` before release checks.
+Only ordinary Markdown under `docs/` can select hygiene instead of Full. Policy, setup,
+requirements, contracts, README, source, dependencies, CI, hooks and unknown paths retain Full.
+Mixed changes retain Full; invalid comparisons fail, and an older base without the selector
+requires Full. See `docs/DEVELOPMENT_WORKFLOW.md` for committed whitespace and rollout details.
+The current policy integration itself requires Full. No selected mandatory check is waived.
+
+Choose evidence for the changed behavior and acceptance criteria. Accept an equivalent route
+only within the same required evidence class and with its limits recorded; do not reinterpret
+mock evidence as live transport or observed usability. The live/browser classifier remains a
+conservative minimum, and explicit requirements can demand more. Human approval retains every
+proof gap and never waives mandatory gates or security/API-contract blockers.
+
+Use `docs/CODE_REVIEW_SECURITY.md` for one routine advisory PR Code Review route and deeper
+security review on sensitive changes. Optional service availability does not gate merge, but
+independently validated correctness/security findings do. Keep the custom six-column project
+review separate from app/cloud output, inspect external findings independently, and refresh
+affected checks/reviews after each commit. Never publish private scan details.
+
+## Code Review Rules
+
+- Preserve authentication, key scoping and trusted-proxy limits. Client Authorization credentials
+  must never reach an upstream or logs; review redaction across failure and streaming paths.
+- Preserve the OpenAI-compatible request/response and SSE contract, exact client messages,
+  provider/model identity and bounded cancellation. Never add fallback that conceals a failure.
+- Review key persistence, admin session boundaries, endpoint configuration and CI trust changes
+  for unauthorized access, data loss or credential exposure. Findings need a reachable path and
+  evidence; an empty review is not security or runtime proof.

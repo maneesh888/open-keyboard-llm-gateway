@@ -4,7 +4,7 @@
 
 ```text
 Pull request
-  -> Exact-head local full gate
+  -> Exact-head trusted deterministic scope gate (Full unless ordinary docs)
   -> GitHub repository hygiene
   -> GitHub Node 24 and Node 22 tests
   -> GitHub Node 24 TypeScript build
@@ -46,3 +46,17 @@ Follow `.github/BRANCH_PROTECTION_GUIDE.md`. Stage 1 retains only stable `Requir
 ## Deployment boundary
 
 No registry or hosting destination is defined. Image publication and deployment require a named target, least-privilege credentials, a protected environment, and separate explicit authorization.
+
+## Proportional checks and advisory services
+
+Trusted ordinary-docs classification selects hygiene and committed whitespace. All policy,
+source, config, dependency and mixed changes retain Full. The stable technical aggregate
+requires successful classification/hygiene and permits deliberate downstream skips only
+for docs. Dispatch/reusable runs retain Full; a missing older-base classifier cannot select
+docs. Missing trusted metadata markers/scripts fail closed, with no candidate fallback.
+See `docs/DEVELOPMENT_WORKFLOW.md` for the adoption record and exact selection rules.
+
+`docs/CODE_REVIEW_SECURITY.md` describes advisory Code Review and sensitive-change security
+review, not a new protected service check. No account settings, recurring scan, installation,
+private report publication or purchased usage is enabled by repository files. Existing
+independent review and both technical/metadata statuses remain required.

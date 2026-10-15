@@ -61,11 +61,8 @@ jobs:
             done
             echo "source=trusted-base" >> "$GITHUB_OUTPUT"
           else
-            echo "Bootstrap only: the base predates review-evidence enforcement; candidate validators are not remote authorization."
-            for validator_name in "${validator_files[@]}"; do
-              cp "scripts/$validator_name" "$validator_root/$validator_name"
-            done
-            echo "source=bootstrap-candidate" >> "$GITHUB_OUTPUT"
+            echo "Trusted base review marker is missing; enforcement fails closed." >&2
+            exit 1
           fi
 
           if git cat-file -e "$PR_BASE_SHA:.github/verification-evidence-enforced" 2>/dev/null; then
@@ -78,7 +75,8 @@ jobs:
             done
             echo "workflow_evidence=trusted-base" >> "$GITHUB_OUTPUT"
           else
-            echo "workflow_evidence=bootstrap-not-enforced" >> "$GITHUB_OUTPUT"
+            echo "Trusted base workflow marker is missing; enforcement fails closed." >&2
+            exit 1
           fi
 
           echo "root=$validator_root" >> "$GITHUB_OUTPUT"

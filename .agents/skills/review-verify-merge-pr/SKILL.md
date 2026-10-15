@@ -17,7 +17,7 @@ Bind every review conclusion and state change to one exact pull-request head.
 
 ## Review prerequisites and later readiness
 
-The report schema's legacy field `Mandatory exact-head gates` means **review-stage prerequisites**: clean unchanged head, local Full, same-head technical `Required checks`, classified live/observed proof, and every requirement's specified evidence. The reviewer may mark that field `complete` only when these prerequisites pass.
+The report schema's legacy field `Mandatory exact-head gates` means **review-stage prerequisites**: clean unchanged head, local trusted deterministic scope gate (Full, or hygiene for classified ordinary docs), same-head technical `Required checks`, classified live/observed proof, and every requirement's specified evidence. The reviewer may mark that field `complete` only when these prerequisites pass.
 
 Metadata validation consumes the report and its PR link, so it is a **post-report readiness gate**. It cannot be a prerequisite for producing that same report. Include `Post-report readiness: pending` in the report and state that both `Required review evidence` event families plus `gh pr checks --required` still must pass. An automatic review recommendation does not itself authorize readiness or merge.
 
@@ -39,7 +39,7 @@ Missing or failed review-stage prerequisites remain blockers to the report's aut
 5. Require the reviewer to return every row in the exact six-column report contract: `ID | Observable acceptance criterion | Required proof type | Evidence inspected | Status | Independent assessment`. Acceptance and proof cells must copy the ledger verbatim.
 6. Require exactly one report field for reviewer marker, exact head, N/N coverage, unverified IDs, blocking findings, non-overridable blockers, mandatory exact-head gates, confidence, recommendation, and conclusion. The textual project-reviewer marker is audit/process evidence, not cryptographic actor-identity proof.
 7. Use `100%` / `automatic` / `requirements-complete` only when every row is `VERIFIED`, mandatory exact-head gates are complete, and no blocker or material uncertainty remains. Otherwise use `below 100%` / `human-review-required` / `human-review-required` and retain every gap.
-8. Run `./scripts/check.sh --full` on the clean exact head for readiness (includes browser/API E2E). Classify the base/head diff with `verification-impact.mjs`; inspect the required live proof and observed browser artifacts against each row. Fixture evidence cannot satisfy live or observed acceptance. Validate both PR snapshots with trusted workflow-evidence validators after their base-marker activation; disclose bootstrap-only evidence otherwise.
+8. Run the trusted deterministic scope gate on the clean exact head: `select-verification-scope.sh --range <base> <head>` requires Full (including browser/API E2E) unless it returns `docs`, which requires hygiene and committed-range whitespace validation. Classify the base/head diff with `verification-impact.mjs`; inspect the required live proof and observed browser artifacts against each row. Fixture evidence cannot satisfy live or observed acceptance. Validate both PR snapshots with trusted workflow-evidence validators; missing trusted base markers or scripts block readiness without candidate fallback.
 9. Confirm `Required checks` succeeds for the same head before the report is finalized.
 
 During an implementation lifecycle, fix in-scope blockers while the PR remains draft, then repeat the exact-head review/gate cycle. Review-only work reports findings and stops. Every new commit invalidates all earlier exact-head proof and authorization.
@@ -60,7 +60,7 @@ Require all of the following for the same full head SHA:
 
 1. Current PR brief and neutral reviewer packet with all `R1` through `RN` ledger rows.
 2. Independent review with N/N coverage and either the automatic or human authorization route below.
-3. Successful local full gate.
+3. Successful exact-head trusted deterministic scope gate and committed-range whitespace validation.
 4. Successful `Required checks`.
 5. A durable newest same-head project-reviewer `COMMENTED` report linked in the PR, plus successful `Required review evidence` results for both the body/state and review-event families.
 6. Successful `gh pr checks <number> --required`; this is mandatory because a newer same-name result can otherwise hide a failed event family.
@@ -88,3 +88,14 @@ gh pr merge <number> --auto --squash --match-head-commit <reviewed-head-sha>
 Inspect state immediately. If GitHub queues instead of completing, disable auto-merge and report the unsatisfied gate. If the head changes, disable auto-merge, return to draft when applicable, and restart the cycle. Never force, use administrator bypass, dismiss valid feedback, or leave unattended auto-merge queued.
 
 After merge, report the PR URL, reviewed head, squash commit, checks, review result, and proof limits. Inspect resulting `main` CI when workflow/runtime claims depend on it.
+
+## Advisory review handoff
+
+Read `docs/CODE_REVIEW_SECURITY.md`. Include route, scope, base/head, actual status,
+inspected findings/dispositions and private references in the neutral reviewer packet.
+App reviews, GitHub automatic Code Review, local security scans, GitHub Security Review
+and Security Cloud are separate products; none supplies this custom report automatically.
+Independently reproduce or inspect each material external finding before disposition.
+Pending/failed/unavailable advisory services are not clean results and do not replace any
+mandatory evidence. Validated correctness/security findings remain blockers under existing rules.
+New commits invalidate external review completion for the current head as well as this report.
