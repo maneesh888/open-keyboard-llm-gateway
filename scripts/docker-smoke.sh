@@ -91,15 +91,15 @@ UI_BODY="$(curl --fail --silent --show-error --max-time 3 "http://127.0.0.1:$GAT
   exit 1
 }
 
-SEMANTIC_ADAPTER_BODY="$(curl --fail --silent --show-error --max-time 3 "http://127.0.0.1:$GATEWAY_PORT/ui/semantic-prompt-contract.js")"
-[[ "$SEMANTIC_ADAPTER_BODY" == *'SemanticPromptContractBrowser'* ]] || {
-  echo "Gateway semantic prompt adapter route did not return the generated browser contract." >&2
+SEMANTIC_CATALOG_BODY="$(curl --fail --silent --show-error --max-time 3 "http://127.0.0.1:$GATEWAY_PORT/ui/semantic-operations.json")"
+[[ "$SEMANTIC_CATALOG_BODY" == *'"groups"'* ]] || {
+  echo "Gateway semantic operation route did not return the operation catalog." >&2
   exit 1
 }
-[[ "$SEMANTIC_ADAPTER_BODY" == *"\"contractVersion\":\"$CONTRACT_VERSION\""* ]] || {
-  echo "Gateway semantic prompt adapter route did not return the pinned contract version." >&2
+[[ "$SEMANTIC_CATALOG_BODY" == *"\"contractVersion\":\"$CONTRACT_VERSION\""* ]] || {
+  echo "Gateway semantic operation route did not return the pinned contract version." >&2
   exit 1
 }
 
-echo "Docker smoke passed: image starts as non-root, /health is reachable, and /ui plus its pinned semantic adapter are served."
+echo "Docker smoke passed: image starts as non-root, /health is reachable, and /ui plus its pinned semantic operation catalog are served."
 echo "Proof boundary: the fixture backend is intentionally disconnected; no live Ollama or Apfel call was made."

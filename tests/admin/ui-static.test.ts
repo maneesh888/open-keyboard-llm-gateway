@@ -4,10 +4,6 @@ import { join } from 'path';
 
 const html = readFileSync(join(process.cwd(), 'public/admin/index.html'), 'utf-8');
 const playgroundLogic = readFileSync(join(process.cwd(), 'public/admin/playground.js'), 'utf-8');
-const semanticAdapter = readFileSync(
-  join(process.cwd(), 'Vendor/semantic-prompt-contract/adapters/browser/semanticPromptContract.generated.js'),
-  'utf-8',
-);
 
 describe('Admin UI static contract', () => {
   it('includes responsive mobile card markers', () => {
@@ -99,8 +95,8 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('models available');
     expect(html).toContain('0 models available');
     expect(html).toContain('admin keys loaded. The credential is fetched only when a test runs.');
-    expect(html).toContain('id="testerPromptPreset"');
-    expect(html).toContain('Test preset');
+    expect(html).not.toContain('id="testerPromptPreset"');
+    expect(html).not.toContain('Test preset');
     expect(html).toContain('id="testerSystemPrompt"');
     expect(html).toContain('System prompt');
     expect(html).toContain('User message');
@@ -108,20 +104,13 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('class="panel tester-panel"');
     expect(html).toContain('.tester-panel textarea{min-height:120px}');
     expect(html).toContain('.tester-panel #testerPrompt{min-height:150px}');
-    expect(html).toContain("const DEFAULT_PROMPT_PRESET='connection-smoke'");
-    expect(html).toContain('function populatePromptPresets()');
-    expect(html).toContain('function clearPlaygroundConversation');
-    expect(html).toContain("Preset changed. Run the selected test to start a new result.");
-    expect(html).toContain('function applyPromptPreset(id,opts={})');
-    expect(html).toContain('if(opts.clearConversation)clearPlaygroundConversation()');
-    expect(html).toContain('onchange="applyPromptPreset(this.value,{clearConversation:true})"');
-    expect(html).toContain('Connection smoke');
-    expect(html).toContain('SemanticPromptContractBrowser');
-    expect(html).toContain("...(semanticContract?.gatewayPromptPresets||[])");
-    expect(semanticAdapter).toContain('Plain-text grammar · Multi-error');
-    expect(semanticAdapter).toContain('Plain-text grammar · Clean/no issue');
-    expect(semanticAdapter).toContain('Structured operation · Summarize');
-    expect(semanticAdapter).toContain('Structured operation · Rewrite');
+    expect(html).toContain("const CONNECTION_SYSTEM_PROMPT='");
+    expect(html).toContain("CONNECTION_USER_MESSAGE='Reply with: connection ok'");
+    expect(html).toContain('function setConnectionTestDefaults()');
+    expect(html).toContain('setConnectionTestDefaults();');
+    expect(html).toContain('It does not add a semantic operation or structured response request.');
+    expect(html).not.toContain('SemanticPromptContractBrowser');
+    expect(html).not.toContain('gatewayPromptPresets');
     expect(html).not.toContain('OpenKeyboardCore · Fix Grammar');
     expect(html).not.toContain('OpenKeyboardCore · Rewrite');
     expect(html).not.toContain('OpenKeyboardCore · Summarize');
@@ -140,9 +129,9 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('fullKeyFetched');
     expect(html).toContain("role:'system'");
     expect(html).toContain('messageRoles:body.messages.map');
-    expect(html).toContain('promptPreset:preset');
-    expect(html).toContain('contractVersion:presetDefinition?.contractVersion||null');
-    expect(html).toContain('...(presetDefinition?.request||{})');
+    expect(html).toContain("testType:'connection-smoke'");
+    expect(html).not.toContain('promptPreset:preset');
+    expect(html).not.toContain('presetDefinition?.request');
     expect(html).toContain('systemPromptLength:systemPrompt.length');
     expect(html).toContain("fetch('/v1/chat/completions'");
     expect(html).toContain("endpoint:'/v1/chat/completions'");
@@ -185,19 +174,19 @@ describe('Admin UI static contract', () => {
   });
 
 
-  it('loads semantic diagnostics from the pinned generated contract adapter', () => {
-    expect(html).toContain('Connection smoke');
-    expect(html).toContain('The gateway forwards these messages without adding application-specific instructions.');
-    expect(html).toContain('<script src="/ui/semantic-prompt-contract.js"></script>');
-    expect(html).not.toContain('one atomic correction result per distinct issue');
-    expect(html).not.toContain('testerRequestJson');
-    expect(html).not.toContain('testerExpectedSchema');
-    expect(semanticAdapter).toContain('Generated from contracts/*.json');
-    expect(semanticAdapter).toContain('"contractVersion":"3.1.1"');
-    expect(semanticAdapter).toContain('Structured operation · Translate to Dutch');
-    expect(semanticAdapter).toContain('"operation":"fix_grammar"');
-    expect(semanticAdapter).toContain('"input_text"');
-    expect(semanticAdapter).toContain('"response_format":{"type":"json_object"}');
+  it('lists semantic and keyboard operation identifiers without runnable semantic presets', () => {
+    expect(html).toContain('Semantic and keyboard operations');
+    expect(html).toContain('id="operationCatalog"');
+    expect(html).toContain('id="operationCatalogVersion"');
+    expect(html).toContain("fetch('/ui/semantic-operations.json')");
+    expect(html).toContain('Keyboard request:');
+    expect(html).toContain("function operationCountLabel(count){return `${count} operation${count===1?'':'s'}`}");
+    expect(html).toContain('function renderSemanticOperations(catalog)');
+    expect(html).toContain('function loadSemanticOperations()');
+    expect(html).not.toContain('<script src="/ui/semantic-prompt-contract.js"></script>');
+    expect(html).not.toContain('Structured operation ·');
+    expect(html).not.toContain('Plain-text grammar ·');
+    expect(html).not.toContain('response_format');
   });
 
 

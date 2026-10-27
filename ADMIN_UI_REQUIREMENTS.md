@@ -10,7 +10,7 @@ The shipping UI is served publicly at `/ui`; administrative data and actions req
 | Manage client access | Create, inspect, edit, disable/enable and delete keys; edit preserves the credential. Reveal/copy only on explicit action; list responses conceal full keys. Destructive actions permit cancellation. |
 | Choose a model | Preserve configured model identity and explain manual selection. Keep client key enablement, provider availability, loaded model state and successful inference distinct. |
 | Model controls and setup | Status checks perform no inference or automatic setup command. Start/stop only supported configured controls; safe diagnostics explain real next steps. |
-| Test a key | Key-row handoff selects the intended key/model. Credential fetch is deferred until needed. Visible states distinguish not run, loading, success, failure and recovery. Production messages pass through unchanged. |
+| Test a key and inspect operations | Key-row handoff selects the intended key/model. Credential fetch is deferred until needed. The live test remains generic and adds no semantic operation fields. Visible states distinguish not run, loading, success, failure and recovery. A read-only catalog lists semantic operation IDs and their keyboard application request IDs from the pinned contract. Production messages pass through unchanged. |
 | Navigate and read | Desktop and narrow layouts keep actions reachable; labels, focus, navigation and state announcements are understandable. User-visible wording stays consistent across the journey. |
 
 ## Content and proof

@@ -7,6 +7,9 @@
 - `GET /ui`
   - Expected: `200`, serves admin HTML.
   - Static contract: contains responsive markers (`table-wrap`, mobile media query, card `data-label`s).
+- `GET /ui/semantic-operations.json`
+  - Expected: `200`, serves the pinned contract version and a prompt-free operation catalog.
+  - Each entry maps a semantic operation ID to its optional keyboard application request ID.
 
 ## Admin Auth
 

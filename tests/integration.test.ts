@@ -57,11 +57,18 @@ describe('Integration', () => {
     expect(body).not.toHaveProperty('codex');
   });
 
-  it('serves the pinned semantic prompt browser adapter without auth', async () => {
-    const res = await app.request('/ui/semantic-prompt-contract.js');
+  it('serves the pinned semantic operation catalog without auth or prompt content', async () => {
+    const res = await app.request('/ui/semantic-operations.json');
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('text/javascript');
-    expect(await res.text()).toContain('SemanticPromptContractBrowser');
+    expect(res.headers.get('content-type')).toContain('application/json');
+    const body = await res.json();
+    expect(body.contractVersion).toBe('3.1.1');
+    expect(body.groups.map((group: { id: string }) => group.id)).toEqual([
+      'writing-actions',
+      'keyboard-suggestions',
+    ]);
+    expect(JSON.stringify(body)).not.toContain('system_instruction');
+    expect(JSON.stringify(body)).not.toContain('gatewayPromptPresets');
   });
 
   it('serves the Admin Playground selection logic without auth', async () => {

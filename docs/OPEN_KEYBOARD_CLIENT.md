@@ -2,10 +2,11 @@
 
 ## Shared semantic package
 
-Semantic test cases are supplied by the pinned `Vendor/semantic-prompt-contract` Git submodule at
-contract version `3.1.1`. The gateway serves its generated browser adapter to the admin playground;
-it does not construct, prepend, alter, or own the production client's messages. The connectivity
-smoke remains gateway-owned because it tests transport rather than semantic behavior.
+Semantic operation metadata is supplied by the pinned `Vendor/semantic-prompt-contract` Git
+submodule at contract version `3.1.1`. The gateway projects operation IDs, descriptions, and their
+keyboard application request IDs into a read-only admin catalog. It does not serve runnable
+semantic presets or construct, prepend, alter, or own the production client's messages. The
+connectivity smoke remains gateway-owned because it tests transport rather than semantic behavior.
 
 Initialize the dependency with `git submodule update --init --recursive`. Upgrade by reviewing the
 package changelog and equivalence fixtures, advancing the gitlink to an immutable contract commit,
