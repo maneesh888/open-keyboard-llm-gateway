@@ -86,8 +86,8 @@ rg --fixed-strings --quiet '<title>LLM Gateway · Admin</title>' "$ROOT/public/a
   fail "the admin UI title contract drifted."
 rg --fixed-strings --quiet '<title>LLM Gateway · Admin</title>' "$ROOT/scripts/docker-smoke.sh" ||
   fail "the Docker smoke no longer checks the admin UI title contract."
-rg --fixed-strings --quiet '/ui/semantic-prompt-contract.js' "$ROOT/scripts/docker-smoke.sh" ||
-  fail "the Docker smoke no longer checks the pinned semantic adapter route."
+rg --fixed-strings --quiet '/ui/semantic-operations.json' "$ROOT/scripts/docker-smoke.sh" ||
+  fail "the Docker smoke no longer checks the pinned semantic operation catalog route."
 
 for required_path in \
   .agents/skills/develop-llm-gateway/SKILL.md \

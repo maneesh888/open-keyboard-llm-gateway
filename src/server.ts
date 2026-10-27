@@ -13,6 +13,7 @@ import type { AppConfig, AdminConfig } from './types/index.js';
 import { ModelRuntimeManager, type LocalServiceLauncher } from './models/runtime.js';
 import { HttpModelServiceController, type ModelServiceController } from './models/serviceController.js';
 import { protectedValue } from './lib/protectedValue.js';
+import { loadSemanticOperationCatalog } from './semantic/operationCatalog.js';
 
 export type AppDependencies = {
   localServiceLauncher?: LocalServiceLauncher;
@@ -82,22 +83,12 @@ export function createApp(
     }
   });
 
-  app.get('/ui/semantic-prompt-contract.js', (c) => {
+  app.get('/ui/semantic-operations.json', (c) => {
     try {
-      const adapterPath = join(
-        process.cwd(),
-        'Vendor',
-        'semantic-prompt-contract',
-        'adapters',
-        'browser',
-        'semanticPromptContract.generated.js',
-      );
-      const source = readFileSync(adapterPath, 'utf-8');
-      c.header('Content-Type', 'text/javascript; charset=UTF-8');
       c.header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-      return c.body(source);
+      return c.json(loadSemanticOperationCatalog());
     } catch (error) {
-      return c.text('Semantic prompt contract adapter not found', 404);
+      return c.json({ error: { message: 'Semantic operation catalog not found' } }, 404);
     }
   });
 

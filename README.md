@@ -1,6 +1,6 @@
 # LLM Gateway
 
-Semantic diagnostics in the admin playground come from the pinned
+The admin playground's read-only operation catalog comes from the pinned
 `Vendor/semantic-prompt-contract` version `3.1.1` package. This path is a checkout of a separate
 repository, and the gateway repository's immutable gitlink pins it to one exact commit/version. The
 gateway owns transport, authentication, rate limits, logging, and provider routing; it preserves
@@ -215,7 +215,8 @@ The UI supports:
 - capability-based start/stop controls for local Ollama models and an authenticated macOS Apfel service controller for Docker deployments
 - responsive mobile navigation for API Keys and Playground
 - live playground tests using the selected key and model
-- a generic connection-smoke preset with editable system and user messages
+- a generic connection test with editable system and user messages
+- a read-only catalog mapping semantic operation IDs to keyboard application request IDs
 - diagnostics for status, latency, selected key, request shape, and failure classification
 
 Model checks use provider metadata only: Ollama catalog/loaded-model APIs or Apfel `/health`. An `available` or `running` badge therefore does not prove credentials, entitlement, billing, network egress, response quality, or live inference. Use **Live test** when that stronger proof is needed; the live test can consume provider tokens or incur cost.
