@@ -65,7 +65,7 @@ export function parseArgs(argv) {
     } else throw new Error(`Unknown argument: ${argument}`);
   }
   if (options.help) return options;
-  if (!TARGETS[options.environment]) throw new Error('Select exactly one known --environment.');
+  if (!Object.hasOwn(TARGETS, options.environment)) throw new Error('Select exactly one known --environment.');
   if (!FULL_SHA.test(options.revision || '')) throw new Error('--revision must be a full lowercase 40-character Git SHA.');
   if (options.apply && options.confirm !== `${options.environment}:${options.revision}`) {
     throw new Error(`Apply requires --confirm ${options.environment}:${options.revision}`);
@@ -114,6 +114,26 @@ export function buildContainerCreateBody(inspect, image, revision) {
   body.Labels = { ...(inspect.Config.Labels || {}), 'org.opencontainers.image.revision': revision };
   body.HostConfig = inspect.HostConfig;
   return body;
+}
+
+export function validateCloneableDockerConfiguration(inspect) {
+  const unsupportedMount = (inspect.Mounts || []).find(mount => mount.Type !== 'bind');
+  if (unsupportedMount) throw new Error('Existing container has a non-bind mount that cannot be cloned safely.');
+
+  const networks = Object.entries(inspect.NetworkSettings?.Networks || {});
+  const mode = inspect.HostConfig?.NetworkMode;
+  if (['host', 'none'].includes(mode)) {
+    if (networks.length !== 0) throw new Error('Existing host/none network shape is inconsistent.');
+    return true;
+  }
+  if (networks.length !== 1) throw new Error('Existing container must have exactly one cloneable network attachment.');
+  const [networkName, endpoint] = networks[0];
+  const expectedName = mode === 'default' ? 'bridge' : mode;
+  if (networkName !== expectedName) throw new Error('Existing primary network does not match HostConfig.NetworkMode.');
+  if (endpoint.Aliases || endpoint.Links || endpoint.DriverOpts || endpoint.IPAMConfig) {
+    throw new Error('Existing network aliases, links, driver options, or static IPAM cannot be cloned safely.');
+  }
+  return true;
 }
 
 export function sanitizedEvidence({ environment, revision, outcome, checks = {}, rollback = 'not-needed' }) {
@@ -316,6 +336,7 @@ async function applyMac(options, target) {
   process.once('SIGTERM', interrupted);
   try {
     snapshot = dockerInspect(target.container);
+    validateCloneableDockerConfiguration(snapshot);
     if (snapshot.State?.Running !== true) throw new Error('Existing container is not running.');
     const existingChecks = endpointChecks(target.baseUrl);
     if (!existingChecks.health || !existingChecks.ui || !existingChecks.unauthorizedModels) {
@@ -457,6 +478,7 @@ function applyPhone(options, target) {
 function plan(options, target) {
   if (target.kind === 'docker') {
     const inspect = dockerInspect(target.container);
+    validateCloneableDockerConfiguration(inspect);
     const checks = endpointChecks(target.baseUrl);
     console.log(JSON.stringify({
       mode: 'plan',
@@ -465,6 +487,7 @@ function plan(options, target) {
       targetKind: target.kind,
       currentRevision: inspect.Config.Labels?.['org.opencontainers.image.revision'] || 'unknown',
       preservedMountCount: inspect.Mounts?.length || 0,
+      cloneCompatibleNetworkCount: Object.keys(inspect.NetworkSettings?.Networks || {}).length,
       checks: { health: checks.health, ui: checks.ui, unauthorizedModels: checks.unauthorizedModels },
       applyConfirmation: `${options.environment}:${options.revision}`,
     }));

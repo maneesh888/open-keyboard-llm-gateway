@@ -38,7 +38,7 @@ npm run deploy:gateway -- \
   --confirm mac-staging:<full-origin-main-sha>
 ```
 
-The script obtains a deployment lock, holds the inspected container configuration only in process memory, stops and renames the existing container as the rollback container, and creates the candidate with that inspected configuration while changing only the image and revision label. This retains bind mounts—including existing config and secret mounts—ports, environment, restart policy, network, security options, command, user, and health check without printing them.
+The script obtains a deployment lock, holds the inspected container configuration only in process memory, stops and renames the existing container as the rollback container, and creates the candidate with that inspected configuration while changing only the image and revision label. This retains bind mounts—including existing config and secret mounts—ports, environment, restart policy, network, security options, command, user, and health check without printing them. Preflight fails closed before stopping the container if it finds a non-bind mount, multiple network attachments, aliases, links, driver options, static IPAM, or another network shape that the clone route does not preserve exactly.
 
 The candidate must become healthy, return HTTP 200 from `/health` and `/ui`, return HTTP 401 from unauthenticated `/v1/models`, and expose the exact same mount set. Failure removes only the candidate and restores/restarts the retained previous container. Success removes the temporary rollback container; the previous image remains locally available by its immutable revision tag.
 

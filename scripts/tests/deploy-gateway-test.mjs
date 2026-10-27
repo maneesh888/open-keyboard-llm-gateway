@@ -9,6 +9,7 @@ import {
   parseArgs,
   runMacSwapTransaction,
   sanitizedEvidence,
+  validateCloneableDockerConfiguration,
   validatePhoneReleaseMetadata,
 } from '../deploy-gateway.mjs';
 
@@ -23,6 +24,9 @@ test('deployment targets are environments, not backend modes', () => {
 
 test('apply requires one environment and exact environment/revision confirmation', () => {
   assert.throws(() => parseArgs(['--revision', SHA]), /environment/);
+  for (const prototypeName of ['constructor', 'toString', '__proto__']) {
+    assert.throws(() => parseArgs(['--environment', prototypeName, '--revision', SHA]), /environment/);
+  }
   assert.throws(() => parseArgs(['--environment', 'mac-staging', '--revision', SHA, '--apply']), /confirm/);
   const parsed = parseArgs([
     '--environment', 'mac-staging', '--revision', SHA, '--apply', '--confirm', `mac-staging:${SHA}`,
@@ -32,6 +36,32 @@ test('apply requires one environment and exact environment/revision confirmation
     '--environment', 'oneplus7t-production', '--revision', SHA, '--apply',
     '--confirm', `oneplus7t-production:${SHA}`,
   ]), /artifact/);
+});
+
+test('Docker clone preflight accepts the discovered simple bridge and bind-mount shape', () => {
+  assert.equal(validateCloneableDockerConfiguration({
+    Mounts: [{ Type: 'bind', Destination: '/app/config/config.json', RW: false }],
+    HostConfig: { NetworkMode: 'bridge' },
+    NetworkSettings: { Networks: { bridge: { Aliases: null, Links: null, DriverOpts: null, IPAMConfig: null } } },
+  }), true);
+});
+
+test('Docker clone preflight fails closed on anonymous volumes and extra/aliased networks', () => {
+  assert.throws(() => validateCloneableDockerConfiguration({
+    Mounts: [{ Type: 'volume', Destination: '/data', RW: true }],
+    HostConfig: { NetworkMode: 'bridge' },
+    NetworkSettings: { Networks: { bridge: {} } },
+  }), /non-bind mount/);
+  assert.throws(() => validateCloneableDockerConfiguration({
+    Mounts: [],
+    HostConfig: { NetworkMode: 'bridge' },
+    NetworkSettings: { Networks: { bridge: {}, extra: {} } },
+  }), /exactly one/);
+  assert.throws(() => validateCloneableDockerConfiguration({
+    Mounts: [],
+    HostConfig: { NetworkMode: 'bridge' },
+    NetworkSettings: { Networks: { bridge: { Aliases: ['gateway'] } } },
+  }), /aliases/);
 });
 
 test('container recreation changes only image and revision label while retaining runtime configuration', () => {
