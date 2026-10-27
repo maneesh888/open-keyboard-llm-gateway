@@ -109,6 +109,7 @@ for required_path in \
   scripts/tests/pr-evidence-policy-test.mjs \
   scripts/tests/review-evidence-snapshot-test.mjs \
   scripts/tests/deploy-gateway-test.mjs \
+  scripts/tests/phone-deploy-rollback-test.sh \
   scripts/deploy-gateway.mjs \
   scripts/deploy/phone-install.sh \
   docs/DEPLOYMENT.md \
@@ -118,6 +119,7 @@ done
 
 [[ -x "$ROOT/scripts/deploy-gateway.mjs" ]] || fail "deployment entry point must be executable."
 [[ -x "$ROOT/scripts/deploy/phone-install.sh" ]] || fail "phone installer must be executable."
+[[ -x "$ROOT/scripts/tests/phone-deploy-rollback-test.sh" ]] || fail "phone rollback fixture must be executable."
 rg --fixed-strings --quiet 'node --test "$ROOT/scripts/tests/deploy-gateway-test.mjs"' "$ROOT/scripts/check.sh" ||
   fail "deployment safety tests must run in hygiene."
 

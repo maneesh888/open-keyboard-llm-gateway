@@ -7,6 +7,7 @@ import {
   TARGETS,
   buildContainerCreateBody,
   parseArgs,
+  runMacSwapTransaction,
   sanitizedEvidence,
   validatePhoneReleaseMetadata,
 } from '../deploy-gateway.mjs';
@@ -98,5 +99,46 @@ test('Mac deploy path registers interruption rollback before swapping containers
   assert.equal(deployer.includes("process.once('SIGINT', interrupted)"), true);
   assert.equal(deployer.includes("process.once('SIGTERM', interrupted)"), true);
   assert.equal(deployer.includes("return 'restored-previous-container'"), true);
-  assert.equal(deployer.includes("rollback = 'restarted-previous-container'"), true);
+  assert.equal(deployer.includes("return 'restarted-previous-container'"), true);
+});
+
+test('Mac transaction fault injection restores the retained previous container', async () => {
+  const events = [];
+  await assert.rejects(runMacSwapTransaction({
+    stopPrevious: () => events.push('stop-previous'),
+    renamePreviousToBackup: () => events.push('rename-to-backup'),
+    createCandidate: async () => events.push('create-candidate'),
+    startCandidate: () => events.push('start-candidate'),
+    waitForCandidate: () => events.push('wait-candidate'),
+    verifyCandidate: () => { events.push('verify-candidate'); throw new Error('fixture health failure'); },
+    removeBackup: () => events.push('remove-backup'),
+    removeCandidate: () => events.push('remove-candidate'),
+    renameBackupToPrevious: () => events.push('restore-name'),
+    startPrevious: () => events.push('start-previous'),
+    waitForPrevious: () => events.push('wait-previous'),
+    verifyPrevious: () => events.push('verify-previous'),
+  }), error => {
+    assert.equal(error.rollback, 'restored-previous-container');
+    return true;
+  });
+  assert.deepEqual(events, [
+    'stop-previous', 'rename-to-backup', 'create-candidate', 'start-candidate', 'wait-candidate',
+    'verify-candidate', 'remove-candidate', 'restore-name', 'start-previous', 'wait-previous',
+    'verify-previous',
+  ]);
+});
+
+test('Mac pre-swap failure restarts the stopped previous container', async () => {
+  const events = [];
+  await assert.rejects(runMacSwapTransaction({
+    stopPrevious: () => events.push('stop-previous'),
+    renamePreviousToBackup: () => { events.push('rename-failed'); throw new Error('fixture rename failure'); },
+    startPrevious: () => events.push('start-previous'),
+    waitForPrevious: () => events.push('wait-previous'),
+    verifyPrevious: () => events.push('verify-previous'),
+  }), error => {
+    assert.equal(error.rollback, 'restarted-previous-container');
+    return true;
+  });
+  assert.deepEqual(events, ['stop-previous', 'rename-failed', 'start-previous', 'wait-previous', 'verify-previous']);
 });

@@ -5,9 +5,21 @@ revision="${1:-}"
 expected_digest="${2:-}"
 artifact="${3:-}"
 base_url="${4:-}"
-app_root=/opt/oneplus-llm/app
-lock_dir=/run/lock/llm-gateway-deploy.lock
-work_dir="/opt/oneplus-llm/.deploy-${revision}-$$"
+test_root="${LLM_GATEWAY_DEPLOY_TEST_ROOT:-}"
+if [ -n "$test_root" ]; then
+  [ "${LLM_GATEWAY_DEPLOY_TESTING:-}" = 1 ] || {
+    printf '%s\n' 'phone deployment stopped: test root requires explicit test mode' >&2
+    exit 1
+  }
+fi
+app_root="${test_root}/opt/oneplus-llm/app"
+config_root="${test_root}/etc/oneplus-llm"
+lock_dir="${test_root}/run/lock/llm-gateway-deploy.lock"
+work_dir="${test_root}/opt/oneplus-llm/.deploy-${revision}-$$"
+candidate_attempts=30
+if [ -n "$test_root" ]; then
+  candidate_attempts="${PHONE_DEPLOY_TEST_ATTEMPTS:-1}"
+fi
 backup=
 swapped=0
 config_before="$work_dir/config.before"
@@ -33,7 +45,7 @@ interrupted() {
 
 config_fingerprint() {
   destination=$1
-  find /etc/oneplus-llm -xdev -type f -exec sha256sum {} \; | LC_ALL=C sort > "$destination"
+  find "$config_root" -xdev -type f -exec sha256sum {} \; | LC_ALL=C sort > "$destination"
 }
 
 status_code() {
@@ -77,10 +89,12 @@ deploy() {
   case "$expected_digest" in *[!0-9a-f]*|'') fail 'invalid artifact digest'; return 1;; esac
   [ "${#expected_digest}" -eq 64 ] || { fail 'artifact digest must be full length'; return 1; }
   case "$base_url" in http://192.168.1.130:8880) :;; *) fail 'unexpected target URL'; return 1;; esac
-  [ "$(id -u)" -eq 0 ] || { fail 'installer must run as root'; return 1; }
+  if [ -z "$test_root" ]; then
+    [ "$(id -u)" -eq 0 ] || { fail 'installer must run as root'; return 1; }
+  fi
   [ -f "$artifact" ] || { fail 'artifact is missing'; return 1; }
   [ -d "$app_root" ] || { fail 'existing app is missing'; return 1; }
-  [ -d /etc/oneplus-llm ] || { fail 'existing configuration is missing'; return 1; }
+  [ -d "$config_root" ] || { fail 'existing configuration is missing'; return 1; }
   rc-service oneplus-llm status >/dev/null 2>&1 || { fail 'service is not started'; return 1; }
   mkdir "$lock_dir" 2>/dev/null || { fail 'remote deployment lock is held'; return 1; }
   trap cleanup EXIT
@@ -138,9 +152,11 @@ except Exception:
 print(value if isinstance(value, str) and value.replace('-', '').isalnum() else 'unknown')
 PY
   )
-  backup="/opt/oneplus-llm/app.rollback-${old_revision}-$(date -u +%Y%m%dT%H%M%SZ)"
+  backup="${test_root}/opt/oneplus-llm/app.rollback-${old_revision}-$(date -u +%Y%m%dT%H%M%SZ)"
   [ ! -e "$backup" ] || { fail 'rollback path already exists'; return 1; }
-  chown -R root:root "$candidate" || return 1
+  if [ -z "$test_root" ]; then
+    chown -R root:root "$candidate" || return 1
+  fi
   chmod -R go-w "$candidate" || return 1
   rc-service oneplus-llm stop >/dev/null 2>&1 || {
     rc-service oneplus-llm start >/dev/null 2>&1 || true
@@ -152,7 +168,7 @@ PY
   mv "$candidate" "$app_root" || return 1
   rc-service oneplus-llm start >/dev/null 2>&1 || return 1
   i=0
-  while [ "$i" -lt 30 ]; do
+  while [ "$i" -lt "$candidate_attempts" ]; do
     if checks_pass; then
       printf '%s\n' "deployment_status=deployed revision=$revision rollback_bundle=$(basename "$backup")"
       swapped=0

@@ -89,6 +89,7 @@ run_hygiene() {
   node --test "$ROOT/scripts/tests/verification-scope-test.mjs"
   node --test "$ROOT/scripts/tests/advisory-review-test.mjs"
   node --test "$ROOT/scripts/tests/deploy-gateway-test.mjs"
+  "$ROOT/scripts/tests/phone-deploy-rollback-test.sh"
   "$ROOT/scripts/tests/workflow-policy-test.sh"
   validate_whitespace
   echo "LLM Gateway hygiene checks passed."

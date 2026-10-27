@@ -140,6 +140,58 @@ export function validatePhoneReleaseMetadata(metadata, revision) {
   return true;
 }
 
+export async function runMacSwapTransaction(operations) {
+  let oldStopped = false;
+  let swapped = false;
+  const recover = () => {
+    if (swapped) {
+      try {
+        operations.removeCandidate();
+        operations.renameBackupToPrevious();
+        operations.startPrevious();
+        operations.waitForPrevious();
+        operations.verifyPrevious();
+        swapped = false;
+        return 'restored-previous-container';
+      } catch {
+        return 'failed';
+      }
+    }
+    if (oldStopped) {
+      try {
+        operations.startPrevious();
+        operations.waitForPrevious();
+        operations.verifyPrevious();
+        oldStopped = false;
+        return 'restarted-previous-container';
+      } catch {
+        return 'failed';
+      }
+    }
+    return 'not-needed';
+  };
+  operations.setRecovery?.(recover);
+  try {
+    operations.stopPrevious();
+    oldStopped = true;
+    operations.renamePreviousToBackup();
+    swapped = true;
+    oldStopped = false;
+    await operations.createCandidate();
+    operations.startCandidate();
+    operations.waitForCandidate();
+    operations.verifyCandidate();
+    operations.removeBackup();
+    swapped = false;
+    return 'not-needed';
+  } catch (error) {
+    error.rollback = recover();
+    throw error;
+  } finally {
+    operations.setRecovery?.(() => 'not-needed');
+  }
+}
+
 function assertRevision(revision) {
   if (git(['rev-parse', `${revision}^{commit}`]) !== revision) throw new Error('Revision does not resolve to the requested commit.');
   run('git', ['-C', ROOT, 'merge-base', '--is-ancestor', revision, 'origin/main'], {
@@ -247,45 +299,15 @@ async function applyMac(options, target) {
   let lockReleased = false;
   let snapshot;
   let backupName;
-  let oldStopped = false;
-  let swapped = false;
+  let activeRecovery = () => 'not-needed';
   const releaseOnce = () => {
     if (!lockReleased) {
       releaseLock();
       lockReleased = true;
     }
   };
-  const rollbackCandidate = () => {
-    if (!swapped) return 'not-needed';
-    try {
-      spawnSync('docker', ['rm', '--force', target.container], { stdio: 'ignore' });
-      run('docker', ['rename', backupName, target.container], { failure: 'Rollback rename failed.' });
-      run('docker', ['start', target.container], { failure: 'Rollback start failed.' });
-      waitForDockerHealth(target.container);
-      const restoredChecks = endpointChecks(target.baseUrl);
-      if (!restoredChecks.health || !restoredChecks.ui || !restoredChecks.unauthorizedModels) throw new Error('Restored endpoint checks failed.');
-      swapped = false;
-      return 'restored-previous-container';
-    } catch {
-      return 'failed';
-    }
-  };
-  const recoverPrevious = () => {
-    let rollback = rollbackCandidate();
-    if (rollback === 'not-needed' && oldStopped) {
-      try {
-        run('docker', ['start', target.container], { failure: 'Pre-swap restart failed.' });
-        waitForDockerHealth(target.container);
-        rollback = 'restarted-previous-container';
-        oldStopped = false;
-      } catch {
-        rollback = 'failed';
-      }
-    }
-    return rollback;
-  };
   const interrupted = () => {
-    const rollback = recoverPrevious();
+    const rollback = activeRecovery();
     console.error(JSON.stringify(sanitizedEvidence({ environment: options.environment, revision: options.revision, outcome: 'interrupted', rollback })));
     releaseOnce();
     process.exit(130);
@@ -317,22 +339,33 @@ async function applyMac(options, target) {
     if (dockerImageRevision(image) !== options.revision) throw new Error('Candidate image revision label does not match --revision.');
 
     backupName = `${target.container}.rollback.${Date.now()}.${previousRevision.slice(0, 12)}`;
-    run('docker', ['stop', '--time', '20', target.container], { failure: 'Existing container did not stop.' });
-    oldStopped = true;
-    run('docker', ['rename', target.container, backupName], { failure: 'Existing container could not be retained for rollback.' });
-    swapped = true;
-    oldStopped = false;
-    await createContainerFromSnapshot(snapshot, image, options.revision, target.container);
-    run('docker', ['start', target.container], { failure: 'Candidate container did not start.' });
-    waitForDockerHealth(target.container);
-    const checks = endpointChecks(target.baseUrl);
-    checks.configurationPreserved = compareMounts(snapshot, dockerInspect(target.container));
-    if (!Object.values(checks).every(Boolean)) throw new Error('Candidate checks failed.');
-    run('docker', ['rm', backupName], { failure: 'Candidate passed, but retained rollback container cleanup failed.' });
-    swapped = false;
+    let checks;
+    const verifyRestored = () => {
+      const restoredChecks = endpointChecks(target.baseUrl);
+      if (!restoredChecks.health || !restoredChecks.ui || !restoredChecks.unauthorizedModels) throw new Error('Restored endpoint checks failed.');
+    };
+    await runMacSwapTransaction({
+      setRecovery: recovery => { activeRecovery = recovery; },
+      stopPrevious: () => run('docker', ['stop', '--time', '20', target.container], { failure: 'Existing container did not stop.' }),
+      renamePreviousToBackup: () => run('docker', ['rename', target.container, backupName], { failure: 'Existing container could not be retained for rollback.' }),
+      createCandidate: () => createContainerFromSnapshot(snapshot, image, options.revision, target.container),
+      startCandidate: () => run('docker', ['start', target.container], { failure: 'Candidate container did not start.' }),
+      waitForCandidate: () => waitForDockerHealth(target.container),
+      verifyCandidate: () => {
+        checks = endpointChecks(target.baseUrl);
+        checks.configurationPreserved = compareMounts(snapshot, dockerInspect(target.container));
+        if (!Object.values(checks).every(Boolean)) throw new Error('Candidate checks failed.');
+      },
+      removeBackup: () => run('docker', ['rm', backupName], { failure: 'Candidate passed, but retained rollback container cleanup failed.' }),
+      removeCandidate: () => { spawnSync('docker', ['rm', '--force', target.container], { stdio: 'ignore' }); },
+      renameBackupToPrevious: () => run('docker', ['rename', backupName, target.container], { failure: 'Rollback rename failed.' }),
+      startPrevious: () => run('docker', ['start', target.container], { failure: 'Rollback start failed.' }),
+      waitForPrevious: () => waitForDockerHealth(target.container),
+      verifyPrevious: verifyRestored,
+    });
     console.log(JSON.stringify(sanitizedEvidence({ environment: options.environment, revision: options.revision, outcome: 'deployed', checks })));
   } catch (error) {
-    const rollback = recoverPrevious();
+    const rollback = error.rollback || activeRecovery();
     if (rollback !== 'not-needed') console.error(JSON.stringify(sanitizedEvidence({ environment: options.environment, revision: options.revision, outcome: 'failed', rollback })));
     throw error;
   } finally {
