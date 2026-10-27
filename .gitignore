@@ -6,6 +6,8 @@ config/known-models.json
 .env
 *.log
 .ci-results/
+.deploy/
+.deployment-evidence/
 
 # Local sensitive/runtime config and backups
 config/admin.json

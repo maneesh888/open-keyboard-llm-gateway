@@ -1,4 +1,5 @@
 ARG NODE_IMAGE=node:24-alpine
+ARG SOURCE_REVISION=unknown
 FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 COPY package*.json ./
@@ -8,6 +9,8 @@ COPY src/ ./src/
 RUN npx tsc
 
 FROM ${NODE_IMAGE}
+ARG SOURCE_REVISION=unknown
+LABEL org.opencontainers.image.revision="${SOURCE_REVISION}"
 RUN apk add --no-cache curl tini
 RUN addgroup -S gateway && adduser -S gateway -G gateway
 WORKDIR /app

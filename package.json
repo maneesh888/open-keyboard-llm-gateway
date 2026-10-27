@@ -25,7 +25,8 @@
     "check:full": "./scripts/check.sh --full",
     "precommit": "./scripts/check.sh --quick",
     "test:e2e": "./scripts/check-e2e.sh",
-    "check:live": "./scripts/check-live.sh"
+    "check:live": "./scripts/check-live.sh",
+    "deploy:gateway": "node scripts/deploy-gateway.mjs"
   },
   "keywords": [],
   "author": "",
