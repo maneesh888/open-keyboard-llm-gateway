@@ -91,6 +91,8 @@ test('phone installer preserves configuration, override, locking, checks, and ro
     'mv "$backup" "$app_root"',
     'trap interrupted HUP INT TERM',
     "raise SystemExit('privileged archive mode')",
+    "handle.extractall(root, filter='data')",
+    "fail 'existing app could not be retained for rollback'",
   ]) assert.equal(installer.includes(required), true, `missing ${required}`);
 });
 

@@ -22,6 +22,8 @@ if [ -n "$test_root" ]; then
 fi
 backup=
 swapped=0
+service_stopped=0
+recovery_failed=0
 config_before="$work_dir/config.before"
 config_after="$work_dir/config.after"
 
@@ -38,6 +40,8 @@ cleanup() {
 interrupted() {
   if [ "$swapped" -eq 1 ]; then
     rollback >/dev/null 2>&1 || true
+  elif [ "$service_stopped" -eq 1 ]; then
+    rc-service oneplus-llm start >/dev/null 2>&1 || true
   fi
   cleanup
   exit 130
@@ -71,6 +75,7 @@ rollback() {
     return 1
   fi
   rc-service oneplus-llm start >/dev/null 2>&1 || return 1
+  service_stopped=0
   i=0
   while [ "$i" -lt 30 ]; do
     if [ "$(status_code "$base_url/health" 2>/dev/null || true)" = 200 ]; then
@@ -120,7 +125,7 @@ with tarfile.open(archive, 'r:gz') as handle:
             link_target = (target.parent / member.linkname).resolve()
             if root != link_target and root not in link_target.parents:
                 raise SystemExit('unsafe archive link')
-    handle.extractall(root)
+    handle.extractall(root, filter='data')
 PY
   [ "$?" -eq 0 ] || { fail 'safe artifact extraction failed'; return 1; }
   candidate="$work_dir/app"
@@ -163,8 +168,18 @@ PY
     fail 'service did not stop'
     return 1
   }
-  mv "$app_root" "$backup" || return 1
+  service_stopped=1
+  if ! mv "$app_root" "$backup"; then
+    if rc-service oneplus-llm start >/dev/null 2>&1; then
+      service_stopped=0
+    else
+      recovery_failed=1
+    fi
+    fail 'existing app could not be retained for rollback'
+    return 1
+  fi
   swapped=1
+  service_stopped=0
   mv "$candidate" "$app_root" || return 1
   rc-service oneplus-llm start >/dev/null 2>&1 || return 1
   i=0
@@ -187,7 +202,7 @@ fi
 if [ "$swapped" -eq 1 ] && rollback; then
   exit 1
 fi
-if [ "$swapped" -eq 1 ]; then
+if [ "$swapped" -eq 1 ] || [ "$recovery_failed" -eq 1 ]; then
   printf '%s\n' 'deployment_status=rollback_failed' >&2
 else
   printf '%s\n' 'deployment_status=not_applied' >&2
