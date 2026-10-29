@@ -45,7 +45,7 @@ Follow `.github/BRANCH_PROTECTION_GUIDE.md`. Stage 1 retains only stable `Requir
 
 ## Deployment boundary
 
-No registry or hosting destination is defined. Image publication and deployment require a named target, least-privilege credentials, a protected environment, and separate explicit authorization.
+The operator-invoked deployment entry point defines two named targets: local Docker `mac-staging` and native OpenRC `oneplus7t-production`. It is plan-only by default and requires exact target/revision confirmation for apply. No registry, GitHub Environment, credentialed workflow, image publication, DNS change, or automatic post-merge deployment is configured. Every apply still requires separate explicit authorization for that exact target and revision; see `docs/DEPLOYMENT.md`.
 
 ## Proportional checks and advisory services
 

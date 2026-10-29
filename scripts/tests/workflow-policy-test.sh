@@ -80,6 +80,8 @@ while IFS= read -r uses_line; do
 done < <(rg --no-filename '^[[:space:]]*uses:[[:space:]]+[^./][^@]+@' "$CI_WORKFLOW" "$REVIEW_WORKFLOW")
 
 rg --quiet 'ARG NODE_IMAGE=node:24-alpine' "$ROOT/Dockerfile" || fail "Docker must default to Node 24 LTS."
+rg --fixed-strings --quiet 'LABEL org.opencontainers.image.revision="${SOURCE_REVISION}"' "$ROOT/Dockerfile" ||
+  fail "deployable images must carry their exact source revision."
 rg --quiet 'RUN npm ci$' "$ROOT/Dockerfile" || fail "Docker build must use npm ci."
 rg --quiet '"node": "\^22\.12\.0 \|\| \^24\.0\.0"' "$ROOT/package.json" || fail "supported Node lanes drifted."
 rg --fixed-strings --quiet '<title>LLM Gateway · Admin</title>' "$ROOT/public/admin/index.html" ||
@@ -106,9 +108,20 @@ for required_path in \
   scripts/validate-pr-review-evidence-event.mjs \
   scripts/tests/pr-evidence-policy-test.mjs \
   scripts/tests/review-evidence-snapshot-test.mjs \
+  scripts/tests/deploy-gateway-test.mjs \
+  scripts/tests/phone-deploy-rollback-test.sh \
+  scripts/deploy-gateway.mjs \
+  scripts/deploy/phone-install.sh \
+  docs/DEPLOYMENT.md \
   scripts/validate-push-refs.sh; do
   [[ -f "$ROOT/$required_path" ]] || fail "$required_path is missing."
 done
+
+[[ -x "$ROOT/scripts/deploy-gateway.mjs" ]] || fail "deployment entry point must be executable."
+[[ -x "$ROOT/scripts/deploy/phone-install.sh" ]] || fail "phone installer must be executable."
+[[ -x "$ROOT/scripts/tests/phone-deploy-rollback-test.sh" ]] || fail "phone rollback fixture must be executable."
+rg --fixed-strings --quiet 'node --test "$ROOT/scripts/tests/deploy-gateway-test.mjs"' "$ROOT/scripts/check.sh" ||
+  fail "deployment safety tests must run in hygiene."
 
 rg --fixed-strings --line-regexp --quiet '2. Read the relevant README sections and only the focused requirement sources for the changed surface: `ADMIN_FUNCTION_TEST_PLAN.md`, `ADMIN_UI_REQUIREMENTS.md`, `docs/OPEN_KEYBOARD_CLIENT.md`, or `docs/APFEL_PORTAL_POC.md`.' "$ROOT/.agents/skills/develop-llm-gateway/SKILL.md" ||
   fail "the implementation workflow focused-source routing is stale."

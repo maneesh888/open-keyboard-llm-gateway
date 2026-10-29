@@ -142,6 +142,8 @@ docker compose up -d
 docker compose logs -f
 ```
 
+Safe revision-bound deployment for the Mac Docker staging gateway and the native OnePlus 7T production gateway is documented in [Gateway deployment](docs/DEPLOYMENT.md). The deployment entry point is plan-only by default and requires separate authorization plus exact target/revision confirmation before apply.
+
 ## Managing Keys
 
 Keys are defined in `config/keys.json` and hot-reloaded every 5 seconds — no restart needed.
