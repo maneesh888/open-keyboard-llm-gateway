@@ -30,7 +30,9 @@ Every gateway-generated non-2xx JSON API response uses the OpenAI nested error e
 Open Keyboard owns the semantic system/user prompts, operation-specific rules, JSON contract, and
 assistant-content parsing. The gateway requires the standard `model` and `messages` fields, forwards
 the client-provided message array unchanged, and never adds operation prompts or normalizes the
-assistant content. Optional `operation` and `input_text` fields are additive metadata only.
+assistant content. A client-provided Chat Completions `temperature` always takes precedence,
+including an explicit `0`; the API key's configured temperature is added only when the request
+omits that field. Optional `operation` and `input_text` fields are additive metadata only.
 Backend-supported structured requests can include `response_format: {"type":"json_object"}`.
 Upstream non-2xx or an invalid outer Chat Completions envelope fails through the generic gateway
 error contract. See [README.md](../README.md) for the gateway source of truth.

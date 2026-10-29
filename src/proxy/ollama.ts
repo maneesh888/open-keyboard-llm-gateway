@@ -209,6 +209,17 @@ export class OllamaProxy {
     return JSON.stringify(parsed);
   }
 
+  private applyConfiguredTemperature(body: string | undefined, path: string, apiKey?: ApiKey): string | undefined {
+    const temperature = apiKey?.modelConfig?.temperature;
+    if (!body || path !== '/v1/chat/completions' || typeof temperature !== 'number') return body;
+
+    const parsed = this.parseJSONRequestBody(body);
+    if (!parsed || this.hasOwnField(parsed, 'temperature')) return body;
+
+    parsed.temperature = temperature;
+    return JSON.stringify(parsed);
+  }
+
   async forward(c: Context): Promise<Response> {
     // Read body first so model checks can gate before any network call
     const body = c.req.method !== 'GET' ? await c.req.text() : undefined;
@@ -247,6 +258,7 @@ export class OllamaProxy {
     }
 
     const apiKey = c.get('apiKey') as ApiKey | undefined;
+    outboundBody = this.applyConfiguredTemperature(outboundBody, c.req.path, apiKey);
     outboundBody = this.applyConfiguredEffort(outboundBody, c.req.path, apiKey);
 
     // Enforce per-key model allowlist (inline — no KeyManager dependency needed)
