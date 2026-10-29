@@ -1402,6 +1402,88 @@ describe('OllamaProxy', () => {
     expect((opts.headers as Headers).get('authorization')).toBeNull();
   });
 
+  it('preserves an explicit zero temperature for apple-foundationmodel', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(chatCompletion(undefined, { model: 'apple-foundationmodel' }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+
+    const proxy = new OllamaProxy('http://localhost:11434', 'http://localhost:11435');
+    const app = buildApp(proxy, {
+      modelConfig: { model: 'apple-foundationmodel', maxTokens: 100, temperature: 0.7 },
+    });
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'apple-foundationmodel', messages: [], temperature: 0 }),
+    });
+
+    expect(res.status).toBe(200);
+    const [url, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('http://localhost:11435/v1/chat/completions');
+    expect(JSON.parse(String(opts.body))).toMatchObject({ temperature: 0 });
+  });
+
+  it('preserves an explicit nonzero temperature for apple-foundationmodel', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(chatCompletion(undefined, { model: 'apple-foundationmodel' }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+
+    const proxy = new OllamaProxy('http://localhost:11434', 'http://localhost:11435');
+    const app = buildApp(proxy, {
+      modelConfig: { model: 'apple-foundationmodel', maxTokens: 100, temperature: 0.7 },
+    });
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'apple-foundationmodel', messages: [], temperature: 0.25 }),
+    });
+
+    expect(res.status).toBe(200);
+    const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(opts.body))).toMatchObject({ temperature: 0.25 });
+  });
+
+  it('uses the configured temperature when apple-foundationmodel omits it', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(chatCompletion(undefined, { model: 'apple-foundationmodel' }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+
+    const proxy = new OllamaProxy('http://localhost:11434', 'http://localhost:11435');
+    const app = buildApp(proxy, {
+      modelConfig: { model: 'apple-foundationmodel', maxTokens: 100, temperature: 0.7 },
+    });
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'apple-foundationmodel', messages: [] }),
+    });
+
+    expect(res.status).toBe(200);
+    const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(opts.body))).toMatchObject({ temperature: 0.7 });
+  });
+
+  it('does not add configured temperature to non-Chat-Completions routes', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ output: [] }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+
+    const proxy = new OllamaProxy('http://localhost:11434');
+    const app = buildApp(proxy, {
+      modelConfig: { model: 'gemma4', maxTokens: 100, temperature: 0.7 },
+    });
+    const payload = { model: 'gemma4', input: 'hi' };
+    const res = await app.request('/v1/responses', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    expect(res.status).toBe(200);
+    const [, opts] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(opts.body))).toEqual(payload);
+  });
+
   it('adds Apfel models to the admin model list when Apfel is reachable', async () => {
     fetchSpy
       .mockResolvedValueOnce(new Response(JSON.stringify({ models: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))
