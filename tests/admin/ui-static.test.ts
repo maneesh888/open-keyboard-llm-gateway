@@ -231,12 +231,14 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('max-height:calc(100vh - 16px);overflow-y:auto');
     expect(html).toContain('maxTop=Math.max(8,innerHeight-h-8)');
     expect(html).toContain('Math.max(8,Math.min(below,maxTop))');
+    expect(html).toContain('const go=n=>items[n]?.focus()');
+    expect(html).not.toContain('const go=n=>items[n]?.focus({preventScroll:true})');
     expect(html).not.toContain("addEventListener('scroll',()=>closeRowMenu(false),true)");
   });
 
   it('invalidates a tester result when the selected key configuration changes', () => {
     expect(html).toContain('let testerLoadedKeyState=null');
-    expect(html).toContain("keyState=JSON.stringify([id,k?.name||'',k?.enabled??null,k?.modelConfig?.model||''])");
+    expect(html).toContain('keyState=JSON.stringify([id,k||null])');
     expect(html).toContain("keyState===testerLoadedKeyState&&testerStatus.textContent!=='Not run yet'");
     expect(html).not.toContain("id===testerLoadedKey&&testerStatus.textContent!=='Not run yet'");
   });

@@ -131,18 +131,39 @@ test('row actions treat stored identifiers as data and stay reachable in a short
   const bounds = await menu.evaluate(element => { const rect = element.getBoundingClientRect(); return { y: rect.y, height: rect.height }; });
   expect(bounds.y).toBeGreaterThanOrEqual(8);
   expect(bounds.y + bounds.height).toBeLessThanOrEqual(312);
-  await page.getByRole('menuitem', { name: 'Delete key', exact: true }).scrollIntoViewIfNeeded();
-  await expect(page.getByRole('menuitem', { name: 'Delete key', exact: true })).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Edit', exact: true }).press('End');
+  const keyboardReach = await menu.evaluate(element => {
+    const menuRect = element.getBoundingClientRect();
+    const activeRect = document.activeElement.getBoundingClientRect();
+    return { active: document.activeElement.textContent.trim(), scrollTop: element.scrollTop, menuBottom: menuRect.bottom, activeBottom: activeRect.bottom };
+  });
+  expect(keyboardReach.active).toBe('Delete key');
+  expect(keyboardReach.scrollTop).toBeGreaterThan(0);
+  expect(keyboardReach.activeBottom).toBeLessThanOrEqual(keyboardReach.menuBottom);
   await page.getByRole('menuitem', { name: 'Refresh status', exact: true }).click();
   await expect(page.locator('#dashboardError')).toBeVisible();
   expect(await page.evaluate(() => globalThis.reviewMarker)).toBe(false);
   expect(gateway.state.chatCalls).toHaveLength(0);
 });
 
-test('tester refreshes the key default and clears an old result after editing', async ({ page, gateway }) => {
+test('tester clears an old result after key defaults change', async ({ page, gateway }) => {
   await signIn(page, gateway);
   let row = await createKey(page, 'Default model fixture');
   await row.getByRole('button', { name: 'Open in tester', exact: true }).click();
+  await page.getByRole('button', { name: 'Run test', exact: true }).click();
+  await expect(page.locator('#testerStatus')).toHaveText('Passed');
+  await page.goBack();
+  await expect(page.locator('#pageKeys')).toBeVisible();
+  row = page.locator('tr').filter({ hasText: 'Default model fixture' });
+  await rowAction(page, row, 'Edit');
+  await page.getByText('Advanced: max tokens, temperature, reasoning effort, max burst', { exact: true }).click();
+  await page.getByLabel('Reasoning effort (default)', { exact: true }).selectOption('high');
+  await page.getByLabel('Temperature', { exact: true }).fill('1.2');
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await row.getByRole('button', { name: 'Open in tester', exact: true }).click();
+  await expect(page.locator('#testerModel')).toHaveValue('fixture:model');
+  await expect(page.locator('#testerStatus')).toHaveText('Not run yet');
+  await expect(page.locator('#chatLog')).not.toContainText('Fixture answer');
   await page.getByRole('button', { name: 'Run test', exact: true }).click();
   await expect(page.locator('#testerStatus')).toHaveText('Passed');
   await page.goBack();
