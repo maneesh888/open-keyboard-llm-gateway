@@ -5,98 +5,513 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LLM Gateway · Admin</title>
   <style>
-    :root{--bg:#f6f8fb;--panel:#fff;--panel-soft:#f8fafc;--text:#182230;--muted:#667085;--line:#dbe3ee;--primary:#206bc4;--primary-dark:#1a5aa5;--primary-soft:#e8f1fd;--success:#2fb344;--success-soft:#eaf7ec;--danger:#d63939;--danger-soft:#fdecec;--warning:#f59f00;--warning-soft:#fff4de;--info:#4299e1;--info-soft:#e7f5ff;--shadow:0 24px 80px rgba(15,23,42,.16);--radius:14px}*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:radial-gradient(circle at top left,rgba(32,107,196,.18),transparent 34rem),linear-gradient(180deg,#fbfdff 0%,var(--bg) 46%,#eef3f9 100%)}button,input,textarea,select{font:inherit}button{border:0}.container{min-height:100vh}.login-container{min-height:100vh;display:grid;place-items:center;padding:24px}.login-card{width:min(100%,440px);background:rgba(255,255,255,.92);border:1px solid rgba(219,227,238,.9);border-radius:24px;box-shadow:var(--shadow);overflow:hidden;backdrop-filter:blur(18px)}.login-hero{padding:34px 34px 24px;color:#fff;background:linear-gradient(135deg,rgba(32,107,196,.95),rgba(58,127,222,.86)),radial-gradient(circle at top right,rgba(255,255,255,.28),transparent 13rem)}.brand-row{display:flex;align-items:center;gap:12px}.brand-mark{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.18);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22);font-size:24px}h1,h2,p{margin:0}h1{font-size:26px;letter-spacing:-.03em}.subtitle{color:var(--muted);font-size:14px;margin-top:6px}.login-hero .subtitle,.sidebar .subtitle{color:rgba(255,255,255,.72)}.login-body{padding:30px 34px 34px}.form-grid{display:grid;gap:18px}.form-group{display:grid;gap:8px}label{color:#344054;font-size:13px;font-weight:650}input,textarea,select{width:100%;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--text);padding:11px 12px;outline:none;transition:border-color .15s,box-shadow .15s}textarea{min-height:82px;resize:vertical}input:focus,textarea:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 4px rgba(32,107,196,.12)}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:9px 14px;border-radius:10px;background:var(--primary);color:#fff;font-weight:700;cursor:pointer;transition:transform .12s,background .12s,box-shadow .12s;box-shadow:0 8px 18px rgba(32,107,196,.22)}.btn:hover{background:var(--primary-dark);transform:translateY(-1px)}.btn-block{width:100%;margin-top:6px}.btn-small{width:auto;min-height:34px;padding:7px 11px;font-size:13px}.btn-secondary{color:#344054;background:#fff;border:1px solid var(--line);box-shadow:none}.btn-secondary:hover{color:var(--primary);background:var(--primary-soft)}.btn-danger{background:var(--danger);box-shadow:none}.btn-danger:hover{background:#b42318}.btn-ghost{color:var(--primary);background:transparent;border:1px solid transparent;box-shadow:none}.btn-ghost:hover{background:var(--primary-soft)}.dashboard-container{display:none;min-height:100vh}.dashboard-container.active{display:block}.sidebar{position:fixed;inset:0 auto 0 0;width:260px;z-index:30;transform:translateX(-100%);transition:transform .18s ease;background:#10243e;color:#fff;padding:24px;min-height:100vh;box-shadow:14px 0 40px rgba(15,23,42,.24);overflow-y:auto}.sidebar.open{transform:translateX(0)}.drawer-backdrop{display:none;position:fixed;inset:0;z-index:25;background:rgba(16,36,62,.38)}.drawer-backdrop.show{display:block}.sidebar .brand-mark{background:rgba(255,255,255,.1)}.nav-section{margin-top:28px;color:rgba(255,255,255,.55);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}.nav-pill{width:100%;text-align:left;color:rgba(255,255,255,.82);margin-top:10px;padding:11px 12px;border-radius:11px;background:transparent;font-weight:700;cursor:pointer}.nav-pill.active,.nav-pill:hover{background:rgba(255,255,255,.1);color:#fff}.topbar{display:flex;align-items:center;gap:12px;margin-bottom:18px}.drawer-toggle{flex:0 0 auto;width:42px;height:42px;border-radius:10px;background:#fff;color:#344054;border:1px solid var(--line);font-size:20px;font-weight:800;box-shadow:0 8px 22px rgba(15,23,42,.06);cursor:pointer}.drawer-toggle:hover{color:var(--primary);background:var(--primary-soft)}.mobile-tabs{display:flex;gap:8px;margin-bottom:18px;padding:6px;background:rgba(255,255,255,.78);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(15,23,42,.06);position:sticky;top:0;z-index:10;backdrop-filter:blur(14px)}.topbar .mobile-tabs{flex:1;margin-bottom:0}.mobile-tab{flex:1;min-height:40px;border-radius:10px;color:#344054;background:transparent;font-weight:800;cursor:pointer}.mobile-tab.active,.mobile-tab:hover{color:#fff;background:var(--primary)}.main{padding:28px}.header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px}.header h2{font-size:28px;letter-spacing:-.035em}.btn-group{display:flex;gap:10px;flex-wrap:wrap}.stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:18px}.stat-card,.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 10px 30px rgba(15,23,42,.06)}.stat-card{padding:18px}.stat-label{color:var(--muted);font-size:13px;font-weight:700}.stat-value{margin-top:8px;font-size:28px;font-weight:800;letter-spacing:-.04em}.panel{overflow:hidden;margin-bottom:18px}.panel-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:18px 20px;border-bottom:1px solid var(--line)}.panel-title{margin:0;font-size:16px;font-weight:800}.panel-body{padding:20px}.error,.success{overflow-wrap:anywhere;display:none;margin-bottom:14px;padding:12px 14px;border-radius:12px;border:1px solid;font-size:14px;font-weight:650}.error{color:var(--danger);background:var(--danger-soft);border-color:#facccc}.success{color:#1f7a32;background:var(--success-soft);border-color:#c8edcf}.error.show,.success.show{display:block}.table-wrap{width:100%;overflow-x:auto}.keys-table{width:100%;border-collapse:collapse}.keys-table th{background:var(--panel-soft);color:var(--muted);padding:12px 16px;text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--line)}.keys-table td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:middle}.keys-table tbody tr{cursor:pointer}.keys-table tbody tr:hover{background:#f8fbff}.keys-table button,.keys-table a,.keys-table input,.keys-table select{cursor:pointer}.badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:800}.badge-success{color:#1f7a32;background:var(--success-soft)}.badge-danger{color:var(--danger);background:var(--danger-soft)}.badge-warning{color:#946200;background:var(--warning-soft)}.key-row,.actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.key-display{max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px;background:#edf2f7;color:#344054;padding:7px 9px;border-radius:8px}.loading{color:var(--muted);padding:28px;text-align:center}.modal{display:none;position:fixed;inset:0;z-index:40;background:rgba(16,36,62,.54);padding:24px;overflow-y:auto}.modal.show{display:grid;place-items:center}.modal-content{width:min(100%,760px);background:#fff;border-radius:20px;box-shadow:var(--shadow);overflow:hidden}.modal-head{padding:22px 24px;border-bottom:1px solid var(--line);background:var(--panel-soft)}.modal-body{padding:24px}.modal-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.modal-grid .full{grid-column:1/-1}.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}.hidden{display:none!important}.page{display:none}.page.active{display:block}.chat-layout{display:grid;grid-template-columns:minmax(430px,520px) minmax(0,1fr);gap:18px}.tester-panel textarea{min-height:120px}.tester-panel #testerPrompt{min-height:150px}.sample-json{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px;min-height:150px}.sample-help{background:var(--panel-soft);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:6px}.sample-debug{border:1px solid var(--line);border-radius:12px;background:#fff}.sample-debug summary{cursor:pointer;padding:11px 12px;color:#344054;font-weight:800}.sample-debug .debug-body{display:grid;gap:12px;padding:0 12px 12px}.chat-log{height:430px;overflow:auto;background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px}.msg{max-width:86%;padding:11px 13px;border-radius:14px;box-shadow:0 4px 16px rgba(15,23,42,.05);white-space:pre-wrap}.msg.user{align-self:flex-end;background:var(--primary);color:white}.msg.assistant{align-self:flex-start;background:white;border:1px solid var(--line)}.diagnostics{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:12px;background:#0f172a;color:#dbeafe;border-radius:14px;padding:14px;white-space:pre-wrap;min-height:150px;overflow:auto}.model-row,.password-row{display:grid;grid-template-columns:1fr auto;gap:8px}.password-row input{min-width:0}.hint{font-size:12px;color:var(--muted)}@media(min-width:1001px){.dashboard-container.active{display:grid;grid-template-columns:260px minmax(0,1fr)}.sidebar{position:sticky;top:0;inset:auto;grid-column:1;transform:none;box-shadow:none}.drawer-toggle,.drawer-backdrop,.mobile-tabs{display:none!important}.main{grid-column:2;min-width:0;padding:32px}}@media(max-width:1000px){.chat-layout{grid-template-columns:1fr}.mobile-tabs{display:flex}.main{padding:20px}.stats-grid{grid-template-columns:1fr}}@media (max-width: 700px){.header,.panel-head{align-items:flex-start;flex-direction:column}.modal-grid{grid-template-columns:1fr}.sidebar{width:min(82vw,260px)}.keys-table,.keys-table thead,.keys-table tbody,.keys-table th,.keys-table td,.keys-table tr{display:block}.keys-table thead{display:none}.keys-table tr{margin:12px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:white}.keys-table td{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line)}.keys-table td::before{content:attr(data-label);color:var(--muted);font-weight:800;font-size:12px;text-transform:uppercase;letter-spacing:.05em}.keys-table td:last-child{border-bottom:0}.key-display{max-width:160px}}
-    .tester-panel .panel-body{gap:14px}.tester-key-state{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:-4px}.tester-details{border:1px solid var(--line);border-radius:12px;background:var(--panel-soft);overflow:hidden}.tester-details summary{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;cursor:pointer;color:#344054;font-size:13px;font-weight:800;list-style:none}.tester-details summary::-webkit-details-marker{display:none}.tester-details summary::after{content:'Show';color:var(--primary);font-size:12px}.tester-details[open] summary::after{content:'Hide'}.tester-details-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;padding:12px;border-top:1px solid var(--line);background:#fff}.tester-detail{display:grid;gap:4px;min-width:0}.tester-detail strong{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}.tester-detail span{font-size:13px;font-weight:700;overflow-wrap:anywhere}.tester-model-meta{display:flex;justify-content:space-between;gap:8px 16px;flex-wrap:wrap}.tester-model-meta .hint:last-child{margin-left:auto}.operation-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.operation-group{border:1px solid var(--line);border-radius:12px;background:var(--panel-soft);overflow:hidden}.operation-group-head{padding:14px;border-bottom:1px solid var(--line)}.operation-group-head h3{margin:0;font-size:15px}.operation-list{display:grid}.operation-item{display:grid;gap:6px;padding:13px 14px;background:#fff;border-bottom:1px solid var(--line)}.operation-item:last-child{border-bottom:0}.operation-identifiers{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}.operation-identifiers code{font-size:12px;color:#344054;background:#edf2f7;padding:4px 7px;border-radius:7px;overflow-wrap:anywhere}.operation-map{font-size:12px;color:var(--muted)}.operation-description{font-size:13px;line-height:1.45;color:#344054}@media(max-width:760px){.operation-groups{grid-template-columns:1fr}}@media(max-width:520px){.tester-details-grid{grid-template-columns:1fr}.tester-model-meta .hint:last-child{margin-left:0}}
-    .model-status{display:grid;gap:7px;min-width:190px}.model-status small{color:var(--muted);line-height:1.35}.model-status-actions{display:flex;gap:6px;flex-wrap:wrap}.model-guidance{font-size:.78rem;color:var(--muted)}.model-guidance summary{cursor:pointer;color:var(--accent);font-weight:700}.model-guidance ol{margin:6px 0 0;padding-left:18px}.model-guidance li{margin:4px 0}
+    :root{
+      --bg:#f5f6f3;--surface:#fff;--soft:#fafaf8;--text:#16181b;--text-2:#3e434a;--muted:#5b6169;--faint:#8a9097;
+      --line:#e4e6e1;--line-2:#eeefec;--input:#daddd7;--accent:#2f45d8;--accent-dark:#1f2fa0;--accent-soft:#eef0fd;
+      --danger:#b4232a;--danger-soft:#fbe7e6;--danger-text:#8e1b21;--success:#1e6b35;--warn:#7a4a00;
+      --dot-good:#2e9b4f;--dot-idle:#9aa0a6;--dot-warn:#c98a1b;--dot-bad:#b4232a;
+      --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0}
+    body{min-height:100vh;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+    button,input,textarea,select{font:inherit;color:inherit}
+    h1,h2,h3,p{margin:0}
+    code,.mono{font-family:var(--mono);font-size:12.5px}
+    .hidden{display:none!important}
+    .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+    :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+    /* Controls */
+    label,.field-label{font-size:13px;font-weight:500}
+    input:not([type=checkbox]),select,textarea{width:100%;min-height:40px;border:1px solid var(--input);border-radius:8px;background:#fff;padding:9px 12px;outline:none}
+    textarea{resize:vertical;line-height:1.5}
+    input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,69,216,.15)}
+    .field{display:grid;gap:6px;min-width:0}
+    .hint{font-size:12px;color:var(--muted)}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 16px;border:1px solid var(--input);border-radius:8px;background:#fff;color:var(--text);font-weight:500;cursor:pointer;white-space:nowrap;text-decoration:none}
+    .btn:hover{background:var(--soft)}
+    .btn:disabled{opacity:.55;cursor:not-allowed}
+    .btn-primary{border-color:var(--accent);background:var(--accent);color:#fff;font-weight:600}
+    .btn-primary:hover{background:var(--accent-dark);border-color:var(--accent-dark)}
+    .btn-danger{border-color:var(--danger);background:var(--danger);color:#fff;font-weight:600}
+    .btn-danger:hover{background:#951c22}
+    .btn-sm{min-height:36px;padding:0 12px;font-size:13px}
+    .icon-btn{width:36px;height:36px;display:inline-grid;place-items:center;border:0;border-radius:8px;background:transparent;color:var(--muted);cursor:pointer}
+    .icon-btn:hover{background:var(--line-2);color:var(--text)}
+    .card{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+    details>summary{cursor:pointer;color:var(--muted);font-size:13px;font-weight:500;min-height:28px;display:flex;align-items:center}
+    .form-error{display:none;padding:10px 12px;border-radius:8px;background:var(--danger-soft);color:var(--danger-text);font-size:13px;overflow-wrap:anywhere}
+    .form-error.show{display:block}
+
+    /* Sign in */
+    .login-container{min-height:100vh;display:grid;place-items:center;padding:48px 16px}
+    .login-form{width:min(100%,360px);display:grid;gap:16px}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:600}
+    .login-form .brand{font-size:16px;margin-bottom:8px}
+    .password-row{display:grid;grid-template-columns:1fr auto;gap:8px}
+
+    /* Shell */
+    .dashboard-container{display:none;min-height:100vh}
+    .dashboard-container.active{display:block}
+    .topbar{background:var(--surface);border-bottom:1px solid var(--line)}
+    .topbar-inner{max-width:1120px;margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;gap:28px}
+    .nav{display:flex;gap:4px;align-self:stretch}
+    .nav-link{display:flex;align-items:center;padding:0 10px;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font-weight:500;cursor:pointer}
+    .nav-link.active{color:var(--text);border-bottom-color:var(--text)}
+    .signout{margin-left:auto;border:0;background:none;color:var(--muted);font-size:13px;cursor:pointer;min-height:40px}
+    .signout:hover{color:var(--text)}
+    .main{max-width:1120px;margin:0 auto;padding:40px 24px 56px}
+    .page{display:none}
+    .page.active{display:grid;gap:20px}
+    .page.active>*{min-width:0}
+    .page-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    .page-head h1{font-size:24px;font-weight:600;letter-spacing:-.02em}
+    .count{font-weight:400;color:var(--faint)}
+
+    /* Toasts */
+    .toasts{position:fixed;right:24px;bottom:24px;z-index:60;display:grid;gap:8px;max-width:min(420px,calc(100vw - 32px))}
+    .toast{display:none;padding:12px 14px;border-radius:10px;background:var(--text);color:#fff;font-size:13px;box-shadow:0 10px 30px rgba(22,24,27,.2);overflow-wrap:anywhere}
+    .toast.show{display:block}
+    .toast-error{background:var(--danger)}
+
+    /* Keys table */
+    .table-wrap{overflow-x:auto}
+    .keys-table{width:100%;min-width:760px;border-collapse:collapse}
+    .keys-table th{text-align:left;padding:12px;font-size:12px;font-weight:500;color:var(--muted);border-bottom:1px solid var(--line)}
+    .keys-table td{padding:16px 12px;border-bottom:1px solid var(--line-2);vertical-align:top}
+    .keys-table th:first-child,.keys-table td:first-child{padding-left:20px}
+    .keys-table th:last-child,.keys-table td:last-child{padding-right:20px}
+    .keys-table tr:last-child td{border-bottom:0}
+    .key-name{font-weight:500;overflow-wrap:anywhere}
+    .key-owner{font-size:13px;color:var(--muted)}
+    .key-display{display:inline-block;margin-top:6px;max-width:100%;padding:4px 8px;border-radius:6px;background:var(--line-2);overflow-wrap:anywhere}
+    .model-id{font-family:var(--mono);font-size:13px;overflow-wrap:anywhere}
+    .model-status{display:flex;align-items:center;gap:6px;margin-top:2px;font-size:12px;color:var(--muted)}
+    .dot{width:8px;height:8px;border-radius:999px;flex:none;background:var(--dot-idle)}
+    .dot-good{background:var(--dot-good)}.dot-warn{background:var(--dot-warn)}.dot-bad{background:var(--dot-bad)}
+    .access-on{color:var(--success);font-weight:500}
+    .access-off{color:var(--muted);font-weight:500}
+    .row-actions{display:flex;justify-content:flex-end;align-items:center;gap:4px}
+    .empty{padding:32px 20px;color:var(--muted);text-align:center}
+
+    /* Row menu */
+    .menu{position:fixed;z-index:50;width:280px;max-height:calc(100vh - 16px);overflow-y:auto;overscroll-behavior:contain;padding:6px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(22,24,27,.14);display:none}
+    .menu.open{display:block}
+    .menu [role=menuitem]{display:flex;align-items:center;width:100%;min-height:40px;padding:0 12px;border:0;border-radius:8px;background:transparent;text-align:left;cursor:pointer}
+    .menu [role=menuitem]:hover,.menu [role=menuitem]:focus{background:var(--bg);outline:none}
+    .menu .danger{color:var(--danger)}
+    .menu-sep{height:1px;margin:6px 4px;background:var(--line-2)}
+    .menu-label{padding:6px 12px 2px;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+    .menu-note{padding:0 12px 4px;font-size:12px;color:var(--muted)}
+    .menu-guidance{margin:4px 12px 6px;font-size:12px;color:var(--text-2)}
+    .menu-guidance ol{margin:4px 0 0;padding-left:18px}
+
+    /* Dialogs */
+    dialog{border:0;padding:0;border-radius:14px;background:#fff;color:var(--text);box-shadow:0 24px 80px rgba(22,24,27,.24);width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px)}
+    dialog::backdrop{background:rgba(22,24,27,.45)}
+    .dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 24px}
+    .dialog-head h2{font-size:18px;font-weight:600}
+    .dialog-body{padding:0 24px 20px;display:grid;gap:16px}
+    .dialog-foot{display:flex;justify-content:flex-end;gap:8px;padding:16px 24px;border-top:1px solid var(--line)}
+    .two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+    .advanced{border-top:1px solid var(--line-2);padding-top:12px}
+    .advanced[open]>summary{margin-bottom:12px}
+    .check-row{display:flex;align-items:center;gap:10px;border-top:1px solid var(--line-2);padding-top:14px;font-weight:500;cursor:pointer}
+    .check-row input{width:18px;height:18px;margin:0;accent-color:var(--accent)}
+    .confirm{width:min(440px,calc(100vw - 32px))}
+    .confirm .dialog-body{padding-top:24px}
+    .confirm h2{font-size:18px;font-weight:600;overflow-wrap:anywhere}
+    .confirm p{color:var(--text-2)}
+    .confirm .dialog-foot{border-top:0;padding-top:4px}
+
+    /* Tester */
+    .tester-layout{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+    .tester-form{flex:1 1 340px;max-width:400px;padding:20px;display:grid;gap:16px}
+    .tester-result{flex:999 1 460px;min-width:0;padding:20px;display:grid;gap:16px}
+    .result-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .result-head h2{font-size:15px;font-weight:600}
+    .state-idle{color:var(--muted)}.state-ok{color:var(--success)}.state-fail{color:var(--danger)}
+    .result-meta{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+    .answer{padding:16px;border-radius:10px;background:var(--bg);font-size:15px;white-space:pre-wrap;overflow-wrap:anywhere}
+    .answer.muted{color:var(--muted);font-size:14px;background:transparent;padding:0}
+    .answer.error{background:var(--danger-soft);color:var(--danger-text);font-size:14px}
+    .progress{height:4px;border-radius:999px;background:var(--line);overflow:hidden}
+    .progress::after{content:"";display:block;width:40%;height:100%;border-radius:999px;background:var(--accent);animation:slide 1.2s ease-in-out infinite}
+    @keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
+    @media (prefers-reduced-motion:reduce){.progress::after{animation:none;width:100%;opacity:.4}}
+    .recovery{display:flex;gap:8px;flex-wrap:wrap}
+    .diagnostics{margin:8px 0 0;padding:16px;border-radius:10px;background:var(--text);color:#dde1e6;font-family:var(--mono);font-size:12px;line-height:1.6;white-space:pre-wrap;overflow:auto;max-height:360px}
+
+    /* Operations catalog */
+    .ops-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:16px 20px;border-bottom:1px solid var(--line)}
+    .ops-head h2{font-size:15px;font-weight:600}
+    .ops-table{width:100%;border-collapse:collapse;font-size:13px}
+    .ops-table th{text-align:left;padding:10px 12px;font-size:12px;font-weight:500;color:var(--muted);border-bottom:1px solid var(--line)}
+    .ops-table td{padding:8px 12px;border-bottom:1px solid var(--line-2);vertical-align:top}
+    .ops-table th:first-child,.ops-table td:first-child{padding-left:20px}
+    .ops-table td:last-child{padding-right:20px;color:var(--text-2)}
+    .ops-group th{padding:14px 20px 8px;background:var(--soft);color:var(--text);font-size:13px;font-weight:600;border-bottom:1px solid var(--line-2)}
+    .ops-group .count{font-weight:400;color:var(--muted)}
+    .not-sent{color:var(--muted)}
+    .ops-empty{padding:20px;color:var(--muted)}
+
+    @media (max-width: 700px){
+      .topbar-inner{height:auto;flex-wrap:wrap;gap:0 12px;padding:0 16px}
+      .topbar-inner .brand{min-height:56px}
+      .nav{order:3;width:100%;margin:0 -10px}
+      .nav-link{min-height:44px}
+      .signout{min-height:44px}
+      .main{padding:20px 16px 40px}
+      .page-head h1{font-size:20px}
+      .btn{min-height:44px}
+      .keys-table{min-width:0}
+      .keys-table thead{display:none}
+      .keys-table,.keys-table tbody{display:block}
+      .keys-table tr{display:flex;flex-wrap:wrap;gap:4px 12px;padding:14px 16px;border-bottom:1px solid var(--line-2)}
+      .keys-table tr:last-child{border-bottom:0}
+      .keys-table td{display:block;padding:0!important;border:0}
+      .keys-table td[data-label="Name"],.keys-table td[data-label="Model"]{flex:1 1 100%}
+      .keys-table td[data-label="Rate limit"],.keys-table td[data-label="Access"]{font-size:12px;color:var(--muted)}
+      .keys-table td[data-label="Actions"]{flex:1 1 100%;margin-top:6px}
+      .row-actions{justify-content:flex-start}
+      .row-actions .btn{flex:1}
+      .icon-btn{width:44px;height:44px}
+      .tester-form{max-width:none;padding:16px}
+      .tester-result{padding:16px}
+      .ops-table thead{display:none}
+      .ops-table,.ops-table tbody,.ops-table tr{display:block}
+      .ops-table td{display:block;border:0;padding:0 16px!important}
+      .ops-table tr.op{padding:10px 0;border-bottom:1px solid var(--line-2)}
+      .ops-table tr.op td:nth-child(2)::before{content:"sent as ";color:var(--muted);font-family:inherit}
+      .ops-table tr.op td:nth-child(2).not-sent::before{content:""}
+      .ops-table td:last-child{font-size:12px;color:var(--muted)}
+      .ops-group th{display:block;padding:12px 16px}
+      .two-col{grid-template-columns:1fr}
+      .toasts{left:16px;right:16px;bottom:16px;max-width:none}
+    }
   </style>
 </head>
 <body>
 <div class="container">
-  <div class="login-container" id="loginScreen"><section class="login-card"><div class="login-hero"><div class="brand-row"><div class="brand-mark">⚡</div><div><h1>LLM Gateway</h1><p class="subtitle">Secure admin console</p></div></div></div><div class="login-body"><div class="error" id="loginError"></div><form id="loginForm" class="form-grid"><div class="form-group"><label for="username">Username</label><input type="text" id="username" required autocomplete="username" placeholder="admin"></div><div class="form-group"><label for="password">Password</label><div class="password-row"><input type="password" id="password" required autocomplete="current-password" placeholder="••••••••"><button type="button" class="btn btn-small btn-secondary" id="togglePassword" aria-controls="password" aria-label="Show password">Show</button></div></div><button type="submit" class="btn btn-block">Sign in</button></form></div></section></div>
+  <div class="login-container" id="loginScreen">
+    <form id="loginForm" class="login-form">
+      <div class="brand"><svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect width="28" height="28" rx="7" fill="#16181B"/><path d="M7 9h5l4 5-4 5H7M21 9v10" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><h1 style="font-size:16px;font-weight:600">LLM Gateway</h1></div>
+      <div class="field"><label for="username">Username</label><input type="text" id="username" required autocomplete="username"></div>
+      <div class="field"><label for="password">Password</label><div class="password-row"><input type="password" id="password" required autocomplete="current-password"><button type="button" class="btn" id="togglePassword" aria-controls="password" aria-label="Show password">Show</button></div></div>
+      <div class="form-error" id="loginError" role="alert"></div>
+      <button type="submit" class="btn btn-primary">Sign in</button>
+    </form>
+  </div>
+
   <div class="dashboard-container" id="dashboardScreen">
-    <aside class="sidebar" id="sidebar" aria-label="Admin navigation"><div class="brand-row"><div class="brand-mark">⚡</div><div><h1>Gateway</h1><p class="subtitle">Admin</p></div></div><div class="nav-section">Manage</div><button class="nav-pill active" data-page="keys" onclick="navigateTo('keys')">API Keys</button><button class="nav-pill" data-page="playground" onclick="navigateTo('playground')">LLM Playground</button></aside>
-    <div class="drawer-backdrop" id="drawerBackdrop" onclick="closeDrawer()" aria-hidden="true"></div>
-    <main class="main"><div class="topbar"><button type="button" class="drawer-toggle" id="drawerToggle" onclick="toggleDrawer()" aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation" title="Open navigation">☰</button><nav class="mobile-tabs" aria-label="Admin sections"><button class="mobile-tab active" data-page="keys" onclick="navigateTo('keys')">API Keys</button><button class="mobile-tab" data-page="playground" onclick="navigateTo('playground')">Playground</button></nav></div><div class="error" id="dashboardError"></div><div class="success" id="dashboardSuccess"></div>
-      <section id="pageKeys" class="page active"><div class="header"><div><h2>API Keys</h2><p class="subtitle">Create, edit, rotate, and disable client access without touching server config.</p></div><div class="btn-group"><button onclick="showCreateModal()" class="btn btn-small">+ New Key</button><button onclick="logout()" class="btn btn-small btn-secondary">Logout</button></div></div><div class="stats-grid"><div class="stat-card"><div class="stat-label">Total keys</div><div class="stat-value" id="totalKeys">—</div></div><div class="stat-card"><div class="stat-label">Active</div><div class="stat-value" id="activeKeys">—</div></div><div class="stat-card"><div class="stat-label">Disabled</div><div class="stat-value" id="disabledKeys">—</div></div></div><section class="panel"><div class="panel-head"><div><div class="panel-title">Client credentials</div><p class="subtitle">Desktop table becomes reviewable mobile cards.</p></div><button onclick="loadKeys()" class="btn btn-small btn-secondary">Refresh</button></div><div id="keysTableContainer"><p class="loading">Loading keys…</p></div></section></section>
-      <section id="pagePlayground" class="page"><div class="header"><div><h2>LLM Playground / Key Tester</h2><p class="subtitle">Verify a key and model with a generic chat request, then review the operations published for keyboard applications.</p></div><div class="btn-group"><button onclick="refreshPlayground()" class="btn btn-small btn-secondary">Refresh keys/models</button><button onclick="resetPlaygroundState()" class="btn btn-small btn-secondary">Start over</button><button onclick="logout()" class="btn btn-small btn-secondary">Logout</button></div></div><div class="chat-layout"><section class="panel tester-panel"><div class="panel-head"><div><div class="panel-title">Connection test</div><p class="subtitle">Choose a credential and send one generic live request.</p></div></div><div class="panel-body form-grid"><div class="form-group"><label for="testerKey">API key</label><select id="testerKey" onchange="loadTesterKey()"><option value="">Load keys first…</option></select><p class="hint" id="testerKeyHint">Full credential material is fetched only when a test runs.</p></div><div class="tester-key-state" aria-label="Selected key status" aria-live="polite"><span id="testerKeyStatus" class="badge badge-warning">No key selected</span><span id="testerReadiness" class="badge badge-warning">Choose key</span></div><div class="form-group"><label for="testerModel">Test model</label><select id="testerModel" onchange="syncManualModel('tester');updateTesterReadiness()"></select><input class="hidden" id="testerModelManual" placeholder="custom:model" oninput="updateTesterReadiness()"><div class="tester-model-meta"><p class="hint">Uses the key default unless overridden.</p><p class="hint" id="testerModelCatalog">0 models available</p></div></div><details class="tester-details"><summary>Key &amp; request details</summary><div class="tester-details-grid"><div class="tester-detail"><strong>Configured model</strong><span id="testerModelSummary">Choose a key</span></div><div class="tester-detail"><strong>Credential</strong><span id="testerKeyFetchStatus">—</span></div><div class="tester-detail"><strong>Endpoint</strong><span>/v1/chat/completions</span></div><div class="tester-detail"><strong>Authentication</strong><span>Admin key fetch</span></div></div></details><div class="form-group"><label for="testerSystemPrompt">System prompt</label><textarea id="testerSystemPrompt" rows="5"></textarea></div><div class="form-group"><label for="testerPrompt">User message</label><textarea id="testerPrompt" rows="5"></textarea></div><button class="btn" onclick="sendTestMessage()">Test this key</button><p class="hint">This test sends only the editable messages above. It does not add a semantic operation or structured response request.</p></div></section><section class="panel"><div class="panel-head"><div><div class="panel-title">Result</div><p class="subtitle" id="testerStatus">No test run yet.</p></div></div><div class="panel-body"><div class="chat-log" id="chatLog"><div class="msg assistant">Choose an API key, then send a test message.</div></div><div style="height:14px"></div><div class="diagnostics" id="diagnostics">Diagnostics will appear here.</div></div></section></div><section class="panel" aria-labelledby="operationCatalogTitle"><div class="panel-head"><div><h3 class="panel-title" id="operationCatalogTitle">Semantic and keyboard operations</h3><p class="subtitle">Semantic IDs select canonical renderings. Keyboard request IDs show the optional operation metadata sent through the gateway.</p></div><span id="operationCatalogVersion" class="badge badge-warning">Loading contract…</span></div><div class="panel-body"><div id="operationCatalog" class="operation-groups" aria-live="polite"><p class="loading">Loading available operations…</p></div></div></section></section>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand"><svg width="24" height="24" viewBox="0 0 28 28" fill="none" aria-hidden="true"><rect width="28" height="28" rx="7" fill="#16181B"/><path d="M7 9h5l4 5-4 5H7M21 9v10" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>LLM Gateway</div>
+        <nav class="nav" aria-label="Admin sections">
+          <button type="button" class="nav-link active" data-page="keys" onclick="navigateTo('keys')">Keys</button>
+          <button type="button" class="nav-link" data-page="playground" onclick="navigateTo('playground')">Tester</button>
+        </nav>
+        <button type="button" class="signout" onclick="logout()">Sign out</button>
+      </div>
+    </header>
+
+    <main class="main">
+      <section id="pageKeys" class="page active" aria-labelledby="keysTitle">
+        <div class="page-head">
+          <h1 id="keysTitle">API keys <span class="count" id="keyCount"></span></h1>
+          <button type="button" onclick="showCreateModal()" class="btn btn-primary">New key</button>
+        </div>
+        <div class="card" id="keysTableContainer"><p class="empty">Loading keys…</p></div>
+      </section>
+
+      <section id="pagePlayground" class="page" aria-labelledby="testerTitle">
+        <div class="page-head"><h1 id="testerTitle">Test a key</h1></div>
+        <div class="tester-layout">
+          <form class="card tester-form" id="testerForm" onsubmit="event.preventDefault();sendTestMessage()">
+            <div class="field"><label for="testerKey">Key</label><select id="testerKey" onchange="loadTesterKey()"><option value="">Load keys first…</option></select></div>
+            <div class="field">
+              <label for="testerModel">Model</label>
+              <select id="testerModel" onchange="syncManualModel('tester');clearTestResult()"></select>
+              <input class="hidden" id="testerModelManual" placeholder="Type a model name" aria-label="Custom model name" oninput="clearTestResult()">
+            </div>
+            <div class="field"><label for="testerPrompt">Message</label><textarea id="testerPrompt" rows="3"></textarea></div>
+            <details id="testerSystemDetails">
+              <summary>System prompt</summary>
+              <textarea id="testerSystemPrompt" rows="3" aria-label="System prompt" style="margin-top:8px"></textarea>
+            </details>
+            <button type="submit" class="btn btn-primary" id="testerRun">Run test</button>
+            <p class="hint">Sends only these messages to <code>/v1/chat/completions</code>. It adds no semantic operation or structured response request.</p>
+          </form>
+
+          <section class="card tester-result" aria-labelledby="testerStatus" aria-live="polite" id="testerResult">
+            <div class="result-head"><h2 id="testerStatus" class="state-idle">Not run yet</h2><span class="result-meta" id="testerMeta"></span></div>
+            <div class="progress hidden" id="testerProgress" aria-hidden="true"></div>
+            <div class="answer muted" id="chatLog">Choose a key, then run a test. The full key is only fetched when the test runs.</div>
+            <div class="recovery hidden" id="testerRecovery">
+              <button type="button" class="btn" onclick="checkConfiguredModel(testerSelectedModel())">Refresh status</button>
+              <button type="button" class="btn btn-primary" onclick="sendTestMessage()">Try again</button>
+            </div>
+            <details id="diagnosticsDetails"><summary>Diagnostics</summary><pre class="diagnostics" id="diagnostics">Diagnostics will appear here.</pre></details>
+          </section>
+        </div>
+
+        <section class="card" aria-labelledby="operationCatalogTitle">
+          <div class="ops-head"><h2 id="operationCatalogTitle">Operations</h2><span class="hint"><span id="operationCatalogVersion">Loading contract…</span> · read only, from the pinned semantic contract</span></div>
+          <div id="operationCatalog" class="table-wrap"><p class="ops-empty">Loading operations…</p></div>
+        </section>
+      </section>
     </main>
   </div>
 </div>
-<div class="modal" id="keyModal"><div class="modal-content"><div class="modal-head"><h2 id="modalTitle">Create API Key</h2><p class="subtitle" id="modalSubtitle">Set limits and model defaults for a client.</p></div><form id="keyForm" class="modal-body"><div class="modal-grid"><div class="form-group"><label for="keyName">Name</label><input type="text" id="keyName" required placeholder="iOS Keyboard Client"></div><div class="form-group"><label for="keyOwner">Owner</label><input type="text" id="keyOwner" placeholder="user@example.com"></div><div class="form-group full"><label for="keyDescription">Description</label><textarea id="keyDescription" rows="2" placeholder="Optional description"></textarea></div><div class="form-group"><label for="keyRateLimit">Requests / minute</label><input type="number" id="keyRateLimit" value="30" required min="1"></div><div class="form-group"><label for="keyBurstAllowance">Burst allowance</label><input type="number" id="keyBurstAllowance" value="10" required min="1"></div><div class="form-group full"><label for="keyModel">Default model</label><div class="model-row"><select id="keyModel" onchange="syncManualModel('key')"></select><button type="button" class="btn btn-small btn-secondary" onclick="toggleManualModel('key')">Manual</button></div><input class="hidden" id="keyModelManual" placeholder="custom:model"></div><div class="form-group"><label for="keyEffort">Effort</label><select id="keyEffort"><option value="">Unset</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></div><div class="form-group"><label for="keyMaxTokens">Max tokens</label><input type="number" id="keyMaxTokens" value="100" required min="1"></div><div class="form-group full"><label for="keyTemperature">Temperature</label><input type="number" id="keyTemperature" value="0.7" min="0" max="2" step="0.1"></div><div class="form-group full"><label><input type="checkbox" id="keyEnabled" checked style="width:auto;margin-right:8px"> Enabled</label><p class="hint">Editing preserves the API key string; only settings are updated.</p></div></div><div class="modal-actions"><button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button><button type="submit" class="btn" id="keySubmitButton">Create key</button></div></form></div></div>
+
+<div class="toasts">
+  <div class="toast toast-error" id="dashboardError" role="alert"></div>
+  <div class="toast" id="dashboardSuccess" role="status"></div>
+</div>
+
+<div class="menu" id="rowMenu" role="menu" aria-label="Key actions"></div>
+
+<dialog id="keyModal" aria-labelledby="modalTitle">
+  <form id="keyForm" method="dialog">
+    <div class="dialog-head"><h2 id="modalTitle">New key</h2><button type="button" class="icon-btn" onclick="closeModal()" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="dialog-body">
+      <div class="form-error" id="keyFormError" role="alert"></div>
+      <div class="field"><label for="keyName">Name</label><input type="text" id="keyName" required placeholder="iOS keyboard client"></div>
+      <div class="field"><label for="keyOwner">Owner</label><input type="text" id="keyOwner" placeholder="Person or app using this key"></div>
+      <div class="two-col">
+        <div class="field">
+          <label for="keyModel">Default model</label>
+          <select id="keyModel" onchange="syncManualModel('key')"></select>
+          <input class="hidden" id="keyModelManual" placeholder="Type a model name" aria-label="Custom model name">
+        </div>
+        <div class="field"><label for="keyRateLimit">Requests per minute</label><input type="number" id="keyRateLimit" value="30" required min="1"></div>
+      </div>
+      <details class="advanced">
+        <summary>Advanced: max tokens, temperature, reasoning effort, max burst</summary>
+        <div class="two-col">
+          <div class="field"><label for="keyMaxTokens">Max tokens</label><input type="number" id="keyMaxTokens" value="100" required min="1"></div>
+          <div class="field"><label for="keyBurstAllowance">Max burst</label><input type="number" id="keyBurstAllowance" value="10" required min="1"><span class="hint">Requests allowed at once before the per-minute limit applies.</span></div>
+          <div class="field"><label for="keyEffort">Reasoning effort (default)</label><select id="keyEffort"><option value="">Unset</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select><span class="hint">Used when the client doesn't set reasoning_effort.</span></div>
+          <div class="field"><label for="keyTemperature">Temperature</label><input type="number" id="keyTemperature" value="0.7" min="0" max="2" step="0.1"><span class="hint">0 to 2</span></div>
+          <div class="field" style="grid-column:1/-1"><label for="keyDescription">Description</label><textarea id="keyDescription" rows="2" placeholder="Optional"></textarea></div>
+        </div>
+      </details>
+      <label class="check-row"><input type="checkbox" id="keyEnabled" checked> Enabled</label>
+    </div>
+    <div class="dialog-foot"><span class="hint" style="margin-right:auto;align-self:center" id="modalSubtitle"></span><button type="button" onclick="closeModal()" class="btn">Cancel</button><button type="submit" class="btn btn-primary" id="keySubmitButton">Create key</button></div>
+  </form>
+</dialog>
+
+<dialog id="confirmDialog" class="confirm" aria-labelledby="confirmTitle" aria-describedby="confirmBody">
+  <form method="dialog">
+    <div class="dialog-body"><h2 id="confirmTitle"></h2><p id="confirmBody"></p></div>
+    <div class="dialog-foot"><button type="submit" value="cancel" class="btn">Cancel</button><button type="submit" value="confirm" class="btn btn-danger" id="confirmButton">Delete</button></div>
+  </form>
+</dialog>
+
 <script src="/ui/playground.js"></script>
 <script>
-let authToken=null, editingKeyId=null, cachedKeys=[], fullKeys={}, availableModels=[], modelStatuses={};const AUTH_STORAGE_KEY='llmGatewayAdminSession';const CONNECTION_SYSTEM_PROMPT='You are a concise assistant. Reply with one short sentence to confirm the key and model are working.',CONNECTION_USER_MESSAGE='Reply with: connection ok';const {CUSTOM_MODEL_VALUE,modelSelectionForKey,resolveSelectedModel,catalogCountLabel,classifyPlaygroundError}=globalThis.AdminPlaygroundLogic;
+let authToken=null, editingKeyId=null, cachedKeys=[], fullKeys={}, availableModels=[], modelStatuses={}, revealedKeys=new Set(), testRun=0;
+const AUTH_STORAGE_KEY='llmGatewayAdminSession';
+const CONNECTION_SYSTEM_PROMPT='You are a concise assistant. Reply with one short sentence to confirm the key and model are working.',CONNECTION_USER_MESSAGE='Reply with: connection ok';
+const {CUSTOM_MODEL_VALUE,modelSelectionForKey,resolveSelectedModel,classifyPlaygroundError}=globalThis.AdminPlaygroundLogic;
 const byId=id=>document.getElementById(id);
-const loginScreen=byId('loginScreen'),dashboardScreen=byId('dashboardScreen'),loginError=byId('loginError'),dashboardError=byId('dashboardError'),dashboardSuccess=byId('dashboardSuccess'),loginForm=byId('loginForm'),username=byId('username'),password=byId('password'),togglePassword=byId('togglePassword'),sidebar=byId('sidebar'),drawerBackdrop=byId('drawerBackdrop'),drawerToggle=byId('drawerToggle'),totalKeys=byId('totalKeys'),activeKeys=byId('activeKeys'),disabledKeys=byId('disabledKeys'),keysTableContainer=byId('keysTableContainer'),keyModal=byId('keyModal'),keyForm=byId('keyForm'),modalTitle=byId('modalTitle'),modalSubtitle=byId('modalSubtitle'),keySubmitButton=byId('keySubmitButton'),keyName=byId('keyName'),keyOwner=byId('keyOwner'),keyDescription=byId('keyDescription'),keyRateLimit=byId('keyRateLimit'),keyBurstAllowance=byId('keyBurstAllowance'),keyModel=byId('keyModel'),keyModelManual=byId('keyModelManual'),keyEffort=byId('keyEffort'),keyMaxTokens=byId('keyMaxTokens'),keyTemperature=byId('keyTemperature'),keyEnabled=byId('keyEnabled'),testerKey=byId('testerKey'),testerKeyHint=byId('testerKeyHint'),testerKeyStatus=byId('testerKeyStatus'),testerKeyFetchStatus=byId('testerKeyFetchStatus'),testerModelSummary=byId('testerModelSummary'),testerModelCatalog=byId('testerModelCatalog'),testerModel=byId('testerModel'),testerModelManual=byId('testerModelManual'),testerReadiness=byId('testerReadiness'),testerSystemPrompt=byId('testerSystemPrompt'),testerPrompt=byId('testerPrompt'),testerStatus=byId('testerStatus'),chatLog=byId('chatLog'),diagnostics=byId('diagnostics'),operationCatalog=byId('operationCatalog'),operationCatalogVersion=byId('operationCatalogVersion');
+const loginScreen=byId('loginScreen'),dashboardScreen=byId('dashboardScreen'),loginError=byId('loginError'),dashboardError=byId('dashboardError'),dashboardSuccess=byId('dashboardSuccess'),loginForm=byId('loginForm'),username=byId('username'),password=byId('password'),togglePassword=byId('togglePassword'),keyCount=byId('keyCount'),keysTableContainer=byId('keysTableContainer'),rowMenu=byId('rowMenu'),keyModal=byId('keyModal'),keyForm=byId('keyForm'),keyFormError=byId('keyFormError'),modalTitle=byId('modalTitle'),modalSubtitle=byId('modalSubtitle'),keySubmitButton=byId('keySubmitButton'),keyName=byId('keyName'),keyOwner=byId('keyOwner'),keyDescription=byId('keyDescription'),keyRateLimit=byId('keyRateLimit'),keyBurstAllowance=byId('keyBurstAllowance'),keyModel=byId('keyModel'),keyModelManual=byId('keyModelManual'),keyEffort=byId('keyEffort'),keyMaxTokens=byId('keyMaxTokens'),keyTemperature=byId('keyTemperature'),keyEnabled=byId('keyEnabled'),confirmDialog=byId('confirmDialog'),testerKey=byId('testerKey'),testerModel=byId('testerModel'),testerModelManual=byId('testerModelManual'),testerSystemPrompt=byId('testerSystemPrompt'),testerPrompt=byId('testerPrompt'),testerRun=byId('testerRun'),testerStatus=byId('testerStatus'),testerMeta=byId('testerMeta'),testerProgress=byId('testerProgress'),testerRecovery=byId('testerRecovery'),chatLog=byId('chatLog'),diagnostics=byId('diagnostics'),operationCatalog=byId('operationCatalog'),operationCatalogVersion=byId('operationCatalogVersion');
 const escapeHtml=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const ICON_COPY='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>';
+const ICON_MORE='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>';
+
+/* ---------- Operations catalog ---------- */
 function setConnectionTestDefaults(){testerSystemPrompt.value=CONNECTION_SYSTEM_PROMPT;testerPrompt.value=CONNECTION_USER_MESSAGE}
-function operationGroupLabel(id){return String(id||'operations').split('-').map(word=>word?word[0].toUpperCase()+word.slice(1):word).join(' ')}
+function operationGroupLabel(id){const label=String(id||'operations').split('-').join(' ');return label[0].toUpperCase()+label.slice(1)}
 function operationCountLabel(count){return `${count} operation${count===1?'':'s'}`}
-function renderSemanticOperations(catalog){operationCatalogVersion.textContent=`Contract ${catalog.contractVersion}`;operationCatalogVersion.className='badge badge-success';operationCatalog.innerHTML=(catalog.groups||[]).map(group=>`<section class="operation-group"><div class="operation-group-head"><h3>${escapeHtml(operationGroupLabel(group.id))}</h3><p class="subtitle">${escapeHtml(group.description)} · ${operationCountLabel(group.operations.length)}</p></div><div class="operation-list">${group.operations.map(operation=>`<article class="operation-item"><div class="operation-identifiers"><code>${escapeHtml(operation.id)}</code><span class="operation-map">Keyboard request: ${operation.applicationOperation?`<code>${escapeHtml(operation.applicationOperation)}</code>`:'prompt only'}</span></div><p class="operation-description">${escapeHtml(operation.description)}</p></article>`).join('')}</div></section>`).join('')||'<p class="loading">No semantic operations are published.</p>'}
-async function loadSemanticOperations(){operationCatalogVersion.textContent='Loading contract…';operationCatalogVersion.className='badge badge-warning';try{const response=await fetch('/ui/semantic-operations.json');if(!response.ok)throw new Error(`HTTP ${response.status}`);renderSemanticOperations(await response.json())}catch{operationCatalogVersion.textContent='Catalog unavailable';operationCatalogVersion.className='badge badge-danger';operationCatalog.innerHTML='<p class="loading">Operation catalog unavailable. Reload after checking the pinned semantic contract.</p>'}}
+function renderSemanticOperations(catalog){
+  operationCatalogVersion.textContent=`Contract ${catalog.contractVersion}`;
+  const groups=catalog.groups||[];
+  if(!groups.length){operationCatalog.innerHTML='<p class="ops-empty">No semantic operations are published.</p>';return}
+  operationCatalog.innerHTML=`<table class="ops-table"><thead><tr><th scope="col" style="width:230px">Semantic ID</th><th scope="col" style="width:170px">Sent as</th><th scope="col">Description</th></tr></thead>${groups.map(group=>`<tbody><tr class="ops-group"><th colspan="3" scope="rowgroup" title="${escapeHtml(group.description)}">${escapeHtml(operationGroupLabel(group.id))} <span class="count">· ${operationCountLabel(group.operations.length)}</span></th></tr>${group.operations.map(operation=>`<tr class="op"><td><code>${escapeHtml(operation.id)}</code></td>${operation.applicationOperation?`<td><code>${escapeHtml(operation.applicationOperation)}</code></td>`:'<td class="not-sent">not sent</td>'}<td>${escapeHtml(operation.description)}</td></tr>`).join('')}</tbody>`).join('')}</table>`;
+}
+async function loadSemanticOperations(){operationCatalogVersion.textContent='Loading contract…';try{const response=await fetch('/ui/semantic-operations.json');if(!response.ok)throw new Error(`HTTP ${response.status}`);renderSemanticOperations(await response.json())}catch{operationCatalogVersion.textContent='Catalog unavailable';operationCatalog.innerHTML='<p class="ops-empty">Operation catalog unavailable. Reload after checking the pinned semantic contract.</p>'}}
+
+/* ---------- Session ---------- */
 function authHeaders(extra={}){return {...extra,Authorization:`Bearer ${authToken}`}}
 function saveSession(token,expiresIn){const ttl=Number(expiresIn)>0?Number(expiresIn):24*3600;const expiresAt=Date.now()+ttl*1000;localStorage.setItem(AUTH_STORAGE_KEY,JSON.stringify({token,expiresAt}))}
-function clearSession(){localStorage.removeItem(AUTH_STORAGE_KEY);fullKeys={}}
+function clearSession(){localStorage.removeItem(AUTH_STORAGE_KEY);fullKeys={};revealedKeys.clear()}
 function readSession(){try{const s=JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY)||'null');if(!s?.token||!s?.expiresAt||Date.now()>=s.expiresAt){clearSession();return null}return s}catch{clearSession();return null}}
 function showDashboard(){loginScreen.style.display='none';dashboardScreen.classList.add('active')}
-function showLogin(message){authToken=null;clearSession();dashboardScreen.classList.remove('active');loginScreen.style.display='grid';if(message)showError('loginError',message)}
-function setDrawer(open){sidebar.classList.toggle('open',open);drawerBackdrop.classList.toggle('show',open);drawerToggle.setAttribute('aria-expanded',open?'true':'false');drawerToggle.setAttribute('aria-label',open?'Close navigation':'Open navigation');drawerToggle.title=open?'Close navigation':'Open navigation'}
-function toggleDrawer(){setDrawer(!sidebar.classList.contains('open'))}
-function closeDrawer(){setDrawer(false)}
+function showLogin(message){authToken=null;clearSession();dashboardScreen.classList.remove('active');closeRowMenu(false);loginScreen.style.display='grid';if(message)showError('loginError',message)}
 async function restoreSession(){const s=readSession();if(!s)return;authToken=s.token;showDashboard();applyRoute();try{await Promise.all([loadModels(),loadKeys()])}catch(e){if(e.status!==401)showError('dashboardError',e.message)}}
 function apiErrorMessage(data,fallback){const error=data?.error;if(error&&typeof error==='object'&&typeof error.message==='string')return error.message;return fallback}
 async function api(path,opts={}){const r=await fetch(path,{...opts,headers:authHeaders(opts.headers||{})});let data={};try{data=await r.json()}catch{}if(!r.ok){if(r.status===401)showLogin('Session expired. Please sign in again.');const e=new Error(apiErrorMessage(data,`Request failed (${r.status})`));e.status=r.status;e.data=data;throw e}return data}
-document.getElementById('togglePassword').addEventListener('click',()=>{const visible=password.type==='text';password.type=visible?'password':'text';togglePassword.textContent=visible?'Show':'Hide';togglePassword.setAttribute('aria-label',visible?'Show password':'Hide password')});
-document.getElementById('loginForm').addEventListener('submit',async e=>{e.preventDefault();const trimmedUsername=username.value.trim(),trimmedPassword=password.value.trim();try{const r=await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:trimmedUsername,password:trimmedPassword})});if(!r.ok){let data={};try{data=await r.json()}catch{}const err=new Error(apiErrorMessage(data,'Invalid credentials'));err.status=r.status;throw err}const data=await r.json();authToken=data.token;saveSession(data.token,data.expiresIn);showDashboard();const loginRoute=parseRoute();if(loginRoute.needsNormalize||loginRoute.isLoginRoute)history.replaceState(null,'',routeFor('keys'));applyRoute();await Promise.all([loadModels(),loadKeys()]);}catch(err){showError('loginError',err.message||'Login failed. Check your username and password.')}});
-setConnectionTestDefaults();
-loadSemanticOperations();
-restoreSession();
-async function loadModels(){try{const data=await api('/admin/models');availableModels=data.models||[];if(!availableModels.length)showError('dashboardError','No models found on the Ollama host. Pull one with `ollama pull <model>` or use Custom / manual.')}catch(e){availableModels=[];showError('dashboardError',`Model list unavailable: ${e.message}`)}populateModelSelect(keyModel);syncTesterModelForKey();updateModelCatalogStatus()}
-function updateModelCatalogStatus(){if(typeof testerModelCatalog==='undefined')return;testerModelCatalog.textContent=catalogCountLabel(availableModels);updateTesterReadiness()}
+togglePassword.addEventListener('click',()=>{const visible=password.type==='text';password.type=visible?'password':'text';togglePassword.textContent=visible?'Show':'Hide';togglePassword.setAttribute('aria-label',visible?'Show password':'Hide password')});
+loginForm.addEventListener('submit',async e=>{e.preventDefault();loginError.classList.remove('show');const trimmedUsername=username.value.trim(),trimmedPassword=password.value.trim();try{const r=await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:trimmedUsername,password:trimmedPassword})});if(!r.ok){let data={};try{data=await r.json()}catch{}const err=new Error(apiErrorMessage(data,'Invalid credentials'));err.status=r.status;throw err}const data=await r.json();authToken=data.token;saveSession(data.token,data.expiresIn);showDashboard();const loginRoute=parseRoute();if(loginRoute.needsNormalize||loginRoute.isLoginRoute)history.replaceState(null,'',routeFor('keys'));applyRoute();await Promise.all([loadModels(),loadKeys()]);}catch(err){showError('loginError',err.message||'Sign-in failed. Check your username and password.')}});
+
+/* ---------- Models ---------- */
+async function loadModels(){try{const data=await api('/admin/models');availableModels=data.models||[];if(!availableModels.length)showError('dashboardError','No models were discovered. If you use Ollama, pull one first; otherwise choose Custom and enter the exact model name.')}catch(e){availableModels=[];showError('dashboardError',`Model list unavailable: ${e.message}`)}populateModelSelect(keyModel);syncTesterModelForKey()}
 function testerSelectedModel(){return getModel('tester')}
-function updateTesterKeyStatus(k){testerKeyStatus.textContent=!k?'No key selected':k.enabled?'Enabled':'Disabled';testerKeyStatus.className=`badge ${!k?'badge-warning':k.enabled?'badge-success':'badge-danger'}`}
-function updateTesterReadiness(){if(typeof testerReadiness==='undefined')return;const id=testerKey?.value,k=cachedKeys.find(x=>x.id===id),hasFull=Boolean(id&&fullKeys[id]),model=testerSelectedModel(),state=!id?'Choose key':k?.enabled===false?'Disabled key':!model?'No model':hasFull?'Ready':'Fetch on test',tone=state==='Ready'?'badge-success':state==='Disabled key'||state==='No model'?'badge-danger':'badge-warning';testerReadiness.textContent=state;testerReadiness.className=`badge ${tone}`;testerReadiness.title=model?`Selected model: ${model}`:'No selected model'}
-function populateModelSelect(sel,value){const state=modelSelectionForKey(availableModels,value),options=[`<option value="">Choose a model…</option>`,...state.options.map(m=>`<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`),`<option value="${CUSTOM_MODEL_VALUE}">Custom / manual…</option>`];sel.innerHTML=options.join('');sel.value=state.selectValue}
-function setTesterModel(value){populateModelSelect(testerModel,value);testerModelManual.value='';testerModelManual.classList.add('hidden')}
+function populateModelSelect(sel,value,defaultModel){const state=modelSelectionForKey(availableModels,value),options=[`<option value="">Choose a model…</option>`,...state.options.map(m=>`<option value="${escapeHtml(m)}">${escapeHtml(m)}${defaultModel&&m===defaultModel?' (key default)':''}</option>`),`<option value="${CUSTOM_MODEL_VALUE}">Custom… (type a model name)</option>`];sel.innerHTML=options.join('');sel.value=state.selectValue}
+function setTesterModel(value){populateModelSelect(testerModel,value,value);testerModelManual.value='';testerModelManual.classList.add('hidden')}
 function syncTesterModelForKey(){const k=cachedKeys.find(x=>x.id===testerKey.value);setTesterModel(k?.modelConfig?.model)}
-function getModel(prefix){const sel=document.getElementById(prefix+'Model'), manual=document.getElementById(prefix+'ModelManual');return resolveSelectedModel(sel.value,manual.value)}
-function syncManualModel(prefix){const sel=document.getElementById(prefix+'Model'), manual=document.getElementById(prefix+'ModelManual');manual.classList.toggle('hidden',sel.value!==CUSTOM_MODEL_VALUE);if(sel.value===CUSTOM_MODEL_VALUE)manual.focus()}
-function toggleManualModel(prefix){const sel=document.getElementById(prefix+'Model');sel.value=CUSTOM_MODEL_VALUE;syncManualModel(prefix)}
-async function loadKeys(){try{const data=await api('/admin/keys');cachedKeys=data.keys||[];renderKeys(cachedKeys);renderTesterKeys();await checkConfiguredModels()}catch(e){showError('dashboardError',e.message)}}
-function modelStatusLabel(status){if(!status)return'Not checked';if(status.state==='running')return'● Running';if(status.state==='available')return status.runtime==='idle'?'● Available · idle':status.runtime==='on_demand'?'● On demand · unverified':'● Available';if(status.state==='not_configured')return'● Not configured';return'● Unavailable'}
-function modelStatusTone(status){return status?.state==='running'||(status?.state==='available'&&status?.runtime!=='on_demand')?'badge-success':status?.state==='unavailable'?'badge-danger':'badge-warning'}
-function renderModelStatus(model){if(!model)return'<span class="badge badge-warning">No model</span>';const status=modelStatuses[model],message=status?.message||'Run a bounded non-inference status check.',provider=status?.provider||'unknown',start=status?.start?.supported?`<button data-model="${escapeHtml(model)}" onclick="event.stopPropagation();startConfiguredModel(this.dataset.model)" class="btn btn-small">${escapeHtml(status.start.label||'Start model')}</button>`:'',stop=status?.stop?.supported?`<button data-model="${escapeHtml(model)}" onclick="event.stopPropagation();stopConfiguredModel(this.dataset.model)" class="btn btn-small btn-danger">${escapeHtml(status.stop.label||'Stop model')}</button>`:'',guidance=status?.guidance,help=guidance?.steps?.length?`<details class="model-guidance" onclick="event.stopPropagation()"><summary>Setup help</summary><strong>${escapeHtml(guidance.message||'Setup required.')}</strong><ol>${guidance.steps.map(step=>`<li>${escapeHtml(step)}</li>`).join('')}</ol></details>`:'';return `<div class="model-status" title="${escapeHtml(message)}"><span class="badge ${modelStatusTone(status)}">${escapeHtml(modelStatusLabel(status))}</span><small>${escapeHtml(provider)}</small><small>${escapeHtml(message)}</small><div class="model-status-actions"><button data-model="${escapeHtml(model)}" onclick="event.stopPropagation();checkConfiguredModel(this.dataset.model)" class="btn btn-small btn-secondary">Check</button>${start}${stop}</div>${help}<small>Live test is required to verify inference.</small></div>`}
+function getModel(prefix){const sel=byId(prefix+'Model'),manual=byId(prefix+'ModelManual');return resolveSelectedModel(sel.value,manual.value)}
+function syncManualModel(prefix){const sel=byId(prefix+'Model'),manual=byId(prefix+'ModelManual');manual.classList.toggle('hidden',sel.value!==CUSTOM_MODEL_VALUE);if(sel.value===CUSTOM_MODEL_VALUE)manual.focus()}
+
+/* Model state labels come from provider + service + runtime, never from state alone.
+   Status checks and load/unload never run inference; only Run test proves the key can chat. */
+const PROVIDER_NAMES={ollama:'Ollama',apfel:'Apfel'};
+function providerName(status){return PROVIDER_NAMES[status?.provider]||'Provider'}
+function modelState(status){
+  if(!status)return{label:'Not checked',tone:''};
+  const p=status.provider,s=status.state,svc=status.service,rt=status.runtime;
+  if(s==='not_configured')return{label:'Provider not configured',tone:'bad'};
+  if(p==='apfel'){
+    if(s==='available')return{label:'On-device, ready',tone:'good'};
+    return svc==='unreachable'?{label:'Apfel offline',tone:'bad'}:{label:'Apple model unavailable',tone:'bad'};
+  }
+  if(s==='running'||rt==='loaded')return{label:'Loaded',tone:'good'};
+  if(s==='available'&&rt==='idle')return{label:'Not loaded, loads on first use',tone:''};
+  if(s==='available'&&rt==='on_demand')return{label:'Cloud, not tested',tone:'warn'};
+  if(s==='available')return{label:'Listed, load state unknown',tone:''};
+  return svc==='unreachable'?{label:`${providerName(status)} offline`,tone:'bad'}:{label:'Not downloaded',tone:'bad'};
+}
+function controlLabel(control,status){
+  if(!control?.supported)return'';
+  if(control.action==='load_model')return'Load into memory';
+  if(control.action==='unload_model')return'Unload from memory';
+  if(control.action==='start_service')return`Start ${providerName(status)} service`;
+  if(control.action==='stop_service')return`Stop ${providerName(status)} service`;
+  return control.label||'';
+}
+function renderModelStatus(model){
+  if(!model)return'<div class="model-status"><span class="dot dot-bad" aria-hidden="true"></span>No model set</div>';
+  const status=modelStatuses[model],state=modelState(status),message=status?.message||'Status not checked yet. Checking never runs a prompt.';
+  return `<div class="model-status" title="${escapeHtml(message)}"><span class="dot ${state.tone?'dot-'+state.tone:''}" aria-hidden="true"></span><span>${escapeHtml(state.label)}</span></div>`;
+}
 async function checkConfiguredModels(onlyModel){const models=onlyModel?[onlyModel]:[...new Set(cachedKeys.map(k=>k.modelConfig?.model).filter(Boolean))];if(!models.length)return;const data=await api('/admin/models/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({models})});for(const status of data.statuses||[])modelStatuses[status.model]=status;renderKeys(cachedKeys)}
-async function checkConfiguredModel(model){try{await checkConfiguredModels(model)}catch(e){showError('dashboardError',e.message)}}
-async function startConfiguredModel(model){try{const data=await api('/admin/models/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})});modelStatuses[model]=data.status;renderKeys(cachedKeys);showSuccess(`${model} started`)}catch(e){showError('dashboardError',e.message)}}
-async function stopConfiguredModel(model){try{const data=await api('/admin/models/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})});modelStatuses[model]=data.status;renderKeys(cachedKeys);showSuccess(`${model} stopped`)}catch(e){showError('dashboardError',e.message)}}
-function renderKeys(keys){totalKeys.textContent=keys.length;activeKeys.textContent=keys.filter(k=>k.enabled).length;disabledKeys.textContent=keys.filter(k=>!k.enabled).length;if(!keys.length){keysTableContainer.innerHTML='<p class="loading">No API keys yet. Create one to get started.</p>';return}keysTableContainer.innerHTML=`<div class="table-wrap"><table class="keys-table"><thead><tr><th>Name</th><th>API Key</th><th>Model</th><th>Model status</th><th>Rate Limit</th><th>Key status</th><th>Actions</th></tr></thead><tbody>${keys.map(k=>{const safe=escapeHtml(k.key||''),visible=safe?`${safe.slice(0,8)}…${safe.slice(-6)}`:'—',effort=k.modelConfig?.effort||'unset',model=k.modelConfig?.model||'';return `<tr onclick="openPlaygroundForKey('${escapeHtml(k.id)}')" title="Open in Playground"><td data-label="Name"><strong>${escapeHtml(k.name)}</strong>${k.owner?`<br><small>${escapeHtml(k.owner)}</small>`:''}</td><td data-label="API Key"><div class="key-row"><span class="key-display" data-key-id="${escapeHtml(k.id)}">${visible}</span><button class="btn btn-small btn-ghost" onclick="event.stopPropagation();revealKey('${escapeHtml(k.id)}',this)">Reveal</button><button class="btn btn-small btn-secondary" onclick="event.stopPropagation();copyFullKey('${escapeHtml(k.id)}')">Copy</button></div></td><td data-label="Model">${escapeHtml(model||'—')}<br><small>Effort: ${escapeHtml(effort)}</small></td><td data-label="Model status">${renderModelStatus(model)}</td><td data-label="Rate Limit">${k.rateLimitConfig?.requestsPerMinute||'N/A'}/min</td><td data-label="Status"><span class="badge ${k.enabled?'badge-success':'badge-danger'}">${k.enabled?'● Enabled':'● Disabled'}</span><br><small>Client credential only</small></td><td data-label="Actions"><div class="actions"><button onclick="event.stopPropagation();openPlaygroundForKey('${escapeHtml(k.id)}')" class="btn btn-small">Live test</button><button onclick="event.stopPropagation();showEditModal('${escapeHtml(k.id)}')" class="btn btn-small btn-secondary">Edit</button><button onclick="event.stopPropagation();toggleKey('${escapeHtml(k.id)}',${!k.enabled})" class="btn btn-small btn-secondary">${k.enabled?'Disable':'Enable'}</button><button onclick="event.stopPropagation();deleteKey('${escapeHtml(k.id)}')" class="btn btn-small btn-danger">Delete</button></div></td></tr>`}).join('')}</tbody></table></div>`}
+async function checkConfiguredModel(model){if(!model)return;try{await checkConfiguredModels(model);showSuccess(`${model}: ${modelState(modelStatuses[model]).label}`)}catch(e){showError('dashboardError',e.message)}}
+async function startConfiguredModel(model){const before=modelStatuses[model],label=controlLabel(before?.start,before)||'Start';try{const data=await api('/admin/models/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})});modelStatuses[model]=data.status;renderKeys(cachedKeys);showSuccess(`${label} completed for ${model}.`)}catch(e){showError('dashboardError',e.message)}}
+async function stopConfiguredModel(model){const before=modelStatuses[model],label=controlLabel(before?.stop,before)||'Stop';if(before?.stop?.action==='stop_service'){const ok=await confirmAction({title:`${label}?`,body:`This stops ${providerName(before)} for every key that uses it, not only this one. They fail until the service is started again.`,action:label});if(!ok)return}try{const data=await api('/admin/models/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})});modelStatuses[model]=data.status;renderKeys(cachedKeys);showSuccess(`${label} completed for ${model}.`)}catch(e){showError('dashboardError',e.message)}}
+
+/* ---------- Keys ---------- */
+async function loadKeys(){try{const data=await api('/admin/keys');cachedKeys=data.keys||[];renderKeys(cachedKeys);renderTesterKeys();await checkConfiguredModels()}catch(e){showError('dashboardError',e.message)}}
+function maskKey(value){const v=String(value||'');return v?`${v.slice(0,8)}…${v.slice(-6)}`:'—'}
+function renderKeys(keys){
+  keyCount.textContent=keys.length?String(keys.length):'';
+  if(!keys.length){keysTableContainer.innerHTML='<p class="empty">No API keys yet. Create one to give a client access.</p>';return}
+  keysTableContainer.innerHTML=`<div class="table-wrap"><table class="keys-table"><thead><tr><th scope="col">Name</th><th scope="col">Model</th><th scope="col">Rate limit</th><th scope="col">Access</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${keys.map(k=>{
+    const id=escapeHtml(k.id),model=k.modelConfig?.model||'',revealed=revealedKeys.has(k.id)&&fullKeys[k.id];
+    return `<tr data-key-id="${id}"><td data-label="Name"><div class="key-name">${escapeHtml(k.name)}</div>${k.owner?`<div class="key-owner">${escapeHtml(k.owner)}</div>`:''}<code class="key-display${revealed?'':' hidden'}" data-key-id="${id}">${revealed?escapeHtml(fullKeys[k.id]):escapeHtml(maskKey(k.key))}</code></td><td data-label="Model">${model?`<div class="model-id">${escapeHtml(model)}</div>`:''}${renderModelStatus(model)}</td><td data-label="Rate limit">${k.rateLimitConfig?.requestsPerMinute||'N/A'} req/min</td><td data-label="Access"><span class="${k.enabled?'access-on':'access-off'}">${k.enabled?'Enabled':'Disabled'}</span></td><td data-label="Actions"><div class="row-actions"><button type="button" class="btn btn-sm" data-key-action="tester">Open in tester</button><button type="button" class="icon-btn" aria-label="Copy key" title="Copy key" data-key-action="copy">${ICON_COPY}</button><button type="button" class="icon-btn" aria-label="More actions" title="More actions" aria-haspopup="menu" aria-expanded="false" data-key-action="menu">${ICON_MORE}</button></div></td></tr>`}).join('')}</tbody></table></div>`;
+}
 async function getFullKey(id){if(fullKeys[id])return fullKeys[id];const k=await api(`/admin/keys/${id}`);fullKeys[id]=k.key;return k.key}
-async function revealKey(id,btn){try{const full=await getFullKey(id), span=document.querySelector(`.key-display[data-key-id="${CSS.escape(id)}"]`);span.textContent=span.textContent===full?`${full.slice(0,8)}…${full.slice(-6)}`:full;btn.textContent=span.textContent===full?'Hide':'Reveal'}catch(e){showError('dashboardError',e.message)}}
+async function revealKey(id){try{if(revealedKeys.has(id))revealedKeys.delete(id);else{await getFullKey(id);revealedKeys.add(id)}renderKeys(cachedKeys)}catch(e){showError('dashboardError',e.message)}}
 async function copyFullKey(id){try{await navigator.clipboard.writeText(await getFullKey(id));showSuccess('Full API key copied')}catch(e){showError('dashboardError','Clipboard copy failed')}}
-function showCreateModal(){editingKeyId=null;keyForm.reset();keyEnabled.checked=true;keyEffort.value='';modalTitle.textContent='Create API Key';modalSubtitle.textContent='Set limits and model defaults for a new client.';keySubmitButton.textContent='Create key';populateModelSelect(keyModel);keyModelManual.classList.add('hidden');keyModal.classList.add('show')}
-async function showEditModal(id){try{const k=await api(`/admin/keys/${id}`);editingKeyId=id;modalTitle.textContent='Edit API Key';modalSubtitle.textContent='Update all settings except the immutable API key string.';keySubmitButton.textContent='Save changes';keyName.value=k.name||'';keyOwner.value=k.owner||'';keyDescription.value=k.description||'';keyRateLimit.value=k.rateLimitConfig?.requestsPerMinute||30;keyBurstAllowance.value=k.rateLimitConfig?.burstAllowance||10;keyMaxTokens.value=k.modelConfig?.maxTokens||100;keyEffort.value=k.modelConfig?.effort||'';keyTemperature.value=k.modelConfig?.temperature??0.7;keyEnabled.checked=k.enabled!==false;populateModelSelect(keyModel,k.modelConfig?.model);keyModelManual.value='';keyModelManual.classList.add('hidden');keyModal.classList.add('show')}catch(e){showError('dashboardError',e.message)}}
-function closeModal(){keyModal.classList.remove('show')}
-keyForm.addEventListener('submit',async e=>{e.preventDefault();const model=getModel('key');if(!model)return showError('dashboardError','Choose or enter a model');const effort=keyEffort.value,modelConfig={model,maxTokens:+keyMaxTokens.value,temperature:+keyTemperature.value};if(effort)modelConfig.effort=effort;const payload={name:keyName.value,owner:keyOwner.value,description:keyDescription.value,enabled:keyEnabled.checked,rateLimitConfig:{requestsPerMinute:+keyRateLimit.value,burstAllowance:+keyBurstAllowance.value},...(editingKeyId?{}:{features:{suggestions:true,customActions:[]}}),modelConfig};try{const path=editingKeyId?`/admin/keys/${editingKeyId}`:'/admin/keys';const method=editingKeyId?'PATCH':'POST';const data=await api(path,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});closeModal();showSuccess(editingKeyId?'Key settings saved':'Key created. Use Reveal or Copy to access the credential.');await loadKeys()}catch(e){showError('dashboardError',e.message)}});
-async function toggleKey(id,enabled){try{await api(`/admin/keys/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled})});showSuccess(`Key ${enabled?'enabled':'disabled'} successfully`);loadKeys()}catch(e){showError('dashboardError',e.message)}}
-async function deleteKey(id){if(!confirm('Delete this key?'))return;try{await api(`/admin/keys/${id}`,{method:'DELETE'});showSuccess('Key deleted successfully');loadKeys()}catch(e){showError('dashboardError',e.message)}}
+keysTableContainer.addEventListener('click',e=>{const button=e.target.closest('[data-key-action]'),row=button?.closest('[data-key-id]'),id=row?.dataset.keyId;if(!button||!id)return;const action=button.dataset.keyAction;if(action==='tester')openPlaygroundForKey(id);else if(action==='copy')void copyFullKey(id);else if(action==='menu')openRowMenu(id,button)});
+
+/* ---------- Row menu ---------- */
+let menuTrigger=null,menuKeyId=null;
+function menuItem(label,action,cls=''){return `<button type="button" role="menuitem" tabindex="-1" class="${cls}" data-menu-action="${action}">${escapeHtml(label)}</button>`}
+function openRowMenu(id,trigger){
+  if(menuTrigger===trigger&&rowMenu.classList.contains('open')){closeRowMenu();return}
+  closeRowMenu(false);
+  const k=cachedKeys.find(x=>x.id===id);if(!k)return;
+  const model=k.modelConfig?.model||'',status=modelStatuses[model],state=modelState(status),start=controlLabel(status?.start,status),stop=controlLabel(status?.stop,status),guidance=status?.guidance;
+  rowMenu.setAttribute('aria-label',`Actions for ${k.name}`);
+  rowMenu.innerHTML=[
+    '<div class="menu-label">Key</div>',
+    menuItem('Edit','edit'),
+    menuItem(revealedKeys.has(id)?'Hide key':'Reveal key','reveal'),
+    menuItem(k.enabled?'Disable key':'Enable key','toggle'),
+    ...(model?['<div class="menu-sep" role="separator"></div>',`<div class="menu-label"><span class="mono">${escapeHtml(model)}</span> · ${escapeHtml(state.label)}</div>`,
+      menuItem('Refresh status','status'),
+      start?menuItem(start,'start'):'',
+      stop?menuItem(stop,'stop'):'',
+      guidance?.steps?.length?`<div class="menu-guidance"><strong>${escapeHtml(guidance.message||'Setup required.')}</strong><ol>${guidance.steps.map(step=>`<li>${escapeHtml(step)}</li>`).join('')}</ol></div>`:'',
+      '<div class="menu-note">Neither runs a prompt. Use the tester to check the key can chat.</div>']:[]),
+    '<div class="menu-sep" role="separator"></div>',
+    menuItem('Delete key','delete','danger'),
+  ].join('');
+  menuKeyId=id;
+  rowMenu.classList.add('open');
+  const r=trigger.getBoundingClientRect(),w=rowMenu.offsetWidth,h=rowMenu.offsetHeight;
+  rowMenu.style.left=`${Math.max(8,Math.min(r.right-w,innerWidth-w-8))}px`;
+  const below=r.bottom+6,above=r.top-h-6,maxTop=Math.max(8,innerHeight-h-8);
+  rowMenu.style.top=`${below+h<=innerHeight-8?below:above>=8?above:Math.max(8,Math.min(below,maxTop))}px`;
+  menuTrigger=trigger;trigger.setAttribute('aria-expanded','true');
+  rowMenu.querySelector('[role=menuitem]')?.focus({preventScroll:true});
+}
+function closeRowMenu(returnFocus=true){if(!rowMenu.classList.contains('open'))return;rowMenu.classList.remove('open');if(menuTrigger){menuTrigger.setAttribute('aria-expanded','false');if(returnFocus&&document.contains(menuTrigger))menuTrigger.focus({preventScroll:true})}menuTrigger=null;menuKeyId=null}
+rowMenu.addEventListener('click',e=>{const item=e.target.closest('[data-menu-action]'),id=menuKeyId,k=cachedKeys.find(x=>x.id===id),model=k?.modelConfig?.model||'',action=item?.dataset.menuAction;if(!item||!id||!k)return;closeRowMenu();if(action==='edit')void showEditModal(id);else if(action==='reveal')void revealKey(id);else if(action==='toggle')void toggleKey(id,!k.enabled);else if(action==='status')void checkConfiguredModel(model);else if(action==='start')void startConfiguredModel(model);else if(action==='stop')void stopConfiguredModel(model);else if(action==='delete')void deleteKey(id)});
+rowMenu.addEventListener('keydown',e=>{const items=[...rowMenu.querySelectorAll('[role=menuitem]')],i=items.indexOf(document.activeElement);const go=n=>items[n]?.focus();if(e.key==='ArrowDown'){e.preventDefault();go((i+1)%items.length)}else if(e.key==='ArrowUp'){e.preventDefault();go((i-1+items.length)%items.length)}else if(e.key==='Home'){e.preventDefault();go(0)}else if(e.key==='End'){e.preventDefault();go(items.length-1)}else if(e.key==='Tab'){closeRowMenu(false)}});
+document.addEventListener('click',e=>{if(rowMenu.classList.contains('open')&&!rowMenu.contains(e.target)&&!e.target.closest('[data-key-action="menu"]'))closeRowMenu(false)});
+addEventListener('resize',()=>closeRowMenu(false));
+
+/* ---------- Dialogs ---------- */
+function confirmAction({title,body,action}){return new Promise(resolve=>{byId('confirmTitle').textContent=title;byId('confirmBody').textContent=body;byId('confirmButton').textContent=action;confirmDialog.returnValue='';confirmDialog.addEventListener('close',()=>resolve(confirmDialog.returnValue==='confirm'),{once:true});confirmDialog.showModal()})}
+function showFormError(msg){keyFormError.textContent=msg;keyFormError.classList.add('show')}
+function openKeyModal(){keyFormError.classList.remove('show');if(!keyModal.open)keyModal.showModal();keyName.focus()}
+function showCreateModal(){editingKeyId=null;keyForm.reset();keyEnabled.checked=true;keyEffort.value='';modalTitle.textContent='New key';modalSubtitle.textContent='';keySubmitButton.textContent='Create key';populateModelSelect(keyModel);keyModelManual.classList.add('hidden');openKeyModal()}
+async function showEditModal(id){try{const k=await api(`/admin/keys/${id}`);editingKeyId=id;modalTitle.textContent='Edit key';modalSubtitle.textContent='Saving keeps the same API key string.';keySubmitButton.textContent='Save changes';keyName.value=k.name||'';keyOwner.value=k.owner||'';keyDescription.value=k.description||'';keyRateLimit.value=k.rateLimitConfig?.requestsPerMinute||30;keyBurstAllowance.value=k.rateLimitConfig?.burstAllowance||10;keyMaxTokens.value=k.modelConfig?.maxTokens||100;keyEffort.value=k.modelConfig?.effort||'';keyTemperature.value=k.modelConfig?.temperature??0.7;keyEnabled.checked=k.enabled!==false;populateModelSelect(keyModel,k.modelConfig?.model);keyModelManual.value='';keyModelManual.classList.add('hidden');openKeyModal()}catch(e){showError('dashboardError',e.message)}}
+function closeModal(){if(keyModal.open)keyModal.close()}
+keyForm.addEventListener('submit',async e=>{e.preventDefault();keyFormError.classList.remove('show');const model=getModel('key');if(!model)return showFormError('Choose a model, or pick Custom and type its name.');const effort=keyEffort.value,modelConfig={model,maxTokens:+keyMaxTokens.value,temperature:+keyTemperature.value};if(effort)modelConfig.effort=effort;const payload={name:keyName.value,owner:keyOwner.value,description:keyDescription.value,enabled:keyEnabled.checked,rateLimitConfig:{requestsPerMinute:+keyRateLimit.value,burstAllowance:+keyBurstAllowance.value},...(editingKeyId?{}:{features:{suggestions:true,customActions:[]}}),modelConfig};try{const path=editingKeyId?`/admin/keys/${editingKeyId}`:'/admin/keys';const method=editingKeyId?'PATCH':'POST';await api(path,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const wasEditing=Boolean(editingKeyId);closeModal();showSuccess(wasEditing?'Key settings saved':'Key created. Use Copy key or Reveal key from the row.');await loadKeys()}catch(e){showFormError(e.message)}});
+async function toggleKey(id,enabled){try{await api(`/admin/keys/${id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled})});showSuccess(`Key ${enabled?'enabled':'disabled'}`);await loadKeys()}catch(e){showError('dashboardError',e.message)}}
+async function deleteKey(id){const k=cachedKeys.find(x=>x.id===id);const ok=await confirmAction({title:`Delete ${k?.name||'this key'}?`,body:'Clients using this key lose access immediately. This can\'t be undone.',action:'Delete'});if(!ok)return;try{await api(`/admin/keys/${id}`,{method:'DELETE'});revealedKeys.delete(id);delete fullKeys[id];showSuccess('Key deleted');await loadKeys()}catch(e){showError('dashboardError',e.message)}}
+
+/* ---------- Routing ---------- */
 function safeDecodeRoutePart(v){try{return decodeURIComponent(v)}catch{return v}}
 function parseRoute(){const raw=(location.hash||'#keys').slice(1).replace(/^\//,'');const parts=raw.split('/').filter(Boolean),page=parts[0],isKnown=page==='playground'||page==='keys'||page==='login';return {page:page==='playground'||page==='keys'?page:'keys',keyId:page==='playground'&&parts[1]?safeDecodeRoutePart(parts[1]):null,isLoginRoute:page==='login',needsNormalize:!isKnown}}
 function routeFor(page,keyId){return '#'+page+(keyId?'/'+encodeURIComponent(keyId):'')}
-function navigateTo(page,keyId){const next=routeFor(page,keyId);if(location.hash!==next)history.pushState(null,'',next);applyRoute();closeDrawer()}
-function showPage(page){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById('page'+page[0].toUpperCase()+page.slice(1)).classList.add('active');document.querySelectorAll('.nav-pill,.mobile-tab').forEach(b=>{const active=b.dataset.page===page;b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false')})}
-async function applyRoute(){const route=parseRoute();if(route.needsNormalize&&authToken)history.replaceState(null,'',routeFor(route.page,route.keyId));showPage(route.page);if(route.page==='playground'){if(!cachedKeys.length)await loadKeys();if(route.keyId)testerKey.value=route.keyId;await loadTesterKey();if(route.keyId&&testerKey.value){testerStatus.textContent='Ready to test selected key.';if(!chatLog.textContent.includes('Selected key loaded'))chatLog.innerHTML='<div class="msg assistant">Selected key loaded. Send a test message to verify it works.</div>'}else{testerStatus.textContent='Choose an API key to run a live test.';if(!chatLog.textContent.includes('Choose an API key'))chatLog.innerHTML='<div class="msg assistant">Choose an API key, then send a test message.</div>'}}else closeModal()}
-window.addEventListener('hashchange',applyRoute);
-window.addEventListener('popstate',applyRoute);
-window.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer()});
+function navigateTo(page,keyId){const next=routeFor(page,keyId);if(location.hash!==next)history.pushState(null,'',next);applyRoute()}
+function showPage(page){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));byId('page'+page[0].toUpperCase()+page.slice(1)).classList.add('active');document.querySelectorAll('.nav-link').forEach(b=>{const active=b.dataset.page===page;b.classList.toggle('active',active);b.setAttribute('aria-current',active?'page':'false')})}
+async function applyRoute(){closeRowMenu(false);const route=parseRoute();if(route.needsNormalize&&authToken)history.replaceState(null,'',routeFor(route.page,route.keyId));showPage(route.page);if(route.page==='playground'){if(!cachedKeys.length)await loadKeys();if(route.keyId)testerKey.value=route.keyId;await loadTesterKey()}else closeModal()}
+addEventListener('hashchange',applyRoute);
+addEventListener('popstate',applyRoute);
+addEventListener('keydown',e=>{if(e.key==='Escape'&&rowMenu.classList.contains('open'))closeRowMenu()});
 async function openPlaygroundForKey(id){navigateTo('playground',id)}
-function renderTesterKeys(){const current=testerKey.value;testerKeyHint.textContent=cachedKeys.length?`${cachedKeys.length} admin keys loaded. The credential is fetched only when a test runs.`:'No admin keys loaded yet.';testerKey.innerHTML='<option value="">Choose a key…</option>'+cachedKeys.map(k=>`<option value="${escapeHtml(k.id)}">${escapeHtml(k.name)}${k.enabled?'':' · Disabled'}</option>`).join('');if(current)testerKey.value=current;loadTesterKey()}
-async function loadTesterKey(){const id=testerKey.value;if(id&&location.hash!=='#playground/'+encodeURIComponent(id)&&parseRoute().page==='playground')history.replaceState(null,'',routeFor('playground',id));if(!id){updateTesterKeyStatus();testerKeyFetchStatus.textContent='—';testerModelSummary.textContent='Choose a key';setTesterModel();updateModelCatalogStatus();updateTesterReadiness();return}const k=cachedKeys.find(x=>x.id===id),effort=k?.modelConfig?.effort||'unset';updateTesterKeyStatus(k);testerModelSummary.textContent=k?.modelConfig?.model?`${k.modelConfig.model} · effort ${effort}`:'No model configured';setTesterModel(k?.modelConfig?.model);testerKeyFetchStatus.textContent=fullKeys[id]?'Full key cached for testing':'Will fetch full key when test runs';updateTesterReadiness();diagnostics.textContent=JSON.stringify({selectedKey:{id,name:k?.name||null,enabled:k?.enabled??null,keyModel:k?.modelConfig?.model||null,testModel:testerSelectedModel()||null,effort:k?.modelConfig?.effort||null,fullKeyFetched:Boolean(fullKeys[id]),fetchPolicy:'on-test-only'}},null,2)}
+
+/* ---------- Tester ---------- */
+function renderTesterKeys(){const current=testerKey.value;testerKey.innerHTML='<option value="">Choose a key…</option>'+cachedKeys.map(k=>`<option value="${escapeHtml(k.id)}">${escapeHtml(k.name)}${k.enabled?'':' · Disabled'}</option>`).join('');if(current)testerKey.value=current;loadTesterKey()}
+function setResult(state,{meta='',body='',bodyClass='muted',recovery=false,busy=false}={}){const tones={idle:'state-idle',running:'',ok:'state-ok',fail:'state-fail'};const titles={idle:'Not run yet',running:'Testing…',ok:'Passed',fail:'Failed'};testerStatus.textContent=titles[state];testerStatus.className=tones[state];testerMeta.textContent=meta;chatLog.className=`answer ${bodyClass}`;chatLog.textContent=body;chatLog.setAttribute('role',state==='fail'?'alert':'status');testerRecovery.classList.toggle('hidden',!recovery);testerProgress.classList.toggle('hidden',!busy);byId('testerResult').setAttribute('aria-busy',busy?'true':'false');testerRun.disabled=busy}
+function clearTestResult(){testRun++;const id=testerKey.value,k=cachedKeys.find(x=>x.id===id);setResult('idle',{body:!id?'Choose a key, then run a test. The full key is only fetched when the test runs.':k?.enabled===false?'This key is disabled. Enable it from the Keys page before testing.':`Ready to test ${k?.name||'the selected key'}.`});diagnostics.textContent=id?JSON.stringify({selectedKey:{id,name:k?.name||null,enabled:k?.enabled??null,keyModel:k?.modelConfig?.model||null,testModel:testerSelectedModel()||null,fullKeyFetched:Boolean(fullKeys[id]),fetchPolicy:'on-test-only'}},null,2):'Diagnostics will appear here.'}
+let testerLoadedKeyState=null;
+async function loadTesterKey(){const id=testerKey.value;if(id&&location.hash!=='#playground/'+encodeURIComponent(id)&&parseRoute().page==='playground')history.replaceState(null,'',routeFor('playground',id));const k=cachedKeys.find(x=>x.id===id),keyState=JSON.stringify([id,k||null]);if(keyState===testerLoadedKeyState&&testerStatus.textContent!=='Not run yet')return;testerLoadedKeyState=keyState;setTesterModel(k?.modelConfig?.model);clearTestResult()}
 async function refreshPlayground(){await Promise.all([loadModels(),loadKeys(),loadSemanticOperations()])}
-function resetPlaygroundState(){testerKey.value='';populateModelSelect(testerModel);testerModelManual.classList.add('hidden');updateTesterKeyStatus();updateTesterReadiness();if(parseRoute().page==='playground')history.replaceState(null,'',routeFor('playground'));testerKeyFetchStatus.textContent='—';testerModelSummary.textContent='Choose a key';setConnectionTestDefaults();testerStatus.textContent='No test run yet.';chatLog.innerHTML='<div class="msg assistant">Choose an API key, then send a test message.</div>';diagnostics.textContent='Diagnostics will appear here.'}
 function classify(status,data,err,model){return classifyPlaygroundError(status,data,err,model)}
-async function sendTestMessage(){const id=testerKey.value, k=cachedKeys.find(x=>x.id===id), selectedModel=testerSelectedModel(), systemPrompt=testerSystemPrompt.value.trim(), prompt=testerPrompt.value.trim();if(k&&k.enabled===false)return showError('dashboardError','Selected key is disabled. Enable it before running a live chat test.');if(!id||!selectedModel)return showError('dashboardError','Select a key with a configured model');if(!prompt)return showError('dashboardError','Enter a message');const messages=[...(systemPrompt?[{role:'system',content:systemPrompt}]:[]),{role:'user',content:prompt}],body={model:selectedModel,messages,stream:false};chatLog.innerHTML+=`<div class="msg user">${escapeHtml(prompt)}</div>`;testerStatus.textContent='Running live /v1/chat/completions test…';const started=performance.now();try{const key=await getFullKey(id);testerKeyFetchStatus.textContent=key?`Fetched full key (${key.length} chars)`:testerKeyFetchStatus.textContent;updateTesterReadiness();const r=await fetch('/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify(body)});const raw=await r.text();let data={};try{data=raw?JSON.parse(raw):{}}catch{data={error:{code:'invalid_response_envelope'}}}const ms=Math.round(performance.now()-started);if(!r.ok)throw Object.assign(new Error(apiErrorMessage(data,`HTTP ${r.status}`)),{status:r.status,data});const content=data.choices?.[0]?.message?.content||data.message?.content||'The gateway returned an empty response.';chatLog.innerHTML+=`<div class="msg assistant">${escapeHtml(content)}</div>`;testerStatus.textContent='✅ Key can chat through /v1/chat/completions';diagnostics.textContent=JSON.stringify({result:'success',status:r.status,latencyMs:ms,model:body.model,keyId:id,testType:'connection-smoke',fullKeyFetched:true,endpoint:'/v1/chat/completions',messageRoles:body.messages.map(m=>m.role),systemPromptLength:systemPrompt.length,userMessageLength:prompt.length,requestFields:Object.keys(body)},null,2)}catch(e){const ms=Math.round(performance.now()-started);const reason=classify(e.status,e.data,e,body.model);chatLog.innerHTML+=`<div class="msg assistant">❌ ${escapeHtml(reason)}</div>`;testerStatus.textContent='❌ Test failed';diagnostics.textContent=JSON.stringify({result:'failed',classification:reason,status:e.status||'network',latencyMs:ms,model:body.model,keyId:id,testType:'connection-smoke',fullKeyFetched:Boolean(fullKeys[id]),endpoint:'/v1/chat/completions',messageRoles:body.messages.map(m=>m.role),systemPromptLength:systemPrompt.length,userMessageLength:prompt.length,requestFields:Object.keys(body),error:e.message,details:e.data||null},null,2)}}
-function logout(){showLogin();loginForm.reset();if(location.hash!=='#login')history.replaceState(null,'','#login')}function showError(id,msg){const el=document.getElementById(id);el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),7000)}function showSuccess(msg){dashboardSuccess.textContent=msg;dashboardSuccess.classList.add('show');setTimeout(()=>dashboardSuccess.classList.remove('show'),5000)}
+async function sendTestMessage(){
+  const id=testerKey.value,k=cachedKeys.find(x=>x.id===id),selectedModel=testerSelectedModel(),systemPrompt=testerSystemPrompt.value.trim(),prompt=testerPrompt.value.trim();
+  if(!id)return setResult('idle',{body:'Choose a key first.'});
+  if(k&&k.enabled===false)return setResult('fail',{body:'Selected key is disabled. Enable it on the Keys page before testing.'});
+  if(!selectedModel)return setResult('idle',{body:'Choose a model, or pick Custom and type its name.'});
+  if(!prompt)return setResult('idle',{body:'Enter a message to send.'});
+  const run=++testRun,messages=[...(systemPrompt?[{role:'system',content:systemPrompt}]:[]),{role:'user',content:prompt}],body={model:selectedModel,messages,stream:false};
+  setResult('running',{meta:selectedModel,busy:true});
+  const started=performance.now();
+  try{
+    const key=await getFullKey(id);
+    const r=await fetch('/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify(body)});
+    const raw=await r.text();let data={};try{data=raw?JSON.parse(raw):{}}catch{data={error:{code:'invalid_response_envelope'}}}
+    const ms=Math.round(performance.now()-started);
+    if(!r.ok)throw Object.assign(new Error(apiErrorMessage(data,`HTTP ${r.status}`)),{status:r.status,data});
+    if(run!==testRun)return;
+    const content=data.choices?.[0]?.message?.content||data.message?.content||'The gateway returned an empty response.';
+    setResult('ok',{meta:`${r.status} · ${ms} ms · ${body.model}`,body:content,bodyClass:''});
+    diagnostics.textContent=JSON.stringify({result:'success',status:r.status,latencyMs:ms,model:body.model,keyId:id,testType:'connection-smoke',fullKeyFetched:true,endpoint:'/v1/chat/completions',messageRoles:body.messages.map(m=>m.role),systemPromptLength:systemPrompt.length,userMessageLength:prompt.length,requestFields:Object.keys(body)},null,2);
+  }catch(e){
+    if(run!==testRun)return;
+    const ms=Math.round(performance.now()-started),reason=classify(e.status,e.data,e,body.model);
+    setResult('fail',{meta:`${e.status||'network'} · ${body.model}`,body:reason,bodyClass:'error',recovery:true});
+    diagnostics.textContent=JSON.stringify({result:'failed',classification:reason,status:e.status||'network',latencyMs:ms,model:body.model,keyId:id,testType:'connection-smoke',fullKeyFetched:Boolean(fullKeys[id]),endpoint:'/v1/chat/completions',messageRoles:body.messages.map(m=>m.role),systemPromptLength:systemPrompt.length,userMessageLength:prompt.length,requestFields:Object.keys(body),error:e.message,details:e.data||null},null,2);
+  }
+}
+
+/* ---------- Feedback ---------- */
+function logout(){showLogin();loginForm.reset();if(location.hash!=='#login')history.replaceState(null,'','#login')}
+const toastTimers={};
+function showError(id,msg){const el=byId(id);el.textContent=msg;el.classList.add('show');clearTimeout(toastTimers[id]);toastTimers[id]=setTimeout(()=>el.classList.remove('show'),7000)}
+function showSuccess(msg){dashboardSuccess.textContent=msg;dashboardSuccess.classList.add('show');clearTimeout(toastTimers.success);toastTimers.success=setTimeout(()=>dashboardSuccess.classList.remove('show'),5000)}
+
+setConnectionTestDefaults();
+loadSemanticOperations();
+restoreSession();
 
 // Static contract markers for tests: fetch('/admin/keys' ; fetch(`/admin/keys/${keyId}`
 </script>

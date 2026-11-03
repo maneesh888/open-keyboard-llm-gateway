@@ -12,11 +12,11 @@ A fixture walkthrough can establish visible layout, interaction and recovery, bu
 
 Use a browser-control tool or Computer Use to operate visible production controls. Do not inject DOM state, call UI functions directly, seed browser authentication, intercept gateway requests, or treat tool action success as visual acceptance. Inspect the resulting screen.
 
-1. At desktop and a narrow viewport, sign in, inspect orientation and the next action. Exercise failed sign-in and its recovery when auth UI changed.
-2. Create a disposable key, inspect default-model and limit wording, cancel/reopen edits, save, and verify the displayed result. Check disable/enable/delete only for the created fixture key. Inspect reveal/copy, then hide credentials before capture.
-3. Follow the key's Live test action. Verify the selected key/model remains consistent and the action explains that it sends a request. Run a public synthetic request. Inspect loading, result, retry/reset, and navigation back.
-4. For model-control changes, distinguish key enabled, metadata availability, loaded state and inference outcome. In the fixture, exercise start/stop. Read setup help and check that guidance is advisory.
-5. Check accessible labels, visible keyboard focus, Tab/Shift-Tab order, Enter/Space actions, modal focus/return, browser back and narrow-screen scrolling. Check zoom/long-value fit on affected controls. Record any behavior you could not inspect; automated accessibility metadata alone is not acceptance.
+1. At desktop and a narrow viewport, sign in, inspect orientation and the next action. Exercise failed sign-in and its recovery when auth UI changed. Verify **Sign out** removes access.
+2. Use **New key** to create a disposable key. Inspect default-model and limit wording, cancel/reopen edits, save, and verify the displayed result. Check disable/enable/delete only for the created fixture key. Inspect reveal/copy, then hide credentials before capture.
+3. Follow the key's **Open in tester** action. Verify the selected key/model remains consistent, enter a public synthetic message, and choose **Run test**. Inspect **Testing…**, the result, the **Refresh status** and **Try again** recovery actions, and navigation back.
+4. For model-control changes, distinguish key access (**Enabled**/**Disabled**), the visible model-state label, provider metadata, loaded state and inference outcome. In the fixture, use **Refresh status** and exercise each supported load, unload, or service control. Read setup help and confirm the menu explains that model controls do not run a prompt.
+5. Check accessible labels, visible keyboard focus, Tab/Shift-Tab order, Enter/Space actions, modal focus/return, browser back, **Keys**/**Tester** navigation, and narrow-screen scrolling. Check zoom/long-value fit on affected controls. Record any behavior you could not inspect; automated accessibility metadata alone is not acceptance.
 
 ## Record and deliver
 
