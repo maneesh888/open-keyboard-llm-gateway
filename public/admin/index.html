@@ -348,7 +348,7 @@ togglePassword.addEventListener('click',()=>{const visible=password.type==='text
 loginForm.addEventListener('submit',async e=>{e.preventDefault();loginError.classList.remove('show');const trimmedUsername=username.value.trim(),trimmedPassword=password.value.trim();try{const r=await fetch('/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:trimmedUsername,password:trimmedPassword})});if(!r.ok){let data={};try{data=await r.json()}catch{}const err=new Error(apiErrorMessage(data,'Invalid credentials'));err.status=r.status;throw err}const data=await r.json();authToken=data.token;saveSession(data.token,data.expiresIn);showDashboard();const loginRoute=parseRoute();if(loginRoute.needsNormalize||loginRoute.isLoginRoute)history.replaceState(null,'',routeFor('keys'));applyRoute();await Promise.all([loadModels(),loadKeys()]);}catch(err){showError('loginError',err.message||'Sign-in failed. Check your username and password.')}});
 
 /* ---------- Models ---------- */
-async function loadModels(){try{const data=await api('/admin/models');availableModels=data.models||[];if(!availableModels.length)showError('dashboardError','No models found on the Ollama host. Pull one with `ollama pull <model>` or choose Custom.')}catch(e){availableModels=[];showError('dashboardError',`Model list unavailable: ${e.message}`)}populateModelSelect(keyModel);syncTesterModelForKey()}
+async function loadModels(){try{const data=await api('/admin/models');availableModels=data.models||[];if(!availableModels.length)showError('dashboardError','No models were discovered. If you use Ollama, pull one first; otherwise choose Custom and enter the exact model name.')}catch(e){availableModels=[];showError('dashboardError',`Model list unavailable: ${e.message}`)}populateModelSelect(keyModel);syncTesterModelForKey()}
 function testerSelectedModel(){return getModel('tester')}
 function populateModelSelect(sel,value,defaultModel){const state=modelSelectionForKey(availableModels,value),options=[`<option value="">Choose a model…</option>`,...state.options.map(m=>`<option value="${escapeHtml(m)}">${escapeHtml(m)}${defaultModel&&m===defaultModel?' (key default)':''}</option>`),`<option value="${CUSTOM_MODEL_VALUE}">Custom… (type a model name)</option>`];sel.innerHTML=options.join('');sel.value=state.selectValue}
 function setTesterModel(value){populateModelSelect(testerModel,value,value);testerModelManual.value='';testerModelManual.classList.add('hidden')}
@@ -357,7 +357,7 @@ function getModel(prefix){const sel=byId(prefix+'Model'),manual=byId(prefix+'Mod
 function syncManualModel(prefix){const sel=byId(prefix+'Model'),manual=byId(prefix+'ModelManual');manual.classList.toggle('hidden',sel.value!==CUSTOM_MODEL_VALUE);if(sel.value===CUSTOM_MODEL_VALUE)manual.focus()}
 
 /* Model state labels come from provider + service + runtime, never from state alone.
-   Status checks and load/unload never run inference; only a live test proves the key can chat. */
+   Status checks and load/unload never run inference; only Run test proves the key can chat. */
 const PROVIDER_NAMES={ollama:'Ollama',apfel:'Apfel'};
 function providerName(status){return PROVIDER_NAMES[status?.provider]||'Provider'}
 function modelState(status){
@@ -389,8 +389,8 @@ function renderModelStatus(model){
 }
 async function checkConfiguredModels(onlyModel){const models=onlyModel?[onlyModel]:[...new Set(cachedKeys.map(k=>k.modelConfig?.model).filter(Boolean))];if(!models.length)return;const data=await api('/admin/models/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({models})});for(const status of data.statuses||[])modelStatuses[status.model]=status;renderKeys(cachedKeys)}
 async function checkConfiguredModel(model){if(!model)return;try{await checkConfiguredModels(model);showSuccess(`${model}: ${modelState(modelStatuses[model]).label}`)}catch(e){showError('dashboardError',e.message)}}
-async function startConfiguredModel(model){const before=modelStatuses[model],label=controlLabel(before?.start,before)||'Start';try{const data=await api('/admin/models/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})});modelStatuses[model]=data.status;renderKeys(cachedKeys);showSuccess(`${label}: done for ${model}`)}catch(e){showError('dashboardError',e.message)}}
-async function stopConfiguredModel(model){const before=modelStatuses[model],label=controlLabel(before?.stop,before)||'Stop';if(before?.stop?.action==='stop_service'){const ok=await confirmAction({title:`${label}?`,body:`This stops ${providerName(before)} for every key that uses it, not only this one. They fail until the service is started again.`,action:label});if(!ok)return}try{const data=await api('/admin/models/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})});modelStatuses[model]=data.status;renderKeys(cachedKeys);showSuccess(`${label}: done for ${model}`)}catch(e){showError('dashboardError',e.message)}}
+async function startConfiguredModel(model){const before=modelStatuses[model],label=controlLabel(before?.start,before)||'Start';try{const data=await api('/admin/models/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})});modelStatuses[model]=data.status;renderKeys(cachedKeys);showSuccess(`${label} completed for ${model}.`)}catch(e){showError('dashboardError',e.message)}}
+async function stopConfiguredModel(model){const before=modelStatuses[model],label=controlLabel(before?.stop,before)||'Stop';if(before?.stop?.action==='stop_service'){const ok=await confirmAction({title:`${label}?`,body:`This stops ${providerName(before)} for every key that uses it, not only this one. They fail until the service is started again.`,action:label});if(!ok)return}try{const data=await api('/admin/models/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model})});modelStatuses[model]=data.status;renderKeys(cachedKeys);showSuccess(`${label} completed for ${model}.`)}catch(e){showError('dashboardError',e.message)}}
 
 /* ---------- Keys ---------- */
 async function loadKeys(){try{const data=await api('/admin/keys');cachedKeys=data.keys||[];renderKeys(cachedKeys);renderTesterKeys();await checkConfiguredModels()}catch(e){showError('dashboardError',e.message)}}
@@ -476,7 +476,7 @@ function classify(status,data,err,model){return classifyPlaygroundError(status,d
 async function sendTestMessage(){
   const id=testerKey.value,k=cachedKeys.find(x=>x.id===id),selectedModel=testerSelectedModel(),systemPrompt=testerSystemPrompt.value.trim(),prompt=testerPrompt.value.trim();
   if(!id)return setResult('idle',{body:'Choose a key first.'});
-  if(k&&k.enabled===false)return setResult('fail',{body:'Selected key is disabled. Enable it before running a live chat test.'});
+  if(k&&k.enabled===false)return setResult('fail',{body:'Selected key is disabled. Enable it on the Keys page before testing.'});
   if(!selectedModel)return setResult('idle',{body:'Choose a model, or pick Custom and type its name.'});
   if(!prompt)return setResult('idle',{body:'Enter a message to send.'});
   const run=++testRun,messages=[...(systemPrompt?[{role:'system',content:systemPrompt}]:[]),{role:'user',content:prompt}],body={model:selectedModel,messages,stream:false};

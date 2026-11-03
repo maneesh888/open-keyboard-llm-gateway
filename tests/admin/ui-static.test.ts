@@ -113,7 +113,7 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('systemPromptLength:systemPrompt.length');
     expect(html).toContain("fetch('/v1/chat/completions'");
     expect(html).toContain("endpoint:'/v1/chat/completions'");
-    expect(html).toContain('Selected key is disabled. Enable it before running a live chat test.');
+    expect(html).toContain('Selected key is disabled. Enable it on the Keys page before testing.');
     expect(html).toContain('selectedModel=testerSelectedModel()');
     expect(html).not.toContain('testerSelectedModel()||k?.modelConfig?.model');
     expect(html).not.toContain('data={raw}');
@@ -171,6 +171,7 @@ describe('Admin UI static contract', () => {
 
   it('uses model selector with manual fallback for key creation/editing', () => {
     expect(html).toContain("api('/admin/models'");
+    expect(html).toContain('No models were discovered. If you use Ollama, pull one first; otherwise choose Custom and enter the exact model name.');
     expect(html).toContain('id="keyModel"');
     expect(html).toContain("onchange=\"syncManualModel('key')\"");
     expect(html).toContain('function syncManualModel(prefix)');
@@ -199,6 +200,8 @@ describe('Admin UI static contract', () => {
     expect(html).toContain('offline`');
     expect(html).toContain("Load into memory");
     expect(html).toContain("Unload from memory");
+    expect(html).toContain('completed for ${model}.');
+    expect(html).not.toContain(': done for ${model}');
     expect(html).toContain('Neither runs a prompt.');
     // Model state is never conveyed by color alone.
     expect(html).toContain('<span class="dot ${state.tone?');
