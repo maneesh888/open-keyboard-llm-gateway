@@ -208,20 +208,20 @@ open http://localhost:8080/ui
 
 The UI supports:
 
-- key dashboard totals for total, active, and disabled keys
-- client credential management with reveal/copy controls
+- a compact key list with explicit **New key**, **Open in tester**, and overflow actions
+- client credential management with explicit reveal/copy controls
 - per-key model, token, effort, temperature, and rate-limit settings
 - enable/disable and delete actions
 - separate key enablement and model runtime status; an enabled key does not claim that its model works
 - automatic and manual bounded model checks that do not send inference requests
 - capability-based start/stop controls for local Ollama models and an authenticated macOS Apfel service controller for Docker deployments
-- responsive mobile navigation for API Keys and Playground
-- live playground tests using the selected key and model
+- responsive **Keys** and **Tester** navigation
+- connection tests using the selected key and model through **Run test**
 - a generic connection test with editable system and user messages
-- a read-only catalog mapping semantic operation IDs to keyboard application request IDs
+- a read-only operations catalog whose **Sent as** column maps semantic operation IDs to keyboard application request IDs
 - diagnostics for status, latency, selected key, request shape, and failure classification
 
-Model checks use provider metadata only: Ollama catalog/loaded-model APIs or Apfel `/health`. An `available` or `running` badge therefore does not prove credentials, entitlement, billing, network egress, response quality, or live inference. Use **Live test** when that stronger proof is needed; the live test can consume provider tokens or incur cost.
+Model checks use provider metadata only: Ollama catalog/loaded-model APIs or Apfel `/health`. Labels such as **Not loaded, loads on first use**, **Cloud, not tested**, or **On-device, ready** therefore do not prove credentials, entitlement, billing, network egress, response quality, or live inference. Use **Open in tester**, then **Run test**, when that stronger proof is needed; the test can consume provider tokens or incur cost.
 
 `POST /admin/models/status` accepts `{ "models": ["model-id"] }` and returns status records with `inferencePerformed: false`. `POST /admin/models/start` and `POST /admin/models/stop` accept only `{ "model": "model-id" }`. They never accept a command, executable, arguments, environment, or host from the request.
 
