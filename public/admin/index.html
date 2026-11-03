@@ -96,7 +96,7 @@
     .empty{padding:32px 20px;color:var(--muted);text-align:center}
 
     /* Row menu */
-    .menu{position:fixed;z-index:50;width:280px;padding:6px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(22,24,27,.14);display:none}
+    .menu{position:fixed;z-index:50;width:280px;max-height:calc(100vh - 16px);overflow-y:auto;overscroll-behavior:contain;padding:6px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(22,24,27,.14);display:none}
     .menu.open{display:block}
     .menu [role=menuitem]{display:flex;align-items:center;width:100%;min-height:40px;padding:0 12px;border:0;border-radius:8px;background:transparent;text-align:left;cursor:pointer}
     .menu [role=menuitem]:hover,.menu [role=menuitem]:focus{background:var(--bg);outline:none}
@@ -400,47 +400,50 @@ function renderKeys(keys){
   if(!keys.length){keysTableContainer.innerHTML='<p class="empty">No API keys yet. Create one to give a client access.</p>';return}
   keysTableContainer.innerHTML=`<div class="table-wrap"><table class="keys-table"><thead><tr><th scope="col">Name</th><th scope="col">Model</th><th scope="col">Rate limit</th><th scope="col">Access</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${keys.map(k=>{
     const id=escapeHtml(k.id),model=k.modelConfig?.model||'',revealed=revealedKeys.has(k.id)&&fullKeys[k.id];
-    return `<tr data-key-id="${id}"><td data-label="Name"><div class="key-name">${escapeHtml(k.name)}</div>${k.owner?`<div class="key-owner">${escapeHtml(k.owner)}</div>`:''}<code class="key-display${revealed?'':' hidden'}" data-key-id="${id}">${revealed?escapeHtml(fullKeys[k.id]):escapeHtml(maskKey(k.key))}</code></td><td data-label="Model">${model?`<div class="model-id">${escapeHtml(model)}</div>`:''}${renderModelStatus(model)}</td><td data-label="Rate limit">${k.rateLimitConfig?.requestsPerMinute||'N/A'} req/min</td><td data-label="Access"><span class="${k.enabled?'access-on':'access-off'}">${k.enabled?'Enabled':'Disabled'}</span></td><td data-label="Actions"><div class="row-actions"><button type="button" class="btn btn-sm" onclick="openPlaygroundForKey('${id}')">Open in tester</button><button type="button" class="icon-btn" aria-label="Copy key" title="Copy key" onclick="copyFullKey('${id}')">${ICON_COPY}</button><button type="button" class="icon-btn" aria-label="More actions" title="More actions" aria-haspopup="menu" aria-expanded="false" data-menu-key="${id}" onclick="openRowMenu('${id}',this)">${ICON_MORE}</button></div></td></tr>`}).join('')}</tbody></table></div>`;
+    return `<tr data-key-id="${id}"><td data-label="Name"><div class="key-name">${escapeHtml(k.name)}</div>${k.owner?`<div class="key-owner">${escapeHtml(k.owner)}</div>`:''}<code class="key-display${revealed?'':' hidden'}" data-key-id="${id}">${revealed?escapeHtml(fullKeys[k.id]):escapeHtml(maskKey(k.key))}</code></td><td data-label="Model">${model?`<div class="model-id">${escapeHtml(model)}</div>`:''}${renderModelStatus(model)}</td><td data-label="Rate limit">${k.rateLimitConfig?.requestsPerMinute||'N/A'} req/min</td><td data-label="Access"><span class="${k.enabled?'access-on':'access-off'}">${k.enabled?'Enabled':'Disabled'}</span></td><td data-label="Actions"><div class="row-actions"><button type="button" class="btn btn-sm" data-key-action="tester">Open in tester</button><button type="button" class="icon-btn" aria-label="Copy key" title="Copy key" data-key-action="copy">${ICON_COPY}</button><button type="button" class="icon-btn" aria-label="More actions" title="More actions" aria-haspopup="menu" aria-expanded="false" data-key-action="menu">${ICON_MORE}</button></div></td></tr>`}).join('')}</tbody></table></div>`;
 }
 async function getFullKey(id){if(fullKeys[id])return fullKeys[id];const k=await api(`/admin/keys/${id}`);fullKeys[id]=k.key;return k.key}
 async function revealKey(id){try{if(revealedKeys.has(id))revealedKeys.delete(id);else{await getFullKey(id);revealedKeys.add(id)}renderKeys(cachedKeys)}catch(e){showError('dashboardError',e.message)}}
 async function copyFullKey(id){try{await navigator.clipboard.writeText(await getFullKey(id));showSuccess('Full API key copied')}catch(e){showError('dashboardError','Clipboard copy failed')}}
+keysTableContainer.addEventListener('click',e=>{const button=e.target.closest('[data-key-action]'),row=button?.closest('[data-key-id]'),id=row?.dataset.keyId;if(!button||!id)return;const action=button.dataset.keyAction;if(action==='tester')openPlaygroundForKey(id);else if(action==='copy')void copyFullKey(id);else if(action==='menu')openRowMenu(id,button)});
 
 /* ---------- Row menu ---------- */
-let menuTrigger=null;
-function menuItem(label,handler,cls=''){return `<button type="button" role="menuitem" tabindex="-1" class="${cls}" onclick="closeRowMenu();${handler}">${escapeHtml(label)}</button>`}
+let menuTrigger=null,menuKeyId=null;
+function menuItem(label,action,cls=''){return `<button type="button" role="menuitem" tabindex="-1" class="${cls}" data-menu-action="${action}">${escapeHtml(label)}</button>`}
 function openRowMenu(id,trigger){
   if(menuTrigger===trigger&&rowMenu.classList.contains('open')){closeRowMenu();return}
   closeRowMenu(false);
   const k=cachedKeys.find(x=>x.id===id);if(!k)return;
-  const safeId=escapeHtml(id),model=k.modelConfig?.model||'',status=modelStatuses[model],state=modelState(status),start=controlLabel(status?.start,status),stop=controlLabel(status?.stop,status),guidance=status?.guidance,safeModel=escapeHtml(JSON.stringify(model)).replace(/&quot;/g,"'");
+  const model=k.modelConfig?.model||'',status=modelStatuses[model],state=modelState(status),start=controlLabel(status?.start,status),stop=controlLabel(status?.stop,status),guidance=status?.guidance;
   rowMenu.setAttribute('aria-label',`Actions for ${k.name}`);
   rowMenu.innerHTML=[
     '<div class="menu-label">Key</div>',
-    menuItem('Edit',`showEditModal('${safeId}')`),
-    menuItem(revealedKeys.has(id)?'Hide key':'Reveal key',`revealKey('${safeId}')`),
-    menuItem(k.enabled?'Disable key':'Enable key',`toggleKey('${safeId}',${!k.enabled})`),
+    menuItem('Edit','edit'),
+    menuItem(revealedKeys.has(id)?'Hide key':'Reveal key','reveal'),
+    menuItem(k.enabled?'Disable key':'Enable key','toggle'),
     ...(model?['<div class="menu-sep" role="separator"></div>',`<div class="menu-label"><span class="mono">${escapeHtml(model)}</span> · ${escapeHtml(state.label)}</div>`,
-      menuItem('Refresh status',`checkConfiguredModel(${safeModel})`),
-      start?menuItem(start,`startConfiguredModel(${safeModel})`):'',
-      stop?menuItem(stop,`stopConfiguredModel(${safeModel})`):'',
+      menuItem('Refresh status','status'),
+      start?menuItem(start,'start'):'',
+      stop?menuItem(stop,'stop'):'',
       guidance?.steps?.length?`<div class="menu-guidance"><strong>${escapeHtml(guidance.message||'Setup required.')}</strong><ol>${guidance.steps.map(step=>`<li>${escapeHtml(step)}</li>`).join('')}</ol></div>`:'',
       '<div class="menu-note">Neither runs a prompt. Use the tester to check the key can chat.</div>']:[]),
     '<div class="menu-sep" role="separator"></div>',
-    menuItem('Delete key',`deleteKey('${safeId}')`,'danger'),
+    menuItem('Delete key','delete','danger'),
   ].join('');
+  menuKeyId=id;
   rowMenu.classList.add('open');
   const r=trigger.getBoundingClientRect(),w=rowMenu.offsetWidth,h=rowMenu.offsetHeight;
   rowMenu.style.left=`${Math.max(8,Math.min(r.right-w,innerWidth-w-8))}px`;
-  rowMenu.style.top=`${r.bottom+h+8>innerHeight&&r.top-h-6>8?r.top-h-6:Math.min(r.bottom+6,innerHeight-h-8)}px`;
+  const below=r.bottom+6,above=r.top-h-6,maxTop=Math.max(8,innerHeight-h-8);
+  rowMenu.style.top=`${below+h<=innerHeight-8?below:above>=8?above:Math.max(8,Math.min(below,maxTop))}px`;
   menuTrigger=trigger;trigger.setAttribute('aria-expanded','true');
   rowMenu.querySelector('[role=menuitem]')?.focus({preventScroll:true});
 }
-function closeRowMenu(returnFocus=true){if(!rowMenu.classList.contains('open'))return;rowMenu.classList.remove('open');if(menuTrigger){menuTrigger.setAttribute('aria-expanded','false');if(returnFocus&&document.contains(menuTrigger))menuTrigger.focus({preventScroll:true})}menuTrigger=null}
+function closeRowMenu(returnFocus=true){if(!rowMenu.classList.contains('open'))return;rowMenu.classList.remove('open');if(menuTrigger){menuTrigger.setAttribute('aria-expanded','false');if(returnFocus&&document.contains(menuTrigger))menuTrigger.focus({preventScroll:true})}menuTrigger=null;menuKeyId=null}
+rowMenu.addEventListener('click',e=>{const item=e.target.closest('[data-menu-action]'),id=menuKeyId,k=cachedKeys.find(x=>x.id===id),model=k?.modelConfig?.model||'',action=item?.dataset.menuAction;if(!item||!id||!k)return;closeRowMenu();if(action==='edit')void showEditModal(id);else if(action==='reveal')void revealKey(id);else if(action==='toggle')void toggleKey(id,!k.enabled);else if(action==='status')void checkConfiguredModel(model);else if(action==='start')void startConfiguredModel(model);else if(action==='stop')void stopConfiguredModel(model);else if(action==='delete')void deleteKey(id)});
 rowMenu.addEventListener('keydown',e=>{const items=[...rowMenu.querySelectorAll('[role=menuitem]')],i=items.indexOf(document.activeElement);const go=n=>items[n]?.focus({preventScroll:true});if(e.key==='ArrowDown'){e.preventDefault();go((i+1)%items.length)}else if(e.key==='ArrowUp'){e.preventDefault();go((i-1+items.length)%items.length)}else if(e.key==='Home'){e.preventDefault();go(0)}else if(e.key==='End'){e.preventDefault();go(items.length-1)}else if(e.key==='Tab'){closeRowMenu(false)}});
-document.addEventListener('click',e=>{if(rowMenu.classList.contains('open')&&!rowMenu.contains(e.target)&&!e.target.closest('[data-menu-key]'))closeRowMenu(false)});
+document.addEventListener('click',e=>{if(rowMenu.classList.contains('open')&&!rowMenu.contains(e.target)&&!e.target.closest('[data-key-action="menu"]'))closeRowMenu(false)});
 addEventListener('resize',()=>closeRowMenu(false));
-addEventListener('scroll',()=>closeRowMenu(false),true);
 
 /* ---------- Dialogs ---------- */
 function confirmAction({title,body,action}){return new Promise(resolve=>{byId('confirmTitle').textContent=title;byId('confirmBody').textContent=body;byId('confirmButton').textContent=action;confirmDialog.returnValue='';confirmDialog.addEventListener('close',()=>resolve(confirmDialog.returnValue==='confirm'),{once:true});confirmDialog.showModal()})}
@@ -469,8 +472,8 @@ async function openPlaygroundForKey(id){navigateTo('playground',id)}
 function renderTesterKeys(){const current=testerKey.value;testerKey.innerHTML='<option value="">Choose a key…</option>'+cachedKeys.map(k=>`<option value="${escapeHtml(k.id)}">${escapeHtml(k.name)}${k.enabled?'':' · Disabled'}</option>`).join('');if(current)testerKey.value=current;loadTesterKey()}
 function setResult(state,{meta='',body='',bodyClass='muted',recovery=false,busy=false}={}){const tones={idle:'state-idle',running:'',ok:'state-ok',fail:'state-fail'};const titles={idle:'Not run yet',running:'Testing…',ok:'Passed',fail:'Failed'};testerStatus.textContent=titles[state];testerStatus.className=tones[state];testerMeta.textContent=meta;chatLog.className=`answer ${bodyClass}`;chatLog.textContent=body;chatLog.setAttribute('role',state==='fail'?'alert':'status');testerRecovery.classList.toggle('hidden',!recovery);testerProgress.classList.toggle('hidden',!busy);byId('testerResult').setAttribute('aria-busy',busy?'true':'false');testerRun.disabled=busy}
 function clearTestResult(){testRun++;const id=testerKey.value,k=cachedKeys.find(x=>x.id===id);setResult('idle',{body:!id?'Choose a key, then run a test. The full key is only fetched when the test runs.':k?.enabled===false?'This key is disabled. Enable it from the Keys page before testing.':`Ready to test ${k?.name||'the selected key'}.`});diagnostics.textContent=id?JSON.stringify({selectedKey:{id,name:k?.name||null,enabled:k?.enabled??null,keyModel:k?.modelConfig?.model||null,testModel:testerSelectedModel()||null,fullKeyFetched:Boolean(fullKeys[id]),fetchPolicy:'on-test-only'}},null,2):'Diagnostics will appear here.'}
-let testerLoadedKey=null;
-async function loadTesterKey(){const id=testerKey.value;if(id&&location.hash!=='#playground/'+encodeURIComponent(id)&&parseRoute().page==='playground')history.replaceState(null,'',routeFor('playground',id));if(id===testerLoadedKey&&testerStatus.textContent!=='Not run yet')return;testerLoadedKey=id;const k=cachedKeys.find(x=>x.id===id);setTesterModel(k?.modelConfig?.model);clearTestResult()}
+let testerLoadedKeyState=null;
+async function loadTesterKey(){const id=testerKey.value;if(id&&location.hash!=='#playground/'+encodeURIComponent(id)&&parseRoute().page==='playground')history.replaceState(null,'',routeFor('playground',id));const k=cachedKeys.find(x=>x.id===id),keyState=JSON.stringify([id,k?.name||'',k?.enabled??null,k?.modelConfig?.model||'']);if(keyState===testerLoadedKeyState&&testerStatus.textContent!=='Not run yet')return;testerLoadedKeyState=keyState;setTesterModel(k?.modelConfig?.model);clearTestResult()}
 async function refreshPlayground(){await Promise.all([loadModels(),loadKeys(),loadSemanticOperations()])}
 function classify(status,data,err,model){return classifyPlaygroundError(status,data,err,model)}
 async function sendTestMessage(){

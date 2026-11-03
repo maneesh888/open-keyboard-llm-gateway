@@ -25,10 +25,15 @@ async function rowAction(page, row, name) {
 async function confirmDialog(page, button) {
   await page.locator('#confirmDialog').getByRole('button', { name: button, exact: true }).click();
 }
-async function createKey(page, name = 'Journey client') {
+async function createKey(page, name = 'Journey client', model = 'fixture:model') {
   await page.getByRole('button', { name: 'New key', exact: true }).click();
   await page.getByLabel('Name', { exact: true }).fill(name);
-  await page.getByLabel('Default model', { exact: true }).selectOption('fixture:model');
+  if (['fixture:model', 'apple-foundationmodel'].includes(model)) {
+    await page.getByLabel('Default model', { exact: true }).selectOption(model);
+  } else {
+    await page.getByLabel('Default model', { exact: true }).selectOption('__custom__');
+    await page.locator('#keyModelManual').fill(model);
+  }
   await page.getByRole('button', { name: 'Create key', exact: true }).click();
   await expect(page.locator('#keyModal')).not.toBeVisible();
   const row = page.locator('tr').filter({ hasText: name });
@@ -111,6 +116,45 @@ test('key lifecycle persists settings, protects credentials and revokes access',
   await expect(row).toHaveCount(0);
   expect((await chat(gateway, { model: 'fixture:model', messages }, original.key)).status).toBe(401);
   expect(await savedKey(gateway, 'Renamed client') === undefined).toBe(true);
+});
+
+test('row actions treat stored identifiers as data and stay reachable in a short viewport', async ({ page, gateway }) => {
+  await page.setViewportSize({ width: 390, height: 320 });
+  await signIn(page, gateway);
+  await page.evaluate(() => { globalThis.reviewMarker = false; });
+  const injectedModel = "fixture');globalThis.reviewMarker=true;//";
+  const row = await createKey(page, 'Stored model fixture', injectedModel);
+  await expect(row).toContainText(injectedModel);
+  await row.getByRole('button', { name: 'More actions', exact: true }).click();
+  const menu = page.locator('#rowMenu');
+  await expect(menu).toBeVisible();
+  const bounds = await menu.evaluate(element => { const rect = element.getBoundingClientRect(); return { y: rect.y, height: rect.height }; });
+  expect(bounds.y).toBeGreaterThanOrEqual(8);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(312);
+  await page.getByRole('menuitem', { name: 'Delete key', exact: true }).scrollIntoViewIfNeeded();
+  await expect(page.getByRole('menuitem', { name: 'Delete key', exact: true })).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Refresh status', exact: true }).click();
+  await expect(page.locator('#dashboardError')).toBeVisible();
+  expect(await page.evaluate(() => globalThis.reviewMarker)).toBe(false);
+  expect(gateway.state.chatCalls).toHaveLength(0);
+});
+
+test('tester refreshes the key default and clears an old result after editing', async ({ page, gateway }) => {
+  await signIn(page, gateway);
+  let row = await createKey(page, 'Default model fixture');
+  await row.getByRole('button', { name: 'Open in tester', exact: true }).click();
+  await page.getByRole('button', { name: 'Run test', exact: true }).click();
+  await expect(page.locator('#testerStatus')).toHaveText('Passed');
+  await page.goBack();
+  await expect(page.locator('#pageKeys')).toBeVisible();
+  row = page.locator('tr').filter({ hasText: 'Default model fixture' });
+  await rowAction(page, row, 'Edit');
+  await page.getByLabel('Default model', { exact: true }).selectOption('apple-foundationmodel');
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await row.getByRole('button', { name: 'Open in tester', exact: true }).click();
+  await expect(page.locator('#testerModel')).toHaveValue('apple-foundationmodel');
+  await expect(page.locator('#testerStatus')).toHaveText('Not run yet');
+  await expect(page.locator('#chatLog')).not.toContainText('Fixture answer');
 });
 
 for (const width of [1280, 390]) {

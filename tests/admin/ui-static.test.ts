@@ -216,6 +216,31 @@ describe('Admin UI static contract', () => {
     expect(html).toContain("e.key==='Escape'&&rowMenu.classList.contains('open')");
   });
 
+  it('keeps stored key and model values out of executable row-menu markup', () => {
+    expect(html).toContain('data-key-action="tester"');
+    expect(html).toContain('data-key-action="copy"');
+    expect(html).toContain('data-key-action="menu"');
+    expect(html).toContain('data-menu-action="${action}"');
+    expect(html).toContain("rowMenu.addEventListener('click'");
+    expect(html).not.toContain('safeModel=');
+    expect(html).not.toContain('onclick="closeRowMenu();');
+    expect(html).not.toContain("onclick=\"openRowMenu('");
+  });
+
+  it('bounds a long row menu inside short viewports', () => {
+    expect(html).toContain('max-height:calc(100vh - 16px);overflow-y:auto');
+    expect(html).toContain('maxTop=Math.max(8,innerHeight-h-8)');
+    expect(html).toContain('Math.max(8,Math.min(below,maxTop))');
+    expect(html).not.toContain("addEventListener('scroll',()=>closeRowMenu(false),true)");
+  });
+
+  it('invalidates a tester result when the selected key configuration changes', () => {
+    expect(html).toContain('let testerLoadedKeyState=null');
+    expect(html).toContain("keyState=JSON.stringify([id,k?.name||'',k?.enabled??null,k?.modelConfig?.model||''])");
+    expect(html).toContain("keyState===testerLoadedKeyState&&testerStatus.textContent!=='Not run yet'");
+    expect(html).not.toContain("id===testerLoadedKey&&testerStatus.textContent!=='Not run yet'");
+  });
+
   it('confirms deletion in an in-page dialog that names the key', () => {
     expect(html).toContain('<dialog id="confirmDialog"');
     expect(html).toContain('title:`Delete ${k?.name||\'this key\'}?`');
