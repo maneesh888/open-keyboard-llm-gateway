@@ -70,10 +70,11 @@ function validateLocalOllamaHost(value: unknown): string | undefined {
     || target.password
     || target.search
     || target.hash
+    || normalized !== target.origin
     || !['localhost', '127.0.0.1', '[::1]'].includes(target.hostname)) {
     throw new Error('localOllamaHost must be an exact plain-HTTP loopback origin');
   }
-  return normalized;
+  return target.origin;
 }
 
 function validateLocalOllamaModels(value: unknown, host: string | undefined): string[] {

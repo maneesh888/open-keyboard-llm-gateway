@@ -132,7 +132,13 @@ describe('app config loading', () => {
       localOllamaModels: ['gemma4:latest'],
     })).toMatchObject({ localOllamaHost: 'http://127.0.0.1:11436', localOllamaModels: ['gemma4:latest'] });
 
-    for (const localOllamaHost of ['http://192.168.1.2:11434', 'https://127.0.0.1:11434', 'http://localhost:11434/path']) {
+    for (const localOllamaHost of [
+      'http://192.168.1.2:11434',
+      'https://127.0.0.1:11434',
+      'http://localhost:11434/path',
+      'http://127.0.0.1:11436?',
+      'http://127.0.0.1:11436#',
+    ]) {
       expect(() => validateConfig({ ...defaultConfig(), localOllamaHost, localOllamaModels: ['gemma4'] }))
         .toThrow(/localOllamaHost/);
     }
