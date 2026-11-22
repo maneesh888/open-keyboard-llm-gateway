@@ -99,7 +99,7 @@ export class OllamaProxy {
     for (const model of this.localModels) models.delete(model);
     for (const model of tags.models || []) {
       const name = model.name || model.model;
-      if (name) models.add(name);
+      if (name && !this.localModels.has(name)) models.add(name);
     }
 
     if (this.localHost && this.localModels.size > 0) {

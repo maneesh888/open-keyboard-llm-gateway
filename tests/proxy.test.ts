@@ -183,6 +183,17 @@ describe('OllamaProxy', () => {
     ]);
   });
 
+  it('does not advertise a local-routed ID from the primary catalog while its local backend is unavailable', async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json({ models: [{ name: 'cloud:latest' }, { name: 'shared:latest' }] }))
+      .mockRejectedValueOnce(new Error('bridge offline'));
+    const proxy = new OllamaProxy('http://cloud-ollama.test', undefined, KNOWN_MODELS_PATH, 'http://127.0.0.1:11436', ['shared:latest']);
+    const res = await buildApp(proxy).request('/v1/models');
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.map((entry: { id: string }) => entry.id)).toEqual(['cloud:latest']);
+  });
+
   it('preserves standard generation fields and unknown additive request values exactly', async () => {
     const upstreamBody = JSON.parse(chatCompletion('Preserved'));
     upstreamBody.system_fingerprint = 'fp_test';
