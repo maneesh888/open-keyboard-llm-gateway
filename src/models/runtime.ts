@@ -98,6 +98,8 @@ export class ProcessLocalServiceLauncher implements LocalServiceLauncher {
 
 type ModelRuntimeOptions = {
   ollamaHost: string;
+  localOllamaHost?: string;
+  localOllamaModels?: string[];
   apfelHost?: string;
   allowLocalServiceStart?: boolean;
   launcher?: LocalServiceLauncher;
@@ -177,6 +179,8 @@ function wait(ms: number): Promise<void> {
 
 export class ModelRuntimeManager {
   private readonly ollamaTarget?: URL;
+  private readonly localOllamaTarget?: URL;
+  private readonly localOllamaModels: Set<string>;
   private readonly apfelTarget?: URL;
   private readonly allowLocalServiceStart: boolean;
   private readonly launcher: LocalServiceLauncher;
@@ -189,6 +193,8 @@ export class ModelRuntimeManager {
 
   constructor(options: ModelRuntimeOptions) {
     this.ollamaTarget = optionalURL(options.ollamaHost);
+    this.localOllamaTarget = optionalURL(options.localOllamaHost);
+    this.localOllamaModels = new Set(options.localOllamaModels || []);
     this.apfelTarget = optionalURL(options.apfelHost);
     this.allowLocalServiceStart = options.allowLocalServiceStart === true;
     this.launcher = options.launcher || new ProcessLocalServiceLauncher();
@@ -203,7 +209,35 @@ export class ModelRuntimeManager {
   async checkModel(value: unknown): Promise<ModelRuntimeStatus> {
     const model = safeModelName(value);
     if (model === 'apple-foundationmodel') return this.apfelStatus(model);
+    if (this.localOllamaTarget && this.localOllamaModels.has(model)) return this.localOllamaStatus(model);
     return this.ollamaStatus(model);
+  }
+
+  private async localOllamaStatus(model: string): Promise<ModelRuntimeStatus> {
+    const base = statusBase(model, 'ollama');
+    try {
+      const response = await fetch(new URL('/api/tags', this.localOllamaTarget!), { signal: AbortSignal.timeout(5000) });
+      if (!response.ok) throw new Error('Local Ollama catalog unavailable');
+      const tags = modelNames(await response.json() as ModelListPayload);
+      if (!tags.has(model)) {
+        return {
+          ...base, state: 'unavailable', service: 'reachable', runtime: 'unknown',
+          message: 'The Mac-backed Ollama bridge is reachable, but this configured model is not in its catalog.',
+          start: { supported: false }, stop: { supported: false },
+        };
+      }
+      return {
+        ...base, state: 'available', service: 'reachable', runtime: 'unknown',
+        message: 'The configured Mac-backed Ollama model is advertised. Live inference has not been tested.',
+        start: { supported: false }, stop: { supported: false },
+      };
+    } catch {
+      return {
+        ...base, state: 'unavailable', service: 'unreachable', runtime: 'unknown',
+        message: 'The Mac-backed Ollama bridge is not reachable. Check the loopback tunnel and Mac service.',
+        start: { supported: false }, stop: { supported: false },
+      };
+    }
   }
 
   startModel(value: unknown): Promise<ModelRuntimeStatus> {

@@ -17,6 +17,21 @@ afterEach(() => {
 });
 
 describe('bounded model runtime checks', () => {
+  it('checks explicitly routed Mac models through the loopback bridge without offering service controls', async () => {
+    const fetchSpy = vi.fn(async () => Response.json({ models: [{ name: 'gemma4:latest' }] }));
+    vi.stubGlobal('fetch', fetchSpy);
+    const status = await manager({
+      localOllamaHost: 'http://127.0.0.1:11436',
+      localOllamaModels: ['gemma4:latest'],
+    }).checkModel('gemma4:latest');
+
+    expect(status).toMatchObject({
+      state: 'available', service: 'reachable', runtime: 'unknown',
+      start: { supported: false }, stop: { supported: false }, inferenceVerified: false,
+    });
+    expect(fetchSpy.mock.calls.map(([url]) => String(url))).toEqual(['http://127.0.0.1:11436/api/tags']);
+  });
+
   it('reports a loaded Ollama model without running inference', async () => {
     const fetchSpy = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);

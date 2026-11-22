@@ -50,6 +50,8 @@ export interface AppConfig {
   port: number;
   bindAddress?: string;
   ollamaHost: string;
+  localOllamaHost?: string;
+  localOllamaModels?: string[];
   apfelHost?: string;
   allowLocalServiceStart?: boolean;
   modelServiceControllerUrl?: string;

@@ -38,9 +38,13 @@ export function createApp(
     config.ollamaHost,
     config.apfelHost,
     './config/known-models.json',
+    config.localOllamaHost,
+    config.localOllamaModels,
   );
   const modelRuntime = new ModelRuntimeManager({
     ollamaHost: config.ollamaHost,
+    localOllamaHost: config.localOllamaHost,
+    localOllamaModels: config.localOllamaModels,
     apfelHost: config.apfelHost,
     allowLocalServiceStart: config.allowLocalServiceStart,
     launcher: dependencies.localServiceLauncher,
@@ -55,8 +59,12 @@ export function createApp(
   app.use('*', trustedProxyMiddleware(config));
 
   const healthCheck = async () => {
-    const ollamaOk = await proxy.healthCheck();
-    return { status: 'ok', ollama: ollamaOk ? 'connected' : 'disconnected' } as const;
+    const [ollamaOk, localOllamaOk] = await Promise.all([proxy.healthCheck(), proxy.localHealthCheck()]);
+    return {
+      status: 'ok',
+      ollama: ollamaOk ? 'connected' : 'disconnected',
+      ...(localOllamaOk === undefined ? {} : { localOllama: localOllamaOk ? 'connected' : 'disconnected' }),
+    } as const;
   };
 
   app.get('/', async (c) => c.json(await healthCheck()));

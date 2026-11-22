@@ -137,6 +137,52 @@ describe('OllamaProxy', () => {
     expect(opts.body).toBe(payload);
   });
 
+  it('routes only explicitly configured local models to the loopback Ollama bridge', async () => {
+    fetchSpy.mockResolvedValueOnce(new Response(chatCompletion('Hello', { model: 'gemma4:latest' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })).mockResolvedValueOnce(new Response(chatCompletion('Hello', { model: 'cloud-only:latest' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    const proxy = new OllamaProxy('http://cloud-ollama.test', undefined, KNOWN_MODELS_PATH, 'http://127.0.0.1:11436', ['gemma4:latest']);
+    const app = buildApp(proxy);
+    const payload = JSON.stringify({ model: 'gemma4:latest', messages: [{ role: 'user', content: 'hi' }] });
+    const res = await app.request('/v1/chat/completions', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: payload,
+    });
+
+    expect(res.status).toBe(200);
+    expect(fetchSpy.mock.calls.map(([url]) => String(url))).toEqual(['http://127.0.0.1:11436/v1/chat/completions']);
+    expect((fetchSpy.mock.calls[0]?.[1] as RequestInit).body).toBe(payload);
+    expect((fetchSpy.mock.calls[0]?.[1] as RequestInit).headers).toEqual(expect.any(Headers));
+
+    const cloudPayload = JSON.stringify({ model: 'cloud-only:latest', messages: [{ role: 'user', content: 'hi' }] });
+    const cloudRes = await app.request('/v1/chat/completions', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: cloudPayload,
+    });
+    expect(cloudRes.status).toBe(200);
+    expect(fetchSpy.mock.calls.map(([url]) => String(url))).toEqual([
+      'http://127.0.0.1:11436/v1/chat/completions',
+      'http://cloud-ollama.test/v1/chat/completions',
+    ]);
+  });
+
+  it('merges only selected local models advertised by the loopback backend', async () => {
+    fetchSpy.mockResolvedValueOnce(Response.json({ models: [{ name: 'cloud:latest' }] }))
+      .mockResolvedValueOnce(Response.json({ models: [{ name: 'gemma4:latest' }, { name: 'unselected:latest' }] }));
+    const proxy = new OllamaProxy('http://cloud-ollama.test', undefined, KNOWN_MODELS_PATH, 'http://127.0.0.1:11436', ['gemma4:latest']);
+    const res = await buildApp(proxy).request('/v1/models');
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.map((entry: { id: string }) => entry.id)).toEqual(['cloud:latest', 'gemma4:latest']);
+    expect(fetchSpy.mock.calls.map(([url]) => String(url))).toEqual([
+      'http://cloud-ollama.test/api/tags', 'http://127.0.0.1:11436/api/tags',
+    ]);
+  });
+
   it('preserves standard generation fields and unknown additive request values exactly', async () => {
     const upstreamBody = JSON.parse(chatCompletion('Preserved'));
     upstreamBody.system_fingerprint = 'fp_test';

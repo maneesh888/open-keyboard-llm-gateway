@@ -5,6 +5,8 @@ import type { AppConfig } from '../types/index.js';
 export type ConfigEnv = {
   PORT?: string;
   OLLAMA_HOST?: string;
+  LOCAL_OLLAMA_HOST?: string;
+  LOCAL_OLLAMA_MODELS?: string;
   APFEL_HOST?: string;
   ALLOW_LOCAL_SERVICE_START?: string;
   MODEL_SERVICE_CONTROLLER_URL?: string;
@@ -14,6 +16,8 @@ export function defaultConfig(env: ConfigEnv = process.env): AppConfig {
   return {
     port: parseInt(env.PORT || '8080'),
     ollamaHost: env.OLLAMA_HOST || 'http://host.docker.internal:11434',
+    localOllamaHost: env.LOCAL_OLLAMA_HOST || undefined,
+    localOllamaModels: env.LOCAL_OLLAMA_MODELS ? env.LOCAL_OLLAMA_MODELS.split(',').map((model) => model.trim()).filter(Boolean) : [],
     apfelHost: env.APFEL_HOST || undefined,
     allowLocalServiceStart: env.ALLOW_LOCAL_SERVICE_START === 'true',
     modelServiceControllerUrl: env.MODEL_SERVICE_CONTROLLER_URL || undefined,
@@ -56,6 +60,36 @@ function validateModelServiceControllerURL(value: unknown): string | undefined {
   return normalized;
 }
 
+function validateLocalOllamaHost(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  const normalized = validateURL(value, 'localOllamaHost');
+  const target = new URL(normalized);
+  if (target.protocol !== 'http:'
+    || !['', '/'].includes(target.pathname)
+    || target.username
+    || target.password
+    || target.search
+    || target.hash
+    || !['localhost', '127.0.0.1', '[::1]'].includes(target.hostname)) {
+    throw new Error('localOllamaHost must be an exact plain-HTTP loopback origin');
+  }
+  return normalized;
+}
+
+function validateLocalOllamaModels(value: unknown, host: string | undefined): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some((model) => typeof model !== 'string')) {
+    throw new Error('localOllamaModels must be a string array');
+  }
+  const models = value.map((model) => model.trim());
+  if (models.length > 100 || models.some((model) => !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(model) || model === 'apple-foundationmodel')) {
+    throw new Error('localOllamaModels must contain bounded exact model identifiers');
+  }
+  if (new Set(models).size !== models.length) throw new Error('localOllamaModels must not contain duplicates');
+  if (models.length > 0 && !host) throw new Error('localOllamaHost is required when localOllamaModels is configured');
+  return models;
+}
+
 export function validateConfig(raw: unknown): AppConfig {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
     throw new Error('config must be an object');
@@ -85,10 +119,14 @@ export function validateConfig(raw: unknown): AppConfig {
     throw new Error('allowLocalServiceStart must be a boolean when provided');
   }
 
+  const localOllamaHost = validateLocalOllamaHost(config.localOllamaHost);
+  const localOllamaModels = validateLocalOllamaModels(config.localOllamaModels, localOllamaHost);
   return {
     port,
     ...(config.bindAddress === undefined ? {} : { bindAddress: config.bindAddress }),
     ollamaHost: validateURL(config.ollamaHost, 'ollamaHost'),
+    localOllamaHost,
+    localOllamaModels,
     apfelHost: config.apfelHost === undefined ? undefined : validateURL(config.apfelHost, 'apfelHost'),
     allowLocalServiceStart: config.allowLocalServiceStart ?? false,
     modelServiceControllerUrl: validateModelServiceControllerURL(config.modelServiceControllerUrl),

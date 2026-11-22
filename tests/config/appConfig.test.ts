@@ -15,6 +15,8 @@ describe('app config loading', () => {
     const config = loadConfig(tempPath('missing.json'), {
       PORT: '9090',
       OLLAMA_HOST: 'http://localhost:11434/',
+      LOCAL_OLLAMA_HOST: 'http://127.0.0.1:11436/',
+      LOCAL_OLLAMA_MODELS: 'gemma4:latest, llama3.2:3b ',
       APFEL_HOST: 'http://localhost:11435/',
       ALLOW_LOCAL_SERVICE_START: 'true',
       MODEL_SERVICE_CONTROLLER_URL: 'http://host.docker.internal:18777/',
@@ -23,6 +25,8 @@ describe('app config loading', () => {
     expect(config).toEqual({
       port: 9090,
       ollamaHost: 'http://localhost:11434',
+      localOllamaHost: 'http://127.0.0.1:11436',
+      localOllamaModels: ['gemma4:latest', 'llama3.2:3b'],
       apfelHost: 'http://localhost:11435',
       allowLocalServiceStart: true,
       modelServiceControllerUrl: 'http://host.docker.internal:18777',
@@ -37,6 +41,8 @@ describe('app config loading', () => {
     writeFileSync(path, JSON.stringify({
       port: 8080,
       ollamaHost: 'http://localhost:11434/',
+      localOllamaHost: undefined,
+      localOllamaModels: [],
       apfelHost: 'https://apfel.example/',
       logLevel: ' info ',
       corsOrigins: [' https://app.example '],
@@ -46,6 +52,8 @@ describe('app config loading', () => {
     expect(loadConfig(path)).toEqual({
       port: 8080,
       ollamaHost: 'http://localhost:11434',
+      localOllamaHost: undefined,
+      localOllamaModels: [],
       apfelHost: 'https://apfel.example',
       allowLocalServiceStart: false,
       modelServiceControllerUrl: undefined,
@@ -115,6 +123,22 @@ describe('app config loading', () => {
       logLevel: 'info',
       corsOrigins: ['*'],
     });
+  });
+
+  it('requires a loopback HTTP endpoint for exact local Ollama routes', () => {
+    expect(validateConfig({
+      ...defaultConfig(),
+      localOllamaHost: 'http://127.0.0.1:11436',
+      localOllamaModels: ['gemma4:latest'],
+    })).toMatchObject({ localOllamaHost: 'http://127.0.0.1:11436', localOllamaModels: ['gemma4:latest'] });
+
+    for (const localOllamaHost of ['http://192.168.1.2:11434', 'https://127.0.0.1:11434', 'http://localhost:11434/path']) {
+      expect(() => validateConfig({ ...defaultConfig(), localOllamaHost, localOllamaModels: ['gemma4'] }))
+        .toThrow(/localOllamaHost/);
+    }
+    expect(() => validateConfig({ ...defaultConfig(), localOllamaModels: ['gemma4'] })).toThrow(/required/);
+    expect(() => validateConfig({ ...defaultConfig(), localOllamaHost: 'http://localhost:11436', localOllamaModels: ['bad model'] }))
+      .toThrow(/exact model identifiers/);
   });
 
   it('rejects removed Codex configuration instead of silently ignoring it', () => {

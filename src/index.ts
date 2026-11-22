@@ -35,6 +35,9 @@ console.log(`[gateway] Proxying to ${config.ollamaHost}`);
 if (config.apfelHost) {
   console.log(`[gateway] Apfel backend enabled at ${config.apfelHost}`);
 }
+if (config.localOllamaHost && config.localOllamaModels?.length) {
+  console.log(`[gateway] Mac-backed Ollama loopback route enabled for ${config.localOllamaModels.length} configured models`);
+}
 if (config.allowLocalServiceStart) {
   console.log('[gateway] Local model service start controls enabled for loopback targets only');
 }

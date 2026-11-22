@@ -57,6 +57,24 @@ describe('Integration', () => {
     expect(body).not.toHaveProperty('codex');
   });
 
+  it('reports the optional local Ollama bridge separately in health', async () => {
+    const dir = join(tmpdir(), 'llm-gateway-local-health-' + Date.now());
+    mkdirSync(dir, { recursive: true });
+    const keysPath = join(dir, 'keys.json');
+    writeFileSync(keysPath, JSON.stringify({ keys: [] }));
+    const { app: localApp } = createApp({
+      port: 8080, ollamaHost: 'http://cloud-ollama.test',
+      localOllamaHost: 'http://127.0.0.1:11436', localOllamaModels: ['gemma4:latest'],
+      logLevel: 'error', corsOrigins: ['*'],
+    }, keysPath);
+    const fetchSpy = vi.fn(async (input: string | URL | Request) => String(input).startsWith('http://cloud-ollama.test')
+      ? Response.json({ models: [] })
+      : Promise.reject(new Error('bridge offline')));
+    vi.stubGlobal('fetch', fetchSpy);
+    const response = await localApp.request('/health');
+    expect(await response.json()).toEqual({ status: 'ok', ollama: 'connected', localOllama: 'disconnected' });
+  });
+
   it('serves the pinned semantic operation catalog without auth or prompt content', async () => {
     const res = await app.request('/ui/semantic-operations.json');
     expect(res.status).toBe(200);

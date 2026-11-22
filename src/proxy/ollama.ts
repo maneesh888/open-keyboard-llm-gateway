@@ -30,6 +30,8 @@ export class UpstreamResponseError extends Error {
 
 export class OllamaProxy {
   private host: string;
+  private localHost?: string;
+  private localModels: Set<string>;
   private apfelHost?: string;
   private knownModelsPath: string;
 
@@ -37,8 +39,12 @@ export class OllamaProxy {
     host: string,
     apfelHost?: string,
     knownModelsPath = './config/known-models.json',
+    localHost?: string,
+    localModels: string[] = [],
   ) {
     this.host = host.replace(/\/$/, '');
+    this.localHost = localHost?.replace(/\/$/, '');
+    this.localModels = new Set(localModels);
     this.apfelHost = apfelHost?.replace(/\/$/, '');
     this.knownModelsPath = knownModelsPath;
   }
@@ -69,6 +75,14 @@ export class OllamaProxy {
     } catch { return false; }
   }
 
+  async localHealthCheck(): Promise<boolean | undefined> {
+    if (!this.localHost || this.localModels.size === 0) return undefined;
+    try {
+      const res = await fetch(`${this.localHost}/api/tags`, { signal: AbortSignal.timeout(3000) });
+      return res.ok;
+    } catch { return false; }
+  }
+
   async listModels(): Promise<string[]> {
     const tagsRes = await fetch(`${this.host}/api/tags`, { signal: AbortSignal.timeout(5000) });
     if (!tagsRes.ok) {
@@ -82,9 +96,25 @@ export class OllamaProxy {
       throw new UpstreamResponseError('Ollama model list returned invalid JSON', tagsRes.status);
     }
     const models = new Set<string>(this.loadKnownModels());
+    for (const model of this.localModels) models.delete(model);
     for (const model of tags.models || []) {
       const name = model.name || model.model;
       if (name) models.add(name);
+    }
+
+    if (this.localHost && this.localModels.size > 0) {
+      try {
+        const localRes = await fetch(`${this.localHost}/api/tags`, { signal: AbortSignal.timeout(5000) });
+        if (localRes.ok) {
+          const local = await localRes.json() as { models?: Array<{ name?: string; model?: string }> };
+          for (const entry of local.models || []) {
+            const name = entry.name || entry.model;
+            if (name && this.localModels.has(name)) models.add(name);
+          }
+        }
+      } catch {
+        // Keep cloud catalog availability when the optional loopback bridge is down.
+      }
     }
 
     if (this.apfelHost) {
@@ -173,6 +203,7 @@ export class OllamaProxy {
   }
 
   private targetHostForModel(model?: string): string {
+    if (this.localHost && model && this.localModels.has(model)) return this.localHost;
     if (this.apfelHost && model === 'apple-foundationmodel') {
       return this.apfelHost;
     }
